@@ -1,4 +1,4 @@
-# Omnilex
+# Omnilist
 
 One command to fetch your OmniRoute model catalog and keep every AI coding tool's config in sync.
 
@@ -16,7 +16,7 @@ Omnilex fixes that. You keep one list of providers and one fetched model catalog
 ## Requirements
 
 - **Node.js** (any recent LTS — 16+ is fine)
-- **OmniRoute gateway** running locally (default `http://localhost:20128`) — see the [setup guide](https://www.imshafin.tech/blog/omniroute-setup/windows-autostart)
+- **OmniRoute gateway** running locally (default `http://localhost:20128`) — see the [setup guide](https://www.imshafin.tech/blog/omniroute-setup)
 - **Windows** for the auto-install command feature (the sync logic itself is cross-platform)
 
 ## Installation
@@ -24,7 +24,7 @@ Omnilex fixes that. You keep one list of providers and one fetched model catalog
 Clone or copy the repo to a permanent location. The folder gets added to your PATH, so don't move it later without reinstalling.
 
 ```powershell
-git clone https://github.com/<you>/omnilist.git
+git clone https://github.com/beingshafin/omnilist.git
 cd omnilist
 node omnilist.js
 ```
