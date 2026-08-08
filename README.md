@@ -115,7 +115,7 @@ You never edit the tool config files directly. `omnilist` is the only thing that
 
 For the full OmniRoute setup on Windows — gateway install, autostart, everything — see:
 
-👉 **[OmniRoute setup on Windows with autostart](https://www.imshafin.tech/blog/omniroute-setup/windows-autostart)**
+👉 **[OmniRoute setup on Windows with autostart](https://www.imshafin.tech/blog/omniroute-setup)**
 
 Omnilex assumes the gateway is already running. That guide covers the rest.
 
