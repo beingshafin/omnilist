@@ -2,7 +2,7 @@
 
 One command to fetch your OmniRoute model catalog and keep every AI coding tool's config in sync.
 
-[OmniRoute](https://www.imshafin.tech/blog/omniroute-setup/windows-autostart) gives you a single local gateway for every model provider you use. The problem is that OpenCode, Kilo, and T3 each store their model list in their own config files, in their own format. Add or rotate a provider, and you end up pasting the same information into three places.
+[OmniRoute](https://www.imshafin.tech/blog/omniroute-setup) gives you a single local gateway for every model provider you use. The problem is that OpenCode, Kilo, and T3 each store their model list in their own config files, in their own format. Add or rotate a provider, and you end up pasting the same information into three places.
 
 Omnilex fixes that. You keep one list of providers and one fetched model catalog, and it pushes everything into every tool for you.
 
