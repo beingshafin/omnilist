@@ -46,7 +46,7 @@ cd omnilist
 node omnilist.js
 ```
 
-On the first run it fetches your Router's model catalog from `{base_url}/models` (or a full `models_endpoint` from `config.jsonc`, see below). No interactive prompt — the Router's URL and key come straight from `providers.csv`.
+On the first run, if no Router is configured yet (no `providers.csv`, or it has no `Router` row), the script prompts you for the Router **base URL** and **API key**, writes `providers.csv` for you, and then fetches the catalog. If a Router is already set up, there's no prompt — the URL and key come straight from `providers.csv`, and it fetches the model catalog from `{base_url}/models` (or a full `models_endpoint` from `config.jsonc`, see below).
 
 Then install the global command:
 
@@ -167,7 +167,7 @@ Rules run top-down and the **last matching rule wins** — a later rule override
 - **Right after setting up a Router** — populate OpenCode, Kilo, and T3 in one shot
 - **After editing `providers.csv`** — add a key, remove a provider, or rotate a credential
 - **When new models appear** — rerun to pull the fresh catalog and push it everywhere
-- **On a new machine** — clone, fill in `providers.csv`, run `omnilist`
+- **On a new machine** — clone and run `omnilist`; it prompts for the Router base URL + API key, writes `providers.csv`, and fetches the catalog
 - **Whenever your model pickers feel out of sync** — one run reconciles everything
 
 ## What it does, briefly
@@ -198,7 +198,7 @@ You never edit the tool config files directly. `omnilist` is the only thing that
 | Problem | Fix |
 |---|---|
 | Command not found in a new terminal | Close and reopen the terminal, or run `omnilist install` again |
-| "No provider with description Router found" | Add a row to `providers.csv` whose `description` is exactly `Router` |
+| "No provider with description Router found" | Run `omnilist` from an interactive terminal to be prompted for the base URL + API key, or add a row to `providers.csv` whose `description` is exactly `Router` |
 | "Multiple providers have description Router" | The script keeps the first and ignores the rest — delete the extra `Router` rows to silence it |
 | Model list missing capabilities | Your router doesn't report them, so they're stored as `-1`; edit `capabilities.n_a_defaults` in `config.jsonc` |
 | Fetch fails | Confirm the Router gateway is reachable and `base_url`/`api_key` in `providers.csv` are correct |

@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const readline = require('readline');
 const { execFileSync } = require('child_process');
 
 // ---------- config ----------
@@ -230,6 +231,110 @@ function requireRouterRow(rows) {
 function routerNameOf(rows) {
   const r = getRouterRow(rows);
   return r ? r.provider : null;
+}
+
+// ---------- first-run setup ----------
+function isInteractive() {
+  // OMNILIST_FORCE_SETUP=1 forces the setup prompt even on a non-TTY stdin
+  // (used by the test-suite to exercise the interactive bootstrap).
+  if (process.env.OMNILIST_FORCE_SETUP === '1') return true;
+  try { return Boolean(process.stdin.isTTY); } catch (e) { return false; }
+}
+
+// A line reader over stdin that works for both a TTY (lines arrive as the user
+// types) and piped input (all lines arrive in one burst, then EOF). readline's
+// one-shot `question()` can't be chained on piped input — the whole buffer is
+// consumed and the interface auto-closes before later questions are registered —
+// so we buffer 'line' events into a queue and hand them out on demand.
+function makeLineReader() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const queue = [];    // lines received but not yet requested
+  const waiters = [];  // ask() calls waiting for the next line
+  let closed = false;
+  rl.on('line', (line) => {
+    if (waiters.length) waiters.shift().resolve(line);
+    else queue.push(line);
+  });
+  rl.on('close', () => {
+    closed = true;
+    while (waiters.length) waiters.shift().resolve(null); // EOF -> null
+  });
+  return {
+    // Print `prompt`, then resolve with the next line (or null at EOF).
+    ask(prompt) {
+      process.stdout.write(prompt);
+      return new Promise((resolve) => {
+        if (queue.length) resolve(queue.shift());
+        else if (closed) resolve(null);
+        else waiters.push({ resolve });
+      });
+    },
+    close() { rl.close(); },
+  };
+}
+
+// On a fresh install providers.csv doesn't exist (or has no Router row). Prompt
+// the user for the Router's base URL + API key and write a minimal providers.csv
+// so the normal fetch step can populate models.csv. Returns the created provider
+// name, or null when a Router already existed and nothing needed to change.
+async function ensureRouterProvider() {
+  const rows = readProvidersCsv();
+  if (getRouterRow(rows)) return null; // already configured
+
+  if (!isInteractive()) {
+    // Cannot prompt (piped/no stdin). Give a clear error instead of hanging.
+    throw new Error('No provider with description "Router" found in ' + PROVIDERS_CSV +
+      '. Run from an interactive terminal to set one up, or edit providers.csv ' +
+      'manually (a row whose description is exactly "Router").');
+  }
+
+  const reader = makeLineReader();
+  // Ask one question. Returns the trimmed answer, or `defaultValue` on an empty
+  // line / EOF.
+  const q = async (question, defaultValue) => {
+    const hint = (defaultValue !== undefined && defaultValue !== null && defaultValue !== '')
+      ? ' [' + defaultValue + ']' : '';
+    const answer = await reader.ask(question + hint + ': ');
+    const trimmed = (answer || '').trim();
+    return trimmed === '' && defaultValue !== undefined ? defaultValue : trimmed;
+  };
+
+  try {
+    console.log('\nNo Router provider is configured yet. Let’s set one up.\n');
+    const baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
+    if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
+    const apiKey = (await q('Router API key', '')) || '';
+    if (!apiKey) throw new Error('Aborted: no Router API key provided.');
+    const providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+
+    const header = 'provider,base_url,api_key,description';
+    const line = providerName + ',' + baseUrl + ',' + apiKey + ',Router';
+    fs.mkdirSync(path.dirname(PROVIDERS_CSV), { recursive: true });
+
+    // Preserve any existing (non-Router) providers.csv content: append the new
+    // Router row rather than overwriting rows the user already had.
+    let existing = '';
+    if (fs.existsSync(PROVIDERS_CSV)) {
+      existing = fs.readFileSync(PROVIDERS_CSV, 'utf8').replace(/\r\n/g, '\n').replace(/\n+$/, '');
+    }
+    const hasContent = existing.trim().length > 0;
+    const hasHeader = /^\s*provider\s*,/.test(existing);
+    let out;
+    if (!hasContent) {
+      out = header + '\n' + line + '\n';
+    } else if (hasHeader) {
+      out = existing + '\n' + line + '\n';
+    } else {
+      out = header + '\n' + existing + '\n' + line + '\n';
+    }
+    fs.writeFileSync(PROVIDERS_CSV, out, 'utf8');
+
+    console.log('\n' + (hasContent ? 'Added' : 'Created') +
+      ' Router provider "' + providerName + '" in ' + PROVIDERS_CSV + '.\n');
+    return providerName;
+  } finally {
+    reader.close();
+  }
 }
 
 // ---------- helpers ----------
@@ -1576,6 +1681,10 @@ The special "Router" provider is the row in providers.csv whose description
 column (trimmed) equals exactly "Router". Only the first such row is used;
 any additional Router rows are reported on the console and ignored.
 
+First run: if no Router is configured (providers.csv missing or has no "Router"
+row), you'll be prompted for the Router base URL + API key. That creates
+providers.csv, and the fetch step then builds models.csv from the model endpoint.
+
 Targets (default if none given: fetch + enabled targets + cleanup):
   fetch           Fetch models -> models.csv from the Router's {base_url}/models
   opencode        Sync router provider block into opencode.jsonc
@@ -1796,6 +1905,18 @@ function parseArgs() {
     }
     if (has('install')) installAsCommand();
     if (has('uninstall')) uninstallAsCommand();
+
+    // First-run bootstrap: if no Router is configured and this run includes a
+    // target that requires one, prompt for the base URL + API key to create
+    // providers.csv. The `fetch` target then builds models.csv from the model
+    // endpoint below. Targets that tolerate a missing Router (the *rest and
+    // cleanup steps) don't trigger the prompt.
+    const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models'];
+    if (ROUTER_TARGETS.some((t) => has(t))) {
+      const created = await ensureRouterProvider();
+      if (created) console.log('Providers configured. Fetching the model catalog now...\n');
+    }
+
     for (const target of buildOrder()) {
       if (!has(target)) continue;
       try {
