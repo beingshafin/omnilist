@@ -1,0 +1,174 @@
+// ============================================================================
+//  OMNILIST CONFIGURATION  (JSONC — comments allowed, unlike plain JSON)
+// ============================================================================
+//
+//  WHAT THIS IS
+//  -------------
+//  Omnilist keeps your AI coding tools (OpenCode, Kilo, T3) in sync with a
+//  single Router's model catalog. You keep ONE list of providers in
+//  `providers.csv`; omnilist fetches the Router's model list and pushes it
+//  into every tool's config file for you.
+//
+//  HOW TO USE IT
+//  --------------
+//  This file ships with safe defaults — just edit it directly. Every key is
+//  OPTIONAL; anything you leave out falls back to the defaults below, so an
+//  empty `config.jsonc` ({}) works. Run `node omnilist.js` (or the `omnilist`
+//  command) to apply.
+//
+//  PRIVATE OVERRIDES
+//  -----------------
+//  This file is committed to git, so don't put machine-specific or personal
+//  values in it. Instead, create a `config.local.jsonc` (next to this file,
+//  gitignored) with the same shape — its values OVERRIDE this file. That way
+//  your personal setup stays local and never lands on GitHub.
+//
+//  PATHS
+//  -----
+//  Paths may be absolute, relative (to the script dir), or use `~` for your
+//  home directory.  e.g. "~/.config/opencode/opencode.jsonc"
+//
+//  ENVIRONMENT OVERRIDES (these still win over both files):
+//    MODELS_TEST     -> override models.csv path
+//    JSONC_TEST      -> override opencode.jsonc path
+//    KILO_TEST       -> override kilo.jsonc path
+//    T3_DATA_DIR     -> override T3 userdata dir
+//    OMNILIST_CONFIG -> use a different config file entirely
+//
+//  SYNC TARGETS
+//  -------------
+//  The script can write several blocks. Turn each on/off under "targets":
+//    * opencode_router  -> Router provider block in OpenCode
+//    * opencode_rest    -> per-provider REST blocks in OpenCode
+//    * t3_router        -> flat Router model list in T3
+//    * t3_rest          -> per-provider T3 instances
+//    * kilo_router / kilo_rest -> same for Kilo
+//
+//  MODEL FILTERS — C-like expression language (last matching rule wins):
+//    prefix + expression:  "!" BLOCK   "xxx"/"=xxx" ALLOW   "==xxx" keep-ONLY.
+//    Ids are globs ("*" any run, "?" one char, bare = exact); "$field" reads a
+//    model property.  e.g. "!$input_context < 200000" blocks low-context models.
+//    (fields: $id, $input_context, $output_context, $vision, $reasoning, $tool)
+// ============================================================================
+
+
+{
+  // ----- file locations -----
+  "paths": {
+    "models_csv": "models.csv",                              // fetched catalog output
+    "providers_csv": "providers.csv",                        // your providers (base_url, api_key, description)
+    "opencode_file": "~/.config/opencode/opencode.jsonc",    // OpenCode config
+    "kilo_file": "~/.config/kilo/kilo.jsonc",                // Kilo config
+    "t3_data_dir": "~/.t3/userdata",                         // T3 user data folder
+    "t3_settings_file": "",                                  // "" = <t3_data_dir>/settings.json
+    "t3_logs_dir": ""                                        // "" = <t3_data_dir>/logs
+  },
+
+  // ----- command-line auto-install -----
+  "cli": {
+    "install_as_command": true,                              // auto-register on every run
+    "command_name": "omnilist"                               // installed command name
+  },
+
+  // ----- how the Router model list is fetched -----
+  "fetch": {
+    "models_endpoint": ""                                    // "" = <router base_url>/models
+  },
+
+  // ----- capability detection (vision / reasoning / tool) -----
+  "capabilities": {
+    "fields": {
+      "vision": ["vision", "supports_vision", "image", "input_modalities", "attachment"],
+      "reasoning": ["reasoning", "supports_reasoning", "thinking", "supportsThinking"],
+      "tool": ["tool_call", "tool_calls", "supports_tool_call", "tools", "tool_calling", "supports_tool_calling"]
+    },
+    "n_a_defaults": { "vision": true, "reasoning": true, "tool": true }  // used when a router reports nothing (-1)
+  },
+
+  // ----- model filters (expression language; see README "Filter the model list") -----
+  // Each rule:  [prefix] <expression>.  Prefix: "!" block, "=" or nothing allow,
+  // "==" keep ONLY models matching.  Ids match as globs ("*" any run, "?" one char,
+  // bare = exact); "$field" reads a model property.  Examples:
+  //   "!kc*"                        block kc/ ids
+  //   "*free"                       allow ids ending in "free"
+  //   "!(kc* && !*free)"            block kc ids that don't end in "free"
+  //   "==$input_context >= 200000"  keep ONLY 200k+ context models
+  "model_filters": [
+
+    "!$input_context<200000",   // 200k input-context floor
+    "*glm*",
+    "*deepseek*",
+
+    // "!kc/*",            // block kc/
+    // "!opencode-zen/*",  // block opencode-zen/
+    // "!ocz/*",
+    
+    "!(kc/* && !*free)",             // block kc/
+    "!(opencode-zen/* && !*free)",   // block kc/
+    "!(ocz/* && !*free)",            // block kc/
+
+    
+    
+    "!cl/*",                         // block cl/ (except the exact model re-allowed below)
+    "*cl/deepseek/deepseek-v4-flash*",
+
+
+    "!agy/*",
+    "!gemini/*",
+    "!auto/*",
+    "!aug/*",
+    "!tllm/*",
+    "!ddgw/*",
+    "!pepper/*",
+    "!horde/*",
+    "!mcode/*",
+    "!felo/*",
+    "!*no-think*",                 // bare "!no-think" is now EXACT; "*...*" keeps the keyword block
+    "!*compatible*"
+  ],
+
+  // Same syntax, applied only to T3 customModels lists.
+  "t3_filters": [],
+
+  // Manually inject models into models.csv on every fetch.
+  // Format: { id: "provider/model", in: <input ctx>, out: <output ctx>, vision?, reasoning?, tool? }
+  "custom_models": [],
+
+  // Default for --clean / --noclean.
+  "cleanup_default": true,
+
+  // Hardcoded model template for OpenCode/Kilo; only context/output come from models.csv.
+  "follow_hardcoded_model_template": true,
+
+  // ----- which blocks to write -----
+  "targets": {
+    "opencode_router": true,         // Router model block into opencode.jsonc
+    "opencode_rest": false,          // per-provider REST blocks into opencode.jsonc
+    "t3_router": true,               // flat Router model list into T3
+    "t3_rest": true,                 // per-provider custom_* instances into T3
+    "kilo_router": true,             // Router model block into kilo.jsonc
+    "kilo_rest": false,              // per-provider REST blocks into kilo.jsonc
+    "kilo_copy_opencode_full_provider_block": false  // copy opencode's whole provider{} into kilo
+  },
+
+  // ----- T3 driver settings -----
+  "t3": {
+    "router_drivers": [              // drivers that get the full Router catalog
+      { "driver": "claudeAgent", "1m": true },   // "1m": add [1m] variants for 1M+ models
+      { "driver": "codex", "1m": false }
+    ],
+    "rest_provider_drivers": [       // drivers for non-Router providers (claudeAgent recommended)
+      { "driver": "claudeAgent", "1m": true }
+    ],
+    "driver_strategy": {             // how each driver connects
+      "claudeAgent": { "mode": "env", "apiKey": "ANTHROPIC_API_KEY", "baseUrl": "ANTHROPIC_BASE_URL" },
+      "codex": { "mode": "launchArgs" }
+    }
+  },
+
+  // ----- cleanup of script-managed (custom_*) providers -----
+  "cleanup_providers": {
+    "remove_if_false_provider": true,           // drop custom_* when its target flag is off
+    "remove_if_provider_doesnt_exist": true     // drop custom_* when the provider is gone from providers.csv
+  }
+}

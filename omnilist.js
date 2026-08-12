@@ -4,173 +4,235 @@ const os = require('os');
 const path = require('path');
 const https = require('https');
 const http = require('http');
-const readline = require('readline');
 const { execFileSync } = require('child_process');
 
 // ---------- config ----------
-// VSCode models endpoint. Leave empty ('') to be prompted at runtime.
-// Accepted at the prompt:
-//   - full endpoint URL  e.g. http://localhost:20128/api/v1/vscode/<key>/models
-//   - bare API key/token e.g. sk-0b4b7a306fe4eeb5-76a746-b056e0ba
-const URL = '';
-const VSCODE_MODELS_ENDPOINT = 'http://localhost:20128/api/v1/vscode';
-// Base URL stored in providers.csv for the omniroute provider.
-const OMNIROUTE_BASE_URL = 'http://localhost:20128/v1';
-// The API key is stored in providers.csv (omniroute row) and reused for
-// future fetches (until --new).
-
-// If true, register this script as a "<CLI_COMMAND_NAME>" command:
-//   - writes a <CLI_COMMAND_NAME>.cmd shim next to this script,
-//   - adds the script folder to the persistent User PATH,
-//   - drops an instant shim into %APPDATA%\npm (already on PATH) so the
-//     current terminal can run it without a reset.
-// Idempotent: re-running with true is a no-op if already installed.
-// You can also trigger it manually via: node model-list.js install / uninstall
-const INSTALL_AS_COMMAND = true;
-
-// Name of the CLI command used to run this script from any terminal.
-// "model-list" registers a model-list.cmd shim + adds this folder to PATH,
-// so you can just type:  model-list <targets...>
-const CLI_COMMAND_NAME = 'omnilist';
-
-// Model-name filter rules.
-// Default behavior: all models are included.
-// Step 1 - block keywords (top-down): models matching any "..." rule are excluded.
-// Step 2 - rescue free models ("*free"): anything ending in "free" is allowed
-//   regardless of earlier block matches.
-// Evaluation is LAST-rule-wins: later rules override earlier ones.
-// Patterns are matched against the full model id (case-insensitive).
-//   "!xxx"  or  "!xxx*" or  "!*xxx*"  -> BLOCK (exclude)
-//   "xxx"  or  "xxx*" or  "*xxx*"  -> ALLOW (include)
-// "*" is a wildcard: "foo*bar" means starts "foo" AND ends "bar".
-// No "*" means substring match.
-const MODEL_FILTERS = [
-
-  "!kc/*",
-  "!opencode-zen/*",
-  "*free",
-
-  "!agy/*",
-  "!gemini/*",
-  "!no-think",
-  "!compatible",
-];
-
-
-const T3_FILTERS = [
-  //"!*free",    // block anything ending with "free"
-  //"*free",     // allow ONLY models ending with "free"
-  //"kilo/*",    // allow anything under "kilo/" provider
-];
-
-// Custom models to inject into models.csv on every fetch.
-// These are merged (no duplicates) and sorted alongside API results.
-// Format: { id: "provider/model", in: <input_context>, out: <output_context> }
-const CUSTOM_MODELS = [
-  // { id: 'agentrouter/bunga', in: 200000, out: 128000 },
-  // { id: 'my-provider/my-model', in: 200000, out: 128000 },
-];
-
-const MIN_INPUT_TOKENS_DEFAULT = 128000;
-const MIN_OUTPUT_TOKENS_DEFAULT = 0;
-const CLEANUP_DEFAULT = true;
-
-const T3_OMNIRoute_PROVIDER = true;
-const T3_REST_PROVIDER = true;
-
-const OPENCODE_OMNIRoute_PROVIDER = true;
-const OPENCODE_REST_PROVIDER = false;
-
-const KILO_OMNIRoute_PROVIDER = true;
-const KILO_REST_PROVIDER = false;
-
-const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = false;
-
-// If true, remove script-managed (custom_*) providers whose feature flag is false.
-const REMOVE_IF_FALSE_PROVIDER = true;
-// If true, remove script-managed (custom_*) providers that no longer exist in providers.csv.
-const REMOVE_IF_PROVIDER_DOESNT_EXIST = true;
-
 const home = os.homedir();
-const MODELS_CSV = process.env.MODELS_TEST || path.join(__dirname, 'models.csv');
-const PROVIDERS_CSV = path.join(__dirname, 'providers.csv');
-const OPENCODE_FILE = process.env.JSONC_TEST || path.join(home, '.config', 'opencode', 'opencode.jsonc');
-const KILO_FILE = process.env.KILO_TEST || path.join(home, '.config', 'kilo', 'kilo.jsonc');
-// T3 userdata dir. Override with T3_DATA_DIR if T3 keeps its data elsewhere
-// (e.g. a non-default profile/user folder on another machine).
-const T3_DATA_DIR = process.env.T3_DATA_DIR || path.join(home, '.t3', 'userdata');
-const T3_SETTINGS_FILE = path.join(T3_DATA_DIR, 'settings.json');
-const T3_LOGS_DIR = path.join(T3_DATA_DIR, 'logs');
+// Config is read from config.jsonc next to this script (override the whole
+// file via OMNILIST_CONFIG). A legacy config.json is honored if present. Both
+// are JSONC — comments allowed. Private overrides live in config.local.jsonc
+// (gitignored), which is layered on top and wins over config.jsonc.
 
-const T3_OMNIROUTE_DRIVERS = [
-  { driver: 'claudeAgent', '1m': true },
-  { driver: 'codex', '1m': false },
-];
+const DEFAULTS = {
+  paths: {
+    models_csv: 'models.csv',
+    providers_csv: 'providers.csv',
+    opencode_file: '~/.config/opencode/opencode.jsonc',
+    kilo_file: '~/.config/kilo/kilo.jsonc',
+    t3_data_dir: '~/.t3/userdata',
+    t3_settings_file: '',
+    t3_logs_dir: '',
+  },
+  cli: {
+    install_as_command: true,
+    command_name: 'omnilist',
+  },
+  // Fetch behavior for the special "Router" provider.
+  //   models_endpoint: full URL to the router's model list. Leave '' to use
+  //     <base_url>/models from the Router row in providers.csv.
+  fetch: {
+    models_endpoint: '',
+  },
+  // Capability detection when building models.csv.
+  // Each entry lists field names (in priority order) to read from a router model
+  // object. Fields are searched at the top level and inside nested objects such
+  // as "capabilities" (e.g. capabilities.reasoning). Values become 1 (true),
+  // 0 (false), or -1 when none of the fields exist. n_a_defaults controls what
+  // sync steps emit when a model is -1.
+  capabilities: {
+    fields: {
+      vision: ['vision', 'supports_vision', 'image', 'input_modalities', 'attachment'],
+      reasoning: ['reasoning', 'supports_reasoning', 'thinking', 'supportsThinking'],
+      tool: ['tool_call', 'tool_calls', 'supports_tool_call', 'tools', 'tool_calling', 'supports_tool_calling'],
+    },
+    n_a_defaults: { vision: true, reasoning: true, tool: true },
+  },
 
-  // dont use codex or any other driver here only claude recommended
-const T3_REST_PROVIDER_DRIVERS = [
-  { driver: 'claudeAgent', '1m': true },
-  // { driver: 'codex', '1m': false },
-];
+  // Model-name filter rules.
+  // Default behavior: all models are included.
+  // Step 1 - block keywords (top-down): models matching any "..." rule are excluded.
+  // Step 2 - rescue free models ("*free"): anything ending in "free" is allowed
+  //   regardless of earlier block matches.
+  // Evaluation is LAST-rule-wins: later rules override earlier ones.
+  // Patterns are matched against the full model id (case-insensitive).
+  //   "!xxx"  or  "!xxx*" or  "!*xxx*"  -> BLOCK (exclude)
+  //   "xxx"  or  "xxx*" or  "*xxx*"  -> ALLOW (include)
+  // "*" is a wildcard: "foo*bar" means starts "foo" AND ends "bar".
+  // No "*" means substring match.
+  model_filters: [
+    "!kc/*",
+    "!opencode-zen/*",
+    "*free",
+    "!agy/*",
+    "!gemini/*",
+    "!no-think",
+    "!compatible",
+  ],
+  t3_filters: [],
+  // Custom models to inject into models.csv on every fetch.
+  // Format: { id: "provider/model", in: <input_context>, out: <output_context>,
+  //           vision?: 0|1, reasoning?: 0|1, tool?: 0|1 }
+  custom_models: [],
 
-// Per-driver config strategy for T3 provider instances.
-// claudeAgent connects via ANTHROPIC_* environment variables;
-// codex connects via launchArgs (model_provider / model_providers.* overrides).
-const T3_DRIVER_STRATEGY = {
-  claudeAgent: { mode: 'env', apiKey: 'ANTHROPIC_API_KEY', baseUrl: 'ANTHROPIC_BASE_URL' },
-  codex: { mode: 'launchArgs' },
+  cleanup_default: true,
+
+  // Emit the full hardcoded model template into OpenCode/Kilo provider blocks:
+  // every capability flag hardcoded true + "modalities" + "variants", with only
+  // the context/output limits taken from models.csv. When false, capability
+  // flags are read from models.csv and no modalities/variants are emitted.
+  follow_hardcoded_model_template: true,
+
+  targets: {
+    opencode_router: true,
+    opencode_rest: false,
+    t3_router: true,
+    t3_rest: true,
+    kilo_router: true,
+    kilo_rest: false,
+    kilo_copy_opencode_full_provider_block: false,
+  },
+
+  t3: {
+    router_drivers: [
+      { driver: 'claudeAgent', '1m': true },
+      { driver: 'codex', '1m': false },
+    ],
+    // dont use codex or any other driver here only claude recommended
+    rest_provider_drivers: [
+      { driver: 'claudeAgent', '1m': true },
+    ],
+    // Per-driver config strategy for T3 provider instances.
+    // claudeAgent connects via ANTHROPIC_* environment variables;
+    // codex connects via launchArgs (model_provider / model_providers.* overrides).
+    driver_strategy: {
+      claudeAgent: { mode: 'env', apiKey: 'ANTHROPIC_API_KEY', baseUrl: 'ANTHROPIC_BASE_URL' },
+      codex: { mode: 'launchArgs' },
+    },
+  },
+
+  // If true, remove script-managed (custom_*) providers whose feature flag is false.
+  // If true, remove script-managed (custom_*) providers that no longer exist in providers.csv.
+  cleanup_providers: {
+    remove_if_false_provider: true,
+    remove_if_provider_doesnt_exist: true,
+  },
 };
 
+// Recursively merge `source` into `target` (arrays are replaced wholesale).
+function deepMerge(target, source) {
+  for (const key of Object.keys(source)) {
+    const sv = source[key];
+    const tv = target[key];
+    if (sv && typeof sv === 'object' && !Array.isArray(sv) &&
+        tv && typeof tv === 'object' && !Array.isArray(tv)) {
+      deepMerge(tv, sv);
+    } else {
+      target[key] = sv;
+    }
+  }
+  return target;
+}
 
+// Resolve "~" and relative paths against this script's directory.
+function resolvePath(p) {
+  if (!p) return '';
+  p = p.replace(/^~($|\/|\\)/, home + '$1');
+  if (!path.isAbsolute(p)) p = path.join(__dirname, p);
+  return p;
+}
 
+function loadConfig() {
+  const cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULTS)), {});
+  // Primary: config.jsonc (shipped with safe defaults). A legacy config.json is
+  // used instead only when config.jsonc is missing.
+  const primary = process.env.OMNILIST_CONFIG || path.join(__dirname, 'config.jsonc');
+  const files = [primary];
+  if (!process.env.OMNILIST_CONFIG) {
+    const legacy = path.join(__dirname, 'config.json');
+    if (!fs.existsSync(primary) && fs.existsSync(legacy)) files[0] = legacy;
+    // Private overrides (gitignored). Layered only in default mode so that
+    // OMNILIST_CONFIG stays a clean "just this file" escape hatch.
+    files.push(path.join(__dirname, 'config.local.jsonc'));
+  }
+  for (const file of files) {
+    if (!fs.existsSync(file)) continue;
+    try {
+      const raw = fs.readFileSync(file, 'utf8');
+      // JSONC support: strip // and /* */ comments, then allow trailing commas.
+      const json = stripJsoncComments(raw).replace(/,\s*([}\]])/g, '$1').trim();
+      deepMerge(cfg, JSON.parse(json));
+    } catch (e) {
+      console.error('Failed to parse ' + file + ': ' + e.message + ' (using defaults)');
+    }
+  }
+  return cfg;
+}
+
+const cfg = loadConfig();
+
+// ---------- resolved paths ----------
+const MODELS_CSV = process.env.MODELS_TEST || resolvePath(cfg.paths.models_csv) || path.join(__dirname, 'models.csv');
+const PROVIDERS_CSV = resolvePath(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
+const OPENCODE_FILE = process.env.JSONC_TEST || resolvePath(cfg.paths.opencode_file);
+const KILO_FILE = process.env.KILO_TEST || resolvePath(cfg.paths.kilo_file);
+// T3 userdata dir. Override with T3_DATA_DIR if T3 keeps its data elsewhere.
+const T3_DATA_DIR = process.env.T3_DATA_DIR || resolvePath(cfg.paths.t3_data_dir);
+const T3_SETTINGS_FILE = resolvePath(cfg.paths.t3_settings_file) || path.join(T3_DATA_DIR, 'settings.json');
+const T3_LOGS_DIR = resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs');
+
+// ---------- config shortcuts ----------
+const INSTALL_AS_COMMAND = cfg.cli.install_as_command;
+const CLI_COMMAND_NAME = cfg.cli.command_name;
+
+const MODELS_ENDPOINT = cfg.fetch.models_endpoint;
+const CLEANUP_DEFAULT = cfg.cleanup_default;
+const FOLLOW_HARDCODED_MODEL_TEMPLATE = cfg.follow_hardcoded_model_template;
+
+const MODEL_FILTERS = cfg.model_filters;
+const T3_FILTERS = cfg.t3_filters;
+const CUSTOM_MODELS = cfg.custom_models;
+
+const OPENCODE_ROUTER = cfg.targets.opencode_router;
+const OPENCODE_REST = cfg.targets.opencode_rest;
+const T3_ROUTER = cfg.targets.t3_router;
+const T3_REST = cfg.targets.t3_rest;
+const KILO_ROUTER = cfg.targets.kilo_router;
+const KILO_REST = cfg.targets.kilo_rest;
+const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = cfg.targets.kilo_copy_opencode_full_provider_block;
+
+const REMOVE_IF_FALSE_PROVIDER = cfg.cleanup_providers.remove_if_false_provider;
+const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider_doesnt_exist;
+
+const T3_ROUTER_DRIVERS = cfg.t3.router_drivers;
+const T3_REST_PROVIDER_DRIVERS = cfg.t3.rest_provider_drivers;
+const T3_DRIVER_STRATEGY = cfg.t3.driver_strategy;
+
+// ---------- router detection ----------
+// A provider is special ("the Router") when its whitespace-trimmed `description`
+// column equals exactly "Router". Only the first such row is honored.
+function getRouterRow(rows) {
+  if (!rows || !rows.length) return null;
+  const routers = rows.filter((r) => (r.description || '').trim() === 'Router');
+  if (routers.length > 1) {
+    console.error('[error] Multiple providers have description "Router": ' +
+      routers.map((r) => r.provider).join(', ') +
+      '. Keeping "' + routers[0].provider + '" as the Router and ignoring the rest.');
+  }
+  return routers[0] || null;
+}
+
+function requireRouterRow(rows) {
+  const r = getRouterRow(rows);
+  if (!r) throw new Error('No provider with description "Router" found in ' + PROVIDERS_CSV);
+  return r;
+}
+
+function routerNameOf(rows) {
+  const r = getRouterRow(rows);
+  return r ? r.provider : null;
+}
 
 // ---------- helpers ----------
-// Parse a full vscode models endpoint URL or a bare key.
-// URL form: <origin>/api/v1/vscode/<key>/models
-// Returns { key, origin } (origin is '' for a bare key, key '' if not found).
-function parseEndpointInput(input) {
-  if (!input) return { key: '', origin: '' };
-  input = input.trim();
-  if (!input) return { key: '', origin: '' };
-  if (/^https?:\/\//i.test(input)) {
-    const origin = input.match(/^https?:\/\/[^/]+/i);
-    const key = input.match(/\/vscode\/([^/]+)/i);
-    return { key: key ? key[1] : '', origin: origin ? origin[0] : '' };
-  }
-  return { key: input, origin: '' };
-}
-
-// Build the vscode models fetch endpoint from an API key + stored base URL.
-// base_url format: <origin>/v1  (e.g. http://localhost:20129/v1)
-function buildFetchEndpoint(apiKey, baseUrl) {
-  const origin = (baseUrl || '').trim().replace(/\/+$/, '').replace(/\/v1$/i, '');
-  if (origin) return origin + '/api/v1/vscode/' + apiKey + '/models';
-  return VSCODE_MODELS_ENDPOINT + '/' + apiKey + '/models';
-}
-
-function maskKey(key) {
-  if (key.length <= 8) return key;
-  const head = key.slice(0, 5);
-  const tail = key.slice(-2);
-  return head + '*'.repeat(key.length - head.length - tail.length) + tail;
-}
-
-// Censor API keys inside an endpoint URL before printing it (sk-0b***ba).
-function maskEndpoint(url) {
-  if (!url) return url;
-  return url.replace(/\/([^/]+)\/models/i, (m, k) => '/' + maskKey(k) + '/models');
-}
-
-function promptInput(question) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
 // Read providers.csv into an array of row objects (skips the header).
 function readProvidersCsv() {
   if (!fs.existsSync(PROVIDERS_CSV)) return [];
@@ -185,47 +247,80 @@ function readProvidersCsv() {
   }).filter((r) => r.provider);
 }
 
-// Store the omniroute API key (and base URL when provided) in providers.csv
-// (creates it if missing). Format: provider,base_url,api_key,description
-function saveProviderKey(apiKey, baseUrl) {
-  if (!fs.existsSync(PROVIDERS_CSV)) {
-    fs.writeFileSync(PROVIDERS_CSV,
-      'provider,base_url,api_key,description\n' +
-      `omniroute,${baseUrl || OMNIROUTE_BASE_URL},${apiKey}, generated_from_omnilist_script\n`, 'utf8');
-    console.log('Created ' + PROVIDERS_CSV + ' with omniroute api key');
-    return;
-  }
-  const lines = fs.readFileSync(PROVIDERS_CSV, 'utf8').split('\n');
-  const headers = (lines[0] || '').split(',').map((h) => h.trim());
-  const keyIdx = headers.indexOf('api_key');
-  const provIdx = headers.indexOf('provider');
-  const baseIdx = headers.indexOf('base_url');
-  let updated = false;
-  if (keyIdx !== -1) {
-    for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].split(',');
-      if (provIdx === -1 || (vals[provIdx] || '').trim() === 'omniroute') {
-        vals[keyIdx] = apiKey;
-        if (baseUrl && baseIdx !== -1) vals[baseIdx] = baseUrl;
-        lines[i] = vals.join(',');
-        updated = true;
-        break;
-      }
-    }
-  }
-  if (!updated) {
-    lines.push(`omniroute,${baseUrl || OMNIROUTE_BASE_URL},${apiKey}, generated_from_omnilist_script`);
-  }
-  fs.writeFileSync(PROVIDERS_CSV, lines.join('\n'), 'utf8');
-  console.log(updated
-    ? 'Updated api key in ' + PROVIDERS_CSV
-    : 'Appended omniroute row to ' + PROVIDERS_CSV);
+// Read models.csv (header: id,input_context,output_context,vision,reasoning,tool)
+// into an array of { id, in, out, vision, reasoning, tool }.
+function readModelsCsv() {
+  if (!fs.existsSync(MODELS_CSV)) return [];
+  return fs.readFileSync(MODELS_CSV, 'utf8')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .map((l) => l.split(','))
+    .filter((parts) => parts[0] && parts[0] !== 'id') // skip header
+    .map((parts) => ({
+      id: parts[0],
+      in: parseInt(parts[1] || '0', 10),
+      out: parseInt(parts[2] || '0', 10),
+      vision: parts[3] || -1,
+      reasoning: parts[4] || -1,
+      tool: parts[5] || -1,
+    }));
 }
 
-function getJSON(url) {
+// Recursively find a field by name inside a router model object, so nested
+// capability blocks such as { capabilities: { reasoning: true } } are detected.
+function findField(obj, name, depth) {
+  if (!obj || typeof obj !== 'object' || depth > 4) return undefined;
+  if (Object.prototype.hasOwnProperty.call(obj, name)) return obj[name];
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const found = findField(v, name, depth + 1);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+// Detect a capability value (1 / 0 / -1) from a router model object.
+function detectCapability(m, key) {
+  const candidates = (cfg.capabilities.fields[key] || []);
+  // Vision: derive from modality arrays (image present = vision).
+  if (key === 'vision') {
+    const arr = m.input_modalities || (m.modalities && m.modalities.input);
+    if (Array.isArray(arr)) return arr.includes('image') ? 1 : 0;
+  }
+  for (const f of candidates) {
+    if (f === 'input_modalities') continue; // handled above
+    const v = findField(m, f);
+    if (v === true) return 1;
+    if (v === false) return 0;
+    if (Array.isArray(v)) return v.length > 0 ? 1 : 0;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      if (s === 'true') return 1;
+      if (s === 'false') return 0;
+      if (s.length > 0) return 1; // e.g. reasoning_effort
+    }
+    if (v && typeof v === 'object') return 1; // e.g. reasoning config object
+  }
+  return -1;
+}
+
+// Map a models.csv capability cell (0/1/-1) to a boolean for config output.
+function capBool(value, key) {
+  if (value === 1 || value === '1' || value === true) return true;
+  if (value === 0 || value === '0' || value === false) return false;
+  const d = (cfg.capabilities.n_a_defaults || {})[key];
+  return d !== undefined ? !!d : true;
+}
+
+function getJSON(url, headers) {
   const lib = url.startsWith('https') ? https : http;
   return new Promise((resolve, reject) => {
-    lib.get(url, (res) => {
+    // Connection: close so the socket is torn down after the response — a
+    // keep-alive socket would keep the process alive after fetch finishes.
+    lib.get(url, { headers: Object.assign({ Connection: 'close' }, headers || {}) }, (res) => {
       if (res.statusCode !== 200) {
         reject(new Error('HTTP ' + res.statusCode + ' for ' + url));
         res.resume();
@@ -243,74 +338,285 @@ function getJSON(url) {
 }
 
 // ---------- filter helpers ----------
-// Pattern syntax: "*" is a wildcard matching any text.
-// Prefix = text before first "*", suffix = text after last "*".
-//   "foo*bar"  -> startsWith("foo") AND endsWith("bar")
-//   "prefix*"  -> startsWith("prefix")
-//   "*suffix"  -> endsWith("suffix")
-//   "plain"    -> includes("plain") /* no wildcards */
+// Each model_filters / t3_filters entry is one statement:  [prefix] <expression>
+//
+// Rule prefix (the action to take when the expression is TRUE):
+//   "!expr"   -> EXCLUDE the model (block)
+//   "expr"    -> INCLUDE the model (allow; does not touch non-matches)
+//   "=expr"   -> same as "expr"
+//   "==expr"  -> ONLY-INCLUDE: keep = expr(model); drop every model that doesn't match
+//
+// Rules run top-down and the LAST matching rule wins (later rules override earlier ones).
+//
+// Expression language (C-like boolean logic, zero dependencies):
+//   "&&" and   "||" or   "!" not   parentheses group
+//   relational (on $field values): "==" "!=" "<=" ">=" "<" ">"
+//   precedence:  "!"  >  relational  >  "&&"  >  "||"
+//
+// Atoms:
+//   id pattern (no "$") matches model.id; bare = EXACT, "*" = any run, "?" = one char:
+//     "foo" exact   "foo*" prefix   "*foo" suffix   "*foo*" contains
+//   "$field" reads a model property; a bare $field is truthy (value != 0):
+//     $id  $in/$input_context  $out/$output_context  $vision  $reasoning  $tool
+//   "$field == value" compares; values: numbers, true/false (=1/0), or strings.
+//
+// Examples:
+//   "!kc*"                                block ids starting with kc
+//   "!(!*kc*)"                            block ids that don't contain "kc"
+//   "!(kc* && !*free)"                    block kc ids that don't end in "free"
+//   "==*free"                             keep ONLY free models
+//   "==$input_context >= 200000"          keep ONLY 200k+ context models
+//   "==$vision == 1 || $reasoning == 1"   keep ONLY vision OR reasoning models
+const FILTER_FIELDS = {
+  id: 'id',
+  in: 'in',
+  input: 'in',
+  input_context: 'in',
+  out: 'out',
+  output: 'out',
+  output_context: 'out',
+  vision: 'vision',
+  reasoning: 'reasoning',
+  tool: 'tool',
+};
+
+// Glob match for id patterns: "*" = any run, "?" = one char, bare = exact.
 function matchPattern(pattern, text) {
-  const p = pattern.toLowerCase();
-  const t = text.toLowerCase();
-  if (!p.includes('*')) return t.includes(p);
-  const prefix = p.substring(0, p.indexOf('*'));
-  const suffix = p.substring(p.lastIndexOf('*') + 1);
-  return t.startsWith(prefix) && t.endsWith(suffix);
+  return globMatch(pattern.toLowerCase(), text.toLowerCase());
 }
 
-// applyFilters returns true if the model is KEPT, false if filtered out.
+function globMatch(pat, str, pi = 0, si = 0) {
+  while (pi < pat.length) {
+    const c = pat[pi];
+    if (c === '*') {
+      while (pi < pat.length && pat[pi] === '*') pi++;
+      if (pi === pat.length) return true;
+      for (let k = si; k <= str.length; k++) {
+        if (globMatch(pat, str, pi, k)) return true;
+      }
+      return false;
+    }
+    if (si >= str.length) return false;
+    if (c === '?' || c === str[si]) { pi++; si++; }
+    else return false;
+  }
+  return si === str.length;
+}
+
+// Compare a model field value against a relational operator + literal.
+// true/false mean 1/0; numbers compare numerically; otherwise string compare.
+function compareField(actual, op, value) {
+  let expected = value.trim();
+  if (/^(true|false)$/i.test(expected)) expected = expected.toLowerCase() === 'true' ? 1 : 0;
+  else if (/^-?\d+(\.\d+)?$/.test(expected)) expected = parseFloat(expected);
+  switch (op) {
+    case '==': return actual == expected;
+    case '!=': return actual != expected;
+    case '>=': return actual >= expected;
+    case '>':  return actual > expected;
+    case '<=': return actual <= expected;
+    case '<':  return actual < expected;
+  }
+  return false;
+}
+
+function fieldToKey(name) {
+  const key = FILTER_FIELDS[name.toLowerCase()];
+  if (key === undefined) throw new Error(`unknown model field "$${name}"`);
+  return key;
+}
+
+// ---------- tokenizer ----------
+const OP_CHARS = new Set('!()<>=|&'.split(''));
+const TWO_CHAR_OPS = ['==', '!=', '<=', '>=', '&&', '||'];
+
+function tokenize(src) {
+  const tokens = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (/\s/.test(c)) { i++; continue; }
+    const two = src.slice(i, i + 2);
+    if (TWO_CHAR_OPS.includes(two)) { tokens.push(two); i += 2; continue; }
+    if (OP_CHARS.has(c)) { tokens.push(c); i++; continue; }
+    let j = i;
+    while (j < src.length && !OP_CHARS.has(src[j]) && !/\s/.test(src[j])) j++;
+    tokens.push(src.slice(i, j));
+    i = j;
+  }
+  return tokens;
+}
+
+// ---------- recursive-descent parser ----------
+function parseTokens(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+
+  function parseOr() {
+    let node = parseAnd();
+    while (peek() === '||') { next(); node = { type: 'or', left: node, right: parseAnd() }; }
+    return node;
+  }
+  function parseAnd() {
+    let node = parseNot();
+    while (peek() === '&&') { next(); node = { type: 'and', left: node, right: parseNot() }; }
+    return node;
+  }
+  function parseNot() {
+    if (peek() === '!') { next(); return { type: 'not', child: parseNot() }; }
+    return parseCmp();
+  }
+  function parseCmp() {
+    const operand = parsePrimary();
+    const op = peek();
+    if (op && ['==', '!=', '<=', '>=', '<', '>'].includes(op)) {
+      if (operand.type !== 'prop') throw new Error(`cannot compare ${operand.type} with "${op}" (only $field values)`);
+      next();
+      const value = next();
+      if (value === undefined) throw new Error(`expected a value after "${op}"`);
+      if (value.startsWith('$')) throw new Error('cannot compare to another $field');
+      return { type: 'cmp', field: operand.field, op, value };
+    }
+    return operand;
+  }
+  function parsePrimary() {
+    const tok = peek();
+    if (tok === undefined) throw new Error('unexpected end of expression');
+    if (tok === '(') {
+      next();
+      const node = parseOr();
+      if (next() !== ')') throw new Error('missing closing ")"');
+      return { type: 'paren', child: node };
+    }
+    if (tok === ')' || tok === '!' || tok === '&&' || tok === '||'
+        || tok === '=' || tok === '==' || tok === '!=' || tok === '<='
+        || tok === '>=' || tok === '<' || tok === '>') {
+      throw new Error(`unexpected token "${tok}"`);
+    }
+    next();
+    if (tok.startsWith('$')) return { type: 'prop', field: fieldToKey(tok.slice(1)) };
+    return { type: 'id', pattern: tok };
+  }
+
+  const root = parseOr();
+  if (pos < tokens.length) throw new Error(`unexpected token "${tokens[pos]}"`);
+  return root;
+}
+
+function compileExpr(node) {
+  switch (node.type) {
+    case 'or': {
+      const l = compileExpr(node.left), r = compileExpr(node.right);
+      return (m) => l(m) || r(m);
+    }
+    case 'and': {
+      const l = compileExpr(node.left), r = compileExpr(node.right);
+      return (m) => l(m) && r(m);
+    }
+    case 'not': {
+      const c = compileExpr(node.child);
+      return (m) => !c(m);
+    }
+    case 'id': return (m) => matchPattern(node.pattern, m.id);
+    case 'prop': return (m) => m[node.field] != 0;
+    case 'cmp': return (m) => compareField(m[node.field], node.op, node.value);
+    case 'paren': {
+      const c = compileExpr(node.child);
+      return (m) => c(m);
+    }
+    default: throw new Error(`bad AST node "${node.type}"`);
+  }
+}
+
+// Parse one filter statement:  [==|=|!] expression  ->  { action, fn }
+function parseRule(rule) {
+  let action = 'include';
+  let src = rule;
+  if (rule.startsWith('==')) { action = 'only'; src = rule.slice(2); }
+  else if (rule.startsWith('=')) { src = rule.slice(1); }
+  else if (rule.startsWith('!')) { action = 'block'; src = rule.slice(1); }
+  if (!src.trim()) throw new Error('empty expression');
+  return { action, fn: compileExpr(parseTokens(tokenize(src))) };
+}
+
+// applyModelFilters returns the models that are KEPT.
 // Top-down: LAST matching rule wins (later rules override earlier ones).
+//   "!expr"  block    "expr"/"=expr"  include    "==expr"  only-include
 function applyModelFilters(candidates, filters) {
   if (!filters || !filters.length) return candidates;
-  // Parse each string rule once: leading "!" means block, otherwise allow.
   const rules = filters.map((rule) => {
-    const block = rule.startsWith('!');
-    return { pattern: block ? rule.slice(1) : rule, allow: !block };
+    try { return parseRule(rule); }
+    catch (e) { throw new Error(`bad model_filters rule "${rule}": ${e.message}`); }
   });
-  return candidates.filter(({ id }) => {
+  return candidates.filter((model) => {
     let keep = true;
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      if (matchPattern(rule.pattern, id)) {
-        keep = rule.allow;
-      }
+    for (const r of rules) {
+      const match = r.fn(model);
+      if (r.action === 'only') keep = match;
+      else if (match) keep = (r.action === 'include');
     }
     return keep;
   });
 }
 
-function buildModelEntry(id, ctxIn, ctxOut) {
+// Full hardcoded model entry (used when follow_hardcoded_model_template is on):
+// every capability flag is true, modalities + variants are always present, and
+// only the context/output limits come from models.csv.
+function templateModelEntry(displayName, ctxIn, ctxOut) {
+  return {
+    name: displayName,
+    attachment: true,
+    reasoning: true,
+    tool_call: true,
+    temperature: true,
+    limit: { context: ctxIn || 0, output: ctxOut || 0 },
+    modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+    variants: { max: { thinking: { type: 'enabled', budgetTokens: 100000 } } },
+  };
+}
+
+function buildModelEntry(id, ctxIn, ctxOut, caps) {
+  const vision = FOLLOW_HARDCODED_MODEL_TEMPLATE ? 'true' : capBool(caps.vision, 'vision');
+  const reasoning = FOLLOW_HARDCODED_MODEL_TEMPLATE ? 'true' : capBool(caps.reasoning, 'reasoning');
+  const tool = FOLLOW_HARDCODED_MODEL_TEMPLATE ? 'true' : capBool(caps.tool, 'tool');
   const limit = `          "limit": { "context": ${ctxIn}, "output": ${ctxOut} },`;
-  return [
+  const lines = [
     `        "${id}": {`,
     `          "name": "${id} (custom)",`,
-    `          "attachment" : true,`,
-    `          "reasoning" : true,`,
-    `          "tool_call" : true,`,
+    `          "attachment" : ${vision},`,
+    `          "reasoning" : ${reasoning},`,
+    `          "tool_call" : ${tool},`,
     `          "temperature": true,`,
     limit,
-    `          "modalities":{`,
-    `            "input": ["text", "image", "pdf"],`,
-    `            "output": ["text"]`,
-    `          },`,
-    ``,
-    `          "variants":{`,
-    `            "max": {`,
-    `              "thinking":{`,
-    `                "type": "enabled",`,
-    `                "budgetTokens" : 100000`,
-    `              }`,
-    `            }`,
-    `          }`,
-    `        }`,
-  ].join('\n');
+  ];
+  if (FOLLOW_HARDCODED_MODEL_TEMPLATE) {
+    lines.push(
+      `          "modalities":{`,
+      `            "input": ["text", "image", "pdf"],`,
+      `            "output": ["text"]`,
+      `          },`,
+      ``,
+      `          "variants":{`,
+      `            "max": {`,
+      `              "thinking":{`,
+      `                "type": "enabled",`,
+      `                "budgetTokens" : 100000`,
+      `              }`,
+      `            }`,
+      `          }`,
+    );
+  }
+  lines.push(`        }`);
+  return lines.join('\n');
 }
 
 // Build codex launchArgs for a given provider (values from providers.csv).
 // Format preserved exactly (double spaces between -c segments):
-//   -c model_provider=<p>  -c model_providers.<p>.name=OmniRoute  -c model_providers.<p>.base_url=<url>  -c model_providers.<p>.api_key=<key>
-function buildLaunchArgs(provider, baseUrl, apiKey) {
-  return `-c model_provider=${provider}  -c model_providers.${provider}.name=OmniRoute  -c model_providers.${provider}.base_url=${baseUrl}  -c model_providers.${provider}.api_key=${apiKey}`;
+//   -c model_provider=<p>  -c model_providers.<p>.name=<n>  -c model_providers.<p>.base_url=<url>  -c model_providers.<p>.api_key=<key>
+function buildLaunchArgs(provider, baseUrl, apiKey, displayName) {
+  const name = displayName || provider;
+  return `-c model_provider=${provider}  -c model_providers.${provider}.name=${name}  -c model_providers.${provider}.base_url=${baseUrl}  -c model_providers.${provider}.api_key=${apiKey}`;
 }
 
 // Build a T3 provider instance for a given driver according to its strategy.
@@ -324,7 +630,7 @@ function buildT3DriverInstance(driverName, providerName, displayName, baseUrl, a
     config: { customModels: customModels },
   };
   if (strategy.mode === 'launchArgs') {
-    inst.config.launchArgs = buildLaunchArgs(providerName, baseUrl, apiKey);
+    inst.config.launchArgs = buildLaunchArgs(providerName, baseUrl, apiKey, displayName);
   } else {
     inst.environment = [
       { name: strategy.apiKey, value: apiKey, sensitive: false },
@@ -335,42 +641,32 @@ function buildT3DriverInstance(driverName, providerName, displayName, baseUrl, a
 }
 
 // ---------- fetchModels: fetch + build models.csv (DEFAULT target) ----------
-// Each line written as:  model-id,context-input,context-output
+// Each line written as:  model-id,context-input,context-output,vision,reasoning,tool
+// Fetches the special "Router" provider's OpenAI-compatible {base_url}/models
+// (or a full models_endpoint from config) using the api_key as a Bearer token.
 // Filters:
 //   --min-input-context N : skip models with input context < N (0 = no filter, default 200000)
 //   --min-output-limit N   : skip models with output < N (0 = no filter)
-async function fetchModels(minInput = 0, minOutput = 0, forceNew = false) {
-  let apiKey = '';
-  let baseUrl = '';
-  if (URL) {
-    const parsed = parseEndpointInput(URL);
-    apiKey = parsed.key;
-    baseUrl = parsed.origin ? parsed.origin + '/v1' : '';
+async function fetchModels(minInput = 0, minOutput = 0) {
+  const rows = readProvidersCsv();
+  const router = requireRouterRow(rows);
+  const base = (router.base_url || '').trim().replace(/\/+$/, '');
+  const endpoint = (MODELS_ENDPOINT || '').trim();
+  const modelsUrl = endpoint || (base.toLowerCase().endsWith('/models') ? base : base + '/models');
+  if (!router.api_key) {
+    throw new Error('Router provider "' + router.provider + '" has no api_key in ' + PROVIDERS_CSV);
   }
-  if (!apiKey && !forceNew) {
-    const rows = readProvidersCsv();
-    const omni = rows.find((r) => r.provider === 'omniroute') || rows[0];
-    if (omni && omni.api_key) {
-      apiKey = omni.api_key;
-      baseUrl = omni.base_url || '';
-    }
-  }
-  if (!apiKey) {
-    const answer = await promptInput('Give vscode model endpoint URL or API/token key: ');
-    const parsed = parseEndpointInput(answer);
-    apiKey = parsed.key;
-    baseUrl = parsed.origin ? parsed.origin + '/v1' : '';
-    if (!apiKey) throw new Error('No vscode model endpoint provided (URL or API key).');
-    saveProviderKey(apiKey, baseUrl);
-  } else if (!fs.existsSync(PROVIDERS_CSV)) {
-    saveProviderKey(apiKey, baseUrl);
-  }
-  const url = buildFetchEndpoint(apiKey, baseUrl);
-  console.log('Using endpoint: ' + maskEndpoint(url));
-  const json = await getJSON(url);
+
+  console.log('Fetching models from: ' + modelsUrl);
+  const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + router.api_key });
   const results = [];
-  for (const m of json.data) {
+  for (const m of (json.data || [])) {
     let id = m.id;
+    if (!id) continue;
+    // Deduplicate: some routers list the same model once as the canonical entry
+    // (parent: null) and again under an alias (parent: <canonical id>). Only
+    // keep the canonical ones. Missing/null parent both mean "canonical".
+    if (m.parent != null) continue;
     // Convert "name__provider_X" -> "X/name"
     if (id.includes('__provider_')) {
       const idx = id.indexOf('__provider_');
@@ -388,7 +684,14 @@ async function fetchModels(minInput = 0, minOutput = 0, forceNew = false) {
     if (minInput > 0 && ctxIn < minInput) continue;
     if (minOutput > 0 && ctxOut < minOutput) continue;
 
-    results.push({ id, in: ctxIn, out: ctxOut });
+    results.push({
+      id,
+      in: ctxIn,
+      out: ctxOut,
+      vision: detectCapability(m, 'vision'),
+      reasoning: detectCapability(m, 'reasoning'),
+      tool: detectCapability(m, 'tool'),
+    });
   }
 
   const filtered = applyModelFilters(results, MODEL_FILTERS);
@@ -397,33 +700,35 @@ async function fetchModels(minInput = 0, minOutput = 0, forceNew = false) {
   const existingIds = new Set(filtered.map((r) => r.id));
   for (const c of CUSTOM_MODELS) {
     if (!existingIds.has(c.id)) {
-      filtered.push({ id: c.id, in: c.in, out: c.out });
+      filtered.push({
+        id: c.id,
+        in: c.in,
+        out: c.out,
+        vision: c.vision !== undefined ? c.vision : 1,
+        reasoning: c.reasoning !== undefined ? c.reasoning : 1,
+        tool: c.tool !== undefined ? c.tool : 1,
+      });
     }
   }
 
   filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const text = filtered.map((r) => `${r.id},${r.in},${r.out}`).join('\n');
+  const lines = ['id,input_context,output_context,vision,reasoning,tool'];
+  for (const r of filtered) lines.push(`${r.id},${r.in},${r.out},${r.vision},${r.reasoning},${r.tool}`);
+  const text = lines.join('\n');
   fs.mkdirSync(path.dirname(MODELS_CSV), { recursive: true });
-  fs.writeFileSync(MODELS_CSV, text + (filtered.length ? '\n' : ''), 'utf8');
+  fs.writeFileSync(MODELS_CSV, text + '\n', 'utf8');
   return filtered.length;
 }
 
-// ---------- syncModelBlock: update omniroute models via markers (in a given file) ----------
+// ---------- syncModelBlock: update router models via markers (in a given file) ----------
 function syncModelBlock(targetFile) {
   if (!fs.existsSync(MODELS_CSV)) {
-    throw new Error('models.txt not found: ' + MODELS_CSV);
+    throw new Error('models.csv not found: ' + MODELS_CSV);
   }
-  const ids = fs.readFileSync(MODELS_CSV, 'utf8')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .map((l) => {
-      const parts = l.split(',');
-      return { id: parts[0], in: parts[1] || '0', out: parts[2] || '0' };
-    });
+  const ids = readModelsCsv();
 
   const block = ids.map((m, i) => {
-    const entry = buildModelEntry(m.id, m.in, m.out);
+    const entry = buildModelEntry(m.id, m.in, m.out, m);
     return i === ids.length - 1 ? entry : entry + ',';
   });
 
@@ -437,7 +742,7 @@ function syncModelBlock(targetFile) {
   while (i < lines.length) {
     const line = lines[i];
 
-    // Detect the omniroute "models" object opening
+    // Detect the router "models" object opening
     if (!inModels && /"models"\s*:\s*\{/.test(line)) {
       inModels = true;
       out.push(line);
@@ -499,21 +804,9 @@ function syncT3Providers() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
 
-  const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-  const headers = csvLines[0].split(',').map(h => h.trim());
-  const rows = csvLines.slice(1).map(line => {
-    const vals = line.split(',');
-    const row = {};
-    headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
-    return row;
-  }).filter(r => r.provider);
-
-  const modelRows = fs.readFileSync(MODELS_CSV, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map(l => {
-      const parts = l.split(',');
-      return { id: parts[0], in: parseInt(parts[1] || '0', 10) };
-    });
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const modelRows = readModelsCsv();
 
   const byProvider = {};
   for (const row of rows) {
@@ -531,7 +824,7 @@ function syncT3Providers() {
   // Snapshot current enabled state BEFORE deleting, so we can restore it.
   const prevEnabled = {};
   for (const key of Object.keys(settings.providerInstances)) {
-    if (key.startsWith('custom_') && !key.startsWith('custom_omniroute_')) {
+    if (key.startsWith('custom_') && !(routerName && key.startsWith('custom_' + routerName + '_'))) {
       prevEnabled[key] = !!settings.providerInstances[key].enabled;
       delete settings.providerInstances[key];
     }
@@ -541,7 +834,7 @@ function syncT3Providers() {
 
   let count = 0;
   for (const [provider, keys] of Object.entries(byProvider)) {
-    if (provider === 'omniroute') continue;
+    if (routerName && provider === routerName) continue;
     const withPrefix = modelRows
       .filter((m) => m.id.startsWith(provider + '/'))
       .map((m) => ({ ...m, fullId: m.id }));
@@ -648,57 +941,50 @@ function copyProviderBlockToKilo() {
   return KILO_FILE;
 }
 
-
 // Reads models.csv and writes model IDs into:
-//   settings.json -> providerInstances -> <omniroute driver blocks> -> config -> customModels
+//   settings.json -> providerInstances -> <router driver blocks> -> config -> customModels
 // Models with input context >= 1,000,000 also get a "[1m]" variant.
-// Active omniroute drivers from T3_OMNIROUTE_DRIVERS become provider instances.
-// Accepts the same filters as step1.
-function ensureOmnirouteInstances(settings) {
+// Active router drivers from T3_ROUTER_DRIVERS become provider instances.
+function ensureRouterInstances(settings) {
   if (!settings.providerInstances) settings.providerInstances = {};
 
-  if (settings.providerInstances.omniroute) {
-    const mainEnabled = !!settings.providerInstances.omniroute.enabled;
-    const mainModels = (settings.providerInstances.omniroute.config && settings.providerInstances.omniroute.config.customModels) || [];
+  const rows = readProvidersCsv();
+  const routerRow = getRouterRow(rows);
+  const routerName = routerRow ? routerRow.provider : null;
+  const displayName = routerName;
+
+  if (routerName && settings.providerInstances[routerName]) {
+    const mainEnabled = !!settings.providerInstances[routerName].enabled;
+    const mainModels = (settings.providerInstances[routerName].config && settings.providerInstances[routerName].config.customModels) || [];
     const prev = { enabled: mainEnabled, customModels: mainModels };
-    delete settings.providerInstances.omniroute;
+    delete settings.providerInstances[routerName];
   }
 
-  const activeOmniDrivers = T3_OMNIROUTE_DRIVERS.filter(e => e && typeof e === 'object' && e.driver);
-  const activeDriverNames = new Set(activeOmniDrivers.map(e => e.driver));
+  const activeDrivers = T3_ROUTER_DRIVERS.filter(e => e && typeof e === 'object' && e.driver);
+  const activeDriverNames = new Set(activeDrivers.map(e => e.driver));
 
   for (const key of Object.keys(settings.providerInstances)) {
-    if (key.startsWith('custom_omniroute_')) {
-      const driverName = key.slice('custom_omniroute_'.length);
+    if (routerName && key.startsWith('custom_' + routerName + '_')) {
+      const driverName = key.slice(('custom_' + routerName + '_').length);
       if (!activeDriverNames.has(driverName)) {
         delete settings.providerInstances[key];
       }
     }
   }
 
-  const fallbackRow = (() => {
-    if (!fs.existsSync(PROVIDERS_CSV)) return null;
-    const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-    const headers = csvLines[0].split(',').map((h) => h.trim());
-    const rows = csvLines.slice(1).map((line) => {
-      const vals = line.split(',');
-      const entry = {};
-      headers.forEach((h, i) => { entry[h] = (vals[i] || '').trim(); });
-      return entry;
-    }).filter((r) => r.provider);
-    return rows.find((r) => r.provider === 'omniroute') || rows[0] || null;
-  })();
+  if (!routerName) {
+    throw new Error('No provider with description "Router" found in ' + PROVIDERS_CSV);
+  }
+  const apiKey = routerRow.api_key;
+  const baseUrl = routerRow.base_url;
 
-  const apiKey = fallbackRow ? fallbackRow.api_key : 'sk-0b4b7a306fe4eeb5-76a746-b056e0ba';
-  const baseUrl = fallbackRow ? fallbackRow.base_url : 'http://localhost:20128/v1';
-
-  activeOmniDrivers.forEach((entry) => {
+  activeDrivers.forEach((entry) => {
     const driverName = entry.driver;
-    const key = `custom_omniroute_${driverName}`;
+    const key = `custom_${routerName}_${driverName}`;
     settings.providerInstances[key] = buildT3DriverInstance(
       driverName,
-      'omniroute',
-      'Omniroute',
+      routerName,
+      displayName,
       baseUrl,
       apiKey,
       [],
@@ -708,16 +994,19 @@ function ensureOmnirouteInstances(settings) {
 }
 
 // Sort providerInstances so that:
-//   1. "custom_omniroute_*" entries are always first
+//   1. "custom_<router>_*" entries are always first
 //   2. All non-custom_ entries come next (any manually-added ones like claudeAgent, opencode, etc.)
 //   3. All remaining custom_* entries come last, in reverse creation order (newest first)
 function sortProviderInstances(settings) {
   if (!settings.providerInstances) return;
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const routerPrefix = routerName ? 'custom_' + routerName + '_' : '__none__';
   const keys = Object.keys(settings.providerInstances);
-  const omniroute = keys.filter((k) => k.startsWith('custom_omniroute_'));
+  const routerEntries = keys.filter((k) => routerName && k.startsWith(routerPrefix));
   const others = keys.filter((k) => !k.startsWith('custom_'));
-  const customs = keys.filter((k) => k.startsWith('custom_') && !k.startsWith('custom_omniroute_')).reverse();
-  const ordered = [...omniroute, ...others, ...customs];
+  const customs = keys.filter((k) => k.startsWith('custom_') && !(routerName && k.startsWith(routerPrefix))).reverse();
+  const ordered = [...routerEntries, ...others, ...customs];
   const reordered = {};
   for (const k of ordered) reordered[k] = settings.providerInstances[k];
   settings.providerInstances = reordered;
@@ -728,21 +1017,9 @@ function syncOpencodeRestProviders() {
   if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(OPENCODE_FILE)) throw new Error('opencode.jsonc not found: ' + OPENCODE_FILE);
 
-  const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-  const headers = csvLines[0].split(',').map(h => h.trim());
-  const rows = csvLines.slice(1).map(line => {
-    const vals = line.split(',');
-    const row = {};
-    headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
-    return row;
-  }).filter(r => r.provider);
-
-  const modelLines = fs.readFileSync(MODELS_CSV, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map(l => {
-      const parts = l.split(',');
-      return { id: parts[0], in: parseInt(parts[1] || '0', 10) };
-    });
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const modelLines = readModelsCsv();
 
   const byProvider = {};
   for (const row of rows) {
@@ -772,7 +1049,7 @@ function syncOpencodeRestProviders() {
   if (!config.provider) config.provider = {};
 
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
-    if (providerName === 'omniroute') continue;
+    if (routerName && providerName === routerName) continue;
     const prefix = providerName + '/';
     providerRows.forEach((row, idx) => {
       const key = `custom_${providerName}_${idx + 1}`;
@@ -780,10 +1057,15 @@ function syncOpencodeRestProviders() {
         .filter(m => m.id.startsWith(prefix))
         .map(m => {
           const modelId = m.id.slice(prefix.length);
-          return {
-            name: modelId,
-            ...(m.in >= 1000000 ? { variants: { max: { thinking: { type: 'enabled', budgetTokens: 100000 } } } } : {})
-          };
+          return FOLLOW_HARDCODED_MODEL_TEMPLATE
+            ? templateModelEntry(modelId, m.in, m.out)
+            : {
+                name: modelId,
+                attachment: capBool(m.vision, 'vision'),
+                reasoning: capBool(m.reasoning, 'reasoning'),
+                tool_call: capBool(m.tool, 'tool'),
+                ...(m.in >= 1000000 ? { variants: { max: { thinking: { type: 'enabled', budgetTokens: 100000 } } } } : {})
+              };
         });
 
       config.provider[key] = {
@@ -799,7 +1081,7 @@ function syncOpencodeRestProviders() {
   }
 
   fs.writeFileSync(OPENCODE_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && k !== 'custom_omniroute').length;
+  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && !(routerName && k === 'custom_' + routerName)).length;
 }
 
 function syncKiloRestProviders() {
@@ -807,21 +1089,9 @@ function syncKiloRestProviders() {
   if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(KILO_FILE)) throw new Error('kilo.jsonc not found: ' + KILO_FILE);
 
-  const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-  const headers = csvLines[0].split(',').map(h => h.trim());
-  const rows = csvLines.slice(1).map(line => {
-    const vals = line.split(',');
-    const row = {};
-    headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
-    return row;
-  }).filter(r => r.provider);
-
-  const modelLines = fs.readFileSync(MODELS_CSV, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map(l => {
-      const parts = l.split(',');
-      return { id: parts[0], in: parseInt(parts[1] || '0', 10) };
-    });
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const modelLines = readModelsCsv();
 
   const byProvider = {};
   for (const row of rows) {
@@ -851,7 +1121,7 @@ function syncKiloRestProviders() {
   if (!config.provider) config.provider = {};
 
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
-    if (providerName === 'omniroute') continue;
+    if (routerName && providerName === routerName) continue;
     const prefix = providerName + '/';
     providerRows.forEach((row, idx) => {
       const key = `custom_${providerName}_${idx + 1}`;
@@ -859,10 +1129,15 @@ function syncKiloRestProviders() {
         .filter(m => m.id.startsWith(prefix))
         .map(m => {
           const modelId = m.id.slice(prefix.length);
-          return {
-            name: modelId,
-            ...(m.in >= 1000000 ? { variants: { max: { thinking: { type: 'enabled', budgetTokens: 100000 } } } } : {})
-          };
+          return FOLLOW_HARDCODED_MODEL_TEMPLATE
+            ? templateModelEntry(modelId, m.in, m.out)
+            : {
+                name: modelId,
+                attachment: capBool(m.vision, 'vision'),
+                reasoning: capBool(m.reasoning, 'reasoning'),
+                tool_call: capBool(m.tool, 'tool'),
+                ...(m.in >= 1000000 ? { variants: { max: { thinking: { type: 'enabled', budgetTokens: 100000 } } } } : {})
+              };
         });
 
       config.provider[key] = {
@@ -878,9 +1153,8 @@ function syncKiloRestProviders() {
   }
 
   fs.writeFileSync(KILO_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && k !== 'custom_omniroute').length;
+  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && !(routerName && k === 'custom_' + routerName)).length;
 }
-
 
 // ---------- cleanupProviders: reconcile custom_* providers in all config files ----------
 // For each config file, removes script-managed (custom_*) providers per:
@@ -900,6 +1174,7 @@ function cleanupProviders() {
     headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
     return row;
   }).filter(r => r.provider);
+  const routerName = routerNameOf(rows);
 
   const byProvider = {};
   for (const row of rows) {
@@ -913,8 +1188,8 @@ function cleanupProviders() {
     {
       file: OPENCODE_FILE,
       container: 'provider',
-      omniFlag: OPENCODE_OMNIRoute_PROVIDER,
-      restFlag: OPENCODE_REST_PROVIDER,
+      routerFlag: OPENCODE_ROUTER,
+      restFlag: OPENCODE_REST,
       labelField: 'name',
       labelFor: (provider, idx) => `custom_${provider}_${idx}`,
       apiKeyOf: (inst) => inst && inst.options && inst.options.apiKey,
@@ -922,8 +1197,8 @@ function cleanupProviders() {
     {
       file: KILO_FILE,
       container: 'provider',
-      omniFlag: KILO_OMNIRoute_PROVIDER,
-      restFlag: KILO_REST_PROVIDER,
+      routerFlag: KILO_ROUTER,
+      restFlag: KILO_REST,
       labelField: 'name',
       labelFor: (provider, idx) => `custom_${provider}_${idx}`,
       apiKeyOf: (inst) => inst && inst.options && inst.options.apiKey,
@@ -931,8 +1206,8 @@ function cleanupProviders() {
     {
       file: T3_SETTINGS_FILE,
       container: 'providerInstances',
-      omniFlag: T3_OMNIRoute_PROVIDER,
-      restFlag: T3_REST_PROVIDER,
+      routerFlag: T3_ROUTER,
+      restFlag: T3_REST,
       labelField: 'displayName',
       labelFor: (provider, idx) => `${provider}_${idx}`,
       apiKeyOf: (inst) => {
@@ -974,8 +1249,8 @@ function cleanupProviders() {
     }
 
     for (const provider of Object.keys(grouped)) {
-      const isOmni = provider === 'omniroute';
-      const flag = isOmni ? spec.omniFlag : spec.restFlag;
+      const isRouter = routerName && provider === routerName;
+      const flag = isRouter ? spec.routerFlag : spec.restFlag;
       const csvRows = byProvider[provider];
       const entries = grouped[provider];
 
@@ -987,7 +1262,7 @@ function cleanupProviders() {
         for (const e of entries) { delete container[e.key]; removed++; }
         continue;
       }
-      if (!csvRows || isOmni) continue;
+      if (!csvRows || isRouter) continue;
 
       const csvKeys = csvRows.map((r) => r.api_key);
       const placement = entries.map((e) => ({
@@ -1017,53 +1292,41 @@ function cleanupProviders() {
   return removed;
 }
 
-
-// ---------- syncOmnirouteProvider: write omniroute provider block (no markers, full replace) ----------
-// Reads providers.csv + models.csv, builds complete omniroute provider block.
-// Replaces entire omniroute block in target file. No marker dependency.
-function syncOmnirouteProvider(targetFile) {
+// ---------- syncRouterProvider: write router provider block (no markers, full replace) ----------
+// Reads providers.csv + models.csv, builds complete router provider block.
+// Replaces entire router block in target file. No marker dependency.
+function syncRouterProvider(targetFile) {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(targetFile)) throw new Error('Config file not found: ' + targetFile);
 
-  const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-  const headers = csvLines[0].split(',').map(h => h.trim());
-  const rows = csvLines.slice(1).map(line => {
-    const vals = line.split(',');
-    const row = {};
-    headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
-    return row;
-  }).filter(r => r.provider);
+  const rows = readProvidersCsv();
+  const routerRow = requireRouterRow(rows);
+  const routerName = routerRow.provider;
+  const displayName = routerName;
 
-  const omnirouteRow = rows.find(r => r.provider === 'omniroute');
-  if (!omnirouteRow) throw new Error('No omniroute provider found in providers.csv');
-
-  const modelLines = fs.readFileSync(MODELS_CSV, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map(l => {
-      const parts = l.split(',');
-      return { id: parts[0], in: parseInt(parts[1] || '0', 10), out: parseInt(parts[2] || '0', 10) };
-    })
-    .filter(m => !m.id.endsWith('[1m]'));
+  const modelLines = readModelsCsv().filter(m => !m.id.endsWith('[1m]'));
 
   const models = {};
   for (const m of modelLines) {
-    models[m.id] = {
-      name: m.id + ' (custom)',
-      attachment: true,
-      reasoning: true,
-      tool_call: true,
-      temperature: true,
-      limit: { context: m.in || 0, output: m.out || 0 }
-    };
+    models[m.id] = FOLLOW_HARDCODED_MODEL_TEMPLATE
+      ? templateModelEntry(m.id + ' (custom)', m.in, m.out)
+      : {
+          name: m.id + ' (custom)',
+          attachment: capBool(m.vision, 'vision'),
+          reasoning: capBool(m.reasoning, 'reasoning'),
+          tool_call: capBool(m.tool, 'tool'),
+          temperature: true,
+          limit: { context: m.in || 0, output: m.out || 0 }
+        };
   }
 
-  const omnirouteBlock = {
-    name: 'OmniRoute',
+  const routerBlock = {
+    name: displayName,
     npm: '@ai-sdk/openai-compatible',
     options: {
-      baseURL: omnirouteRow.base_url.replace(/\/$/, ''),
-      apiKey: omnirouteRow.api_key
+      baseURL: routerRow.base_url.replace(/\/$/, ''),
+      apiKey: routerRow.api_key
     },
     models: models
   };
@@ -1073,7 +1336,7 @@ function syncOmnirouteProvider(targetFile) {
   const json = stripJsoncComments(raw).replace(/,\s*([}\]])/g, '$1').trim();
   try { config = JSON.parse(json); } catch (e) { throw new Error('Failed to parse ' + targetFile + ': ' + e.message); }
   config.provider = config.provider || {};
-  config.provider['custom_omniroute'] = omnirouteBlock;
+  config.provider['custom_' + routerName] = routerBlock;
 
   fs.writeFileSync(targetFile, JSON.stringify(config, null, 2) + '\n', 'utf8');
   return Object.keys(models).length;
@@ -1105,24 +1368,12 @@ function stripJsoncComments(jsonc) {
   return result;
 }
 
-
 function syncT3Models(minInput = 0, minOutput = 0) {
   if (!fs.existsSync(MODELS_CSV)) {
     throw new Error('models.csv not found: ' + MODELS_CSV);
   }
 
-  const models = fs.readFileSync(MODELS_CSV, 'utf8')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .map((l) => {
-      const parts = l.split(',');
-      return {
-        id: parts[0],
-        in: parseInt(parts[1] || '0', 10),
-        out: parseInt(parts[2] || '0', 10)
-      };
-    })
+  const models = readModelsCsv()
     .filter((m) => {
       if (minInput > 0 && m.in < minInput) return false;
       if (minOutput > 0 && m.out < minOutput) return false;
@@ -1149,12 +1400,14 @@ function syncT3Models(minInput = 0, minOutput = 0) {
   }
 
   if (!settings.providerInstances) settings.providerInstances = {};
-  ensureOmnirouteInstances(settings);
-  const omnirouteEntries = Object.entries(settings.providerInstances).filter(([k]) => k.startsWith('custom_omniroute_'));
-  for (const [key, instance] of omnirouteEntries) {
+  ensureRouterInstances(settings);
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const routerEntries = Object.entries(settings.providerInstances).filter(([k]) => routerName && k.startsWith('custom_' + routerName + '_'));
+  for (const [key, instance] of routerEntries) {
     if (!instance.config) instance.config = {};
-    const driverName = key.slice('custom_omniroute_'.length);
-    const driverEntry = T3_OMNIROUTE_DRIVERS.find(e => e && typeof e === 'object' && e.driver === driverName);
+    const driverName = key.slice(('custom_' + routerName + '_').length);
+    const driverEntry = T3_ROUTER_DRIVERS.find(e => e && typeof e === 'object' && e.driver === driverName);
     const supports1m = driverEntry ? !!driverEntry['1m'] : true;
     const modelsForDriver = supports1m
       ? customModels
@@ -1170,30 +1423,30 @@ function syncT3Models(minInput = 0, minOutput = 0) {
 
 // ---------- run ----------
 // Usage:
-//   node model-list.js                 -> DEFAULT: fetch models -> models.csv only
-//   node model-list.js opencode        -> sync model block into opencode.jsonc
-//   node model-list.js kilo            -> sync model block into kilo.jsonc
-//   node model-list.js kilopro         -> copy provider{} block opencode -> kilo
-//   node model-list.js t3              -> sync flat model list into t3 claudeAgent
-//   node model-list.js t3pro           -> t3 flat list + per-provider custom_* instances
-//   node model-list.js all             -> fetch + opencode + kilo + t3
-//   node model-list.js allpro          -> fetch + opencode + kilo + kilopro + t3pro
-//   node model-list.js opencode kilo   -> combine targets (space-separated)
+//   node omnilist.js                 -> DEFAULT: fetch models -> models.csv only
+//   node omnilist.js opencode        -> sync router model block into opencode.jsonc
+//   node omnilist.js kilo            -> sync router model block into kilo.jsonc
+//   node omnilist.js kilopro         -> copy provider{} block opencode -> kilo
+//   node omnilist.js t3              -> sync flat model list into t3 claudeAgent
+//   node omnilist.js t3pro           -> t3 flat list + per-provider custom_* instances
+//   node omnilist.js all             -> fetch + opencode + kilo + t3
+//   node omnilist.js allpro          -> fetch + opencode + kilo + kilopro + t3pro
+//   node omnilist.js opencode kilo   -> combine targets (space-separated)
 //
 // Filters (default min-input-context is 200000; pass 0 to disable):
-//   node model-list.js -mi 100000       -> override min input context
-//   node model-list.js --min-output-limit 8192
+//   node omnilist.js -mi 100000       -> override min input context
+//   node omnilist.js --min-output-limit 8192
 //
 // Help and info:
-//   node model-list.js help             -> print this usage
-//   node model-list.js -h / --help      -> same
+//   node omnilist.js help             -> print this usage
+//   node omnilist.js -h / --help      -> same
 //
 // Legacy numeric steps still work as hidden aliases:
 //   1=fetch  2=opencode+kilo  3=t3  4=t3providers  (1-4)
 
 // ---------- install as command ----------
 // INSTALL_AS_COMMAND = true auto-runs this; can also be triggered manually:
-//   node model-list.js install | uninstall
+//   node omnilist.js install | uninstall
 // Runs PowerShell via -EncodedCommand so backslashes / quotes are NEVER
 // mangled (a plain -Command string with JSON-escaped paths corrupts the
 // User PATH with doubled backslashes).
@@ -1314,65 +1567,62 @@ function uninstallAsCommand() {
 // ---------- usage ----------
 function printUsage() {
   console.log(`
-model-list.js — fetch model catalog and sync into config files
+${CLI_COMMAND_NAME}.js — fetch the Router's model catalog and sync into config files
 
 Usage:
-  node model-list.js [targets...] [options]
+  node ${CLI_COMMAND_NAME}.js [targets...] [options]
 
-Targets (default if none given: fetch kilo t3 t3providers cleanup):
-  fetch           Fetch models -> models.csv (next to this script; minInput default: 200000)
-  opencode        Sync omniroute model block into opencode.jsonc
+The special "Router" provider is the row in providers.csv whose description
+column (trimmed) equals exactly "Router". Only the first such row is used;
+any additional Router rows are reported on the console and ignored.
+
+Targets (default if none given: fetch + enabled targets + cleanup):
+  fetch           Fetch models -> models.csv from the Router's {base_url}/models
+  opencode        Sync router provider block into opencode.jsonc
   opencoderest    Sync per-key custom_* REST provider blocks into opencode.jsonc
-  kilo            Sync omniroute model block into kilo.jsonc
+  kilo            Sync router provider block into kilo.jsonc
   kilorest        Sync per-key custom_* REST provider blocks into kilo.jsonc
-  t3              Sync flat model list into T3 omniroute.customModels
+  t3              Sync flat model list into T3 router.customModels
   t3providers     Sync per-provider custom_* instances in T3 settings.json
   cleanupproviders  Reconcile script-managed custom_* providers (opt-in via flags)
   cleanup         Delete transient files (e.g. T3 logs dir)
-  install         Register "model-list" as a command (shim + User PATH + npm shim)
+  install         Register "${CLI_COMMAND_NAME}" as a command (shim + User PATH + npm shim)
   uninstall       Remove the registered command
 
 Options:
-  OPENCODE_OMNIRoute_PROVIDER=true    Sync omniroute model block into opencode.jsonc (default: false)
-  OPENCODE_REST_PROVIDER=true         Sync per-key REST provider blocks into opencode.jsonc (default: false)
-  T3_OMNIRoute_PROVIDER=true               Sync omniroute customModels into T3 settings.json (default: false)
-  T3_REST_PROVIDER=true                    Sync per-provider instances in T3 settings.json (default: false)
-  KILO_OMNIRoute_PROVIDER=true           Sync omniroute model block into kilo.jsonc (default: false)
-  KILO_REST_PROVIDER=true                Sync per-key REST provider blocks into kilo.jsonc (default: false)
-  KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK=true  Copy full provider{} block from opencode -> kilo (default: false)
-  REMOVE_IF_FALSE_PROVIDER=true         Remove custom_* providers whose feature flag is false (default: false)
-  REMOVE_IF_PROVIDER_DOESNT_EXIST=true  Remove custom_* providers missing from providers.csv (default: false)
-  INSTALL_AS_COMMAND=true               Auto-register "model-list" as a command on every run (default: false)
-  -mi, --min-input-context N   Skip models with input context < N (default: 200000, 0 = none)
-  -mo, --min-output-limit N    Skip models with output < N (0 = none)
+  -mi, --min-input-context N   Skip models with input context < N (default: 0 = none)
+  -mo, --min-output-limit N    Skip models with output < N (default: 0 = none)
   --clean / --noclean          Enable/disable cleanup step (default: --clean)
-  --new                        Re-prompt for the model endpoint URL/API key and overwrite the stored providers.csv key
   -h, --help                   Print usage
+
+Configuration:
+  All behavior is configured in config.jsonc (next to this script).
+  Personal overrides can go in config.local.jsonc (gitignored). See README.
 
 Legacy aliases:
   1 2 3 4 1-4
 
 Examples:
-  node model-list.js                  # default: fetch + opencode + kilo + t3 + cleanup
-  node model-list.js t3               # only T3 flat list
-  node model-list.js t3providers      # only T3 per-provider instances
-  node model-list.js -mi 0 all        # fetch everything, no input filter
+  node ${CLI_COMMAND_NAME}.js                  # default: fetch + enabled targets + cleanup
+  node ${CLI_COMMAND_NAME}.js t3               # only T3 flat list
+  node ${CLI_COMMAND_NAME}.js t3providers      # only T3 per-provider instances
+  node ${CLI_COMMAND_NAME}.js -mi 0 all        # fetch everything, no input filter
 `);
 }
 
 // Atomic targets, in fixed execution order:
 function buildOrder() {
   const order = ['fetch', 'cleanup'];
-  if (OPENCODE_OMNIRoute_PROVIDER) order.splice(1, 0, 'opencode');
-  if (OPENCODE_REST_PROVIDER) {
+  if (OPENCODE_ROUTER) order.splice(1, 0, 'opencode');
+  if (OPENCODE_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'opencoderest');
   }
-  if (KILO_OMNIRoute_PROVIDER) {
+  if (KILO_ROUTER) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'kilo');
   }
-  if (KILO_REST_PROVIDER) {
+  if (KILO_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'kilorest');
   }
@@ -1380,11 +1630,11 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'kilopro');
   }
-  if (T3_OMNIRoute_PROVIDER) {
+  if (T3_ROUTER) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 't3models');
   }
-  if (T3_REST_PROVIDER) {
+  if (T3_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 't3providers');
   }
@@ -1408,25 +1658,25 @@ const WORD_MAP = {
   uninstall: ['uninstall'],
   all: (() => {
     const t = ['fetch', 'cleanup'];
-    if (OPENCODE_OMNIRoute_PROVIDER) t.push('opencode');
-    if (OPENCODE_REST_PROVIDER) t.push('opencoderest');
-    if (KILO_OMNIRoute_PROVIDER) t.push('kilo');
-    if (KILO_REST_PROVIDER) t.push('kilorest');
+    if (OPENCODE_ROUTER) t.push('opencode');
+    if (OPENCODE_REST) t.push('opencoderest');
+    if (KILO_ROUTER) t.push('kilo');
+    if (KILO_REST) t.push('kilorest');
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
-    if (T3_OMNIRoute_PROVIDER) t.push('t3models');
-    if (T3_REST_PROVIDER) t.push('t3providers');
+    if (T3_ROUTER) t.push('t3models');
+    if (T3_REST) t.push('t3providers');
     t.push('cleanupproviders');
     return t;
   })(),
   allpro: (() => {
     const t = ['fetch', 'cleanup'];
-    if (OPENCODE_OMNIRoute_PROVIDER) t.push('opencode');
-    if (OPENCODE_REST_PROVIDER) t.push('opencoderest');
-    if (KILO_OMNIRoute_PROVIDER) t.push('kilo');
-    if (KILO_REST_PROVIDER) t.push('kilorest');
+    if (OPENCODE_ROUTER) t.push('opencode');
+    if (OPENCODE_REST) t.push('opencoderest');
+    if (KILO_ROUTER) t.push('kilo');
+    if (KILO_REST) t.push('kilorest');
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
-    if (T3_OMNIRoute_PROVIDER) t.push('t3models');
-    if (T3_REST_PROVIDER) t.push('t3providers');
+    if (T3_ROUTER) t.push('t3models');
+    if (T3_REST) t.push('t3providers');
     t.push('cleanupproviders');
     return t;
   })(),
@@ -1443,10 +1693,9 @@ const NUM_MAP = {
 function parseArgs() {
   const args = {
     targets: new Set(),
-    minInput: MIN_INPUT_TOKENS_DEFAULT,
-    minOutput: MIN_OUTPUT_TOKENS_DEFAULT,
+    minInput: 0,
+    minOutput: 0,
     cleanup: CLEANUP_DEFAULT,
-    newEndpoint: false,
   };
   const raw = process.argv.slice(2).filter((a) => a.length > 0);
 
@@ -1491,12 +1740,6 @@ function parseArgs() {
       continue;
     }
 
-    // ----- force re-prompt for the model endpoint -----
-    if (a === '--new') {
-      args.newEndpoint = true;
-      continue;
-    }
-
     // ----- help -----
     if (a.toLowerCase() === 'help' || a === '-h' || a === '--help') {
       printUsage();
@@ -1531,7 +1774,7 @@ function parseArgs() {
     }
 
     console.error(`Unknown argument: "${a}" (try: opencode, kilo, t3, t3providers, all, help)`);
-    console.error('Run "node model-list.js help" for usage.');
+    console.error('Run "node ' + CLI_COMMAND_NAME + '.js help" for usage.');
     process.exit(1);
   }
 
@@ -1558,7 +1801,7 @@ function parseArgs() {
       try {
         switch (target) {
           case 'fetch': {
-            const n = await fetchModels(args.minInput, args.minOutput, args.newEndpoint);
+            const n = await fetchModels(args.minInput, args.minOutput);
             console.log(`Wrote ${n} models to ${MODELS_CSV}`);
             break;
           }
@@ -1567,8 +1810,8 @@ function parseArgs() {
               console.log(`Skipped opencode (not found: ${OPENCODE_FILE})`);
               break;
             }
-            const n = syncOmnirouteProvider(OPENCODE_FILE);
-            console.log(`Synced omniroute provider block in ${OPENCODE_FILE} (${n} models)`);
+            const n = syncRouterProvider(OPENCODE_FILE);
+            console.log(`Synced router provider block in ${OPENCODE_FILE} (${n} models)`);
             break;
           }
           case 'kilo': {
@@ -1576,8 +1819,8 @@ function parseArgs() {
               console.log(`Skipped kilo (not found: ${KILO_FILE})`);
               break;
             }
-            const n = syncOmnirouteProvider(KILO_FILE);
-            console.log(`Synced omniroute provider block in ${KILO_FILE} (${n} models)`);
+            const n = syncRouterProvider(KILO_FILE);
+            console.log(`Synced router provider block in ${KILO_FILE} (${n} models)`);
             break;
           }
           case 'kilopro': {
