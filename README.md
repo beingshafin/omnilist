@@ -68,17 +68,18 @@ Every key is optional — the script falls back to sensible defaults for anythin
 
 | Section | Controls |
 |---|---|
-| `paths` | Where `models.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, T3's data, and DSH's `settings.yaml` / `.credentials.yaml` live |
+| `paths` | Where `models.csv`, `models-all.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, T3's data, and DSH's `settings.yaml` / `.credentials.yaml` live (`all_models_csv` = raw catalog, `harness_models_file` = per-harness preview template) |
 | `fetch.models_endpoint` | Full URL to the model list. Leave `""` to use `{base_url}/models` |
 | `capabilities.fields` | Which fields the router's model objects use to report `vision` / `reasoning` / `tool` |
 | `capabilities.n_a_defaults` | What sync steps emit when a router doesn't report a capability (default `true`) |
 | `follow_hardcoded_model_template` | Emit the full hardcoded model template into OpenCode/Kilo — all capability flags `true`, plus `modalities` and `variants`; only context/output limits come from `models.csv` (default `true`) |
 | `model_filters` | Model allow/block rules (see below) |
 | `harness_filters` | Second-stage filters on top of `models.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`) |
-| `fetch_directly` | Harnesses that fetch the Router catalog live instead of reading `models.csv` (e.g. `["dsh"]` or `["open code","DS"]`) |
+| `raw_catalog_harnesses` | Harnesses that bypass `models.csv` and read `models-all.csv` (raw catalog) instead (e.g. `["dsh"]` or `["open code","DS"]`) |
+| `harness_previews` | Per-harness preview CSVs: `"raw"` (default — only `raw_catalog_harnesses`), `"all"` (every synced harness), `"none"` (never write, delete existing) |
 | `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, `dsh_router`, …) |
 | `t3` | T3 drivers, per-driver strategy, and `[1m]` handling |
-| `dsh` | DSH API variants (`router_apis` / `rest_apis` — `openai-completions` \| `openai-responses` \| `anthropic-messages`) |
+| `dsh` | DSH API variants (`router_apis` / `rest_apis` — `openai-completions` \| `openai-responses` \| `anthropic-messages`) and `model_inputs` (`hardcode` / `vision` / explicit array) |
 
 Paths may be absolute, relative (to the script dir), or use `~` for your home directory. The environment variables `MODELS_TEST`, `JSONC_TEST`, `KILO_TEST`, `T3_DATA_DIR`, `DSH_SETTINGS_FILE`, `DSH_CREDENTIALS_FILE`, and `OMNILIST_CONFIG` still override paths / the config location.
 
@@ -177,24 +178,38 @@ Rules run top-down and the **last matching rule wins** — a later rule override
   "!(kc/* && !*free)->t3,dsh",           // only t3 and dsh
   "!*no-think->deepseek",                // only dsh
 ],
-"fetch_directly": ["dsh"],               // or ["open code","DS"] — fetches live from the Router, bypassing models.csv
+"raw_catalog_harnesses": ["dsh"],       // or ["open code","DS"] — reads models-all.csv (raw catalog), bypassing models.csv
 ```
+
+The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+
+Preview CSVs are governed by `harness_previews`:
+- `"raw"` (default) — write previews **only** for harnesses listed in `raw_catalog_harnesses`, and delete stale `models-<harness>.csv` for the rest.
+- `"all"` — write a preview for **every** harness that syncs.
+- `"none"` — never write previews; existing `models-<harness>.csv` files are deleted on each run.
+
+The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+
+`custom_models[]` entries are **never excluded by any filter** — `model_filters`, `harness_filters`, keep-only (`==`) rules, and `-mi`/`-mo` CLI filters can't drop them. They're added to every catalog file (`models-all.csv`, `models.csv`, and every `models-<harness>.csv` preview) and every harness sync, and on an id collision with a model the Router already returns, the custom entry wins — its context limits and capabilities are what get written. All three catalog paths are configurable under `paths` (`all_models_csv`, `harness_models_file`).
 
 ### DeepSeek harness (DSH)
 
 DSH stores its config in `~/.dsh/settings.yaml` and credentials in `~/.dsh/.credentials.yaml` (both configurable via `paths.dsh_settings_file` / `paths.dsh_credentials_file` and env `DSH_SETTINGS_FILE` / `DSH_CREDENTIALS_FILE`). Enable with `targets.dsh_router` (Router catalog) and `targets.dsh_rest` (per-provider `custom_*` instances). Each selected API creates a separate `custom_*` provider:
 
-- Router: `custom_<router>_<suffix>` (suffix `completions` / `responses` / `messages` for `openai-completions` / `openai-responses` / `anthropic-messages`), `displayName` `<router>_<suffix>`, shared `apiKeyEnv` `<ROUTER>_API_KEY` written to the credentials file.
-- REST: `custom_<provider>_<idx>_<suffix>` per CSV row × API, `displayName` `<provider>_<idx>_<suffix>`, per-row `apiKeyEnv` `<PROVIDER>[_<idx>]_API_KEY`. Model ids are prefix-stripped (`agentrouter/flash` → `flash`).
+- Router: `custom_<router>_<suffix>` (suffix `completions` / `responses` / `messages` for `openai-completions` / `openai-responses` / `anthropic-messages`), `displayName` `<router>_<suffix>`, shared `apiKeyEnv` `CUSTOM_<ROUTER>_API_KEY` written to the credentials file.
+- REST: `custom_<provider>_<idx>_<suffix>` per CSV row × API, `displayName` `<provider>_<idx>_<suffix>`, per-row `apiKeyEnv` `CUSTOM_<PROVIDER>[_<idx>]_API_KEY`. Model ids are prefix-stripped (`agentrouter/flash` → `flash`).
+
+DSH model entries include an `input` field driven by `dsh.model_inputs`: `hardcode` (default) emits `input: ['text','image']` for every model; `vision` emits `['text','image']` only for vision models; an explicit array uses that array for all models.
 
 ```jsonc
 "dsh": {
   "router_apis": ["openai-completions", "anthropic-messages"],
-  "rest_apis": ["openai-completions"]
+  "rest_apis": ["openai-completions"],
+  "model_inputs": "hardcode"
 }
 ```
 
-Keys always carry the API suffix, even for a single entry. Unknown top-level YAML keys (`ui-onboarding`, `agent-default-model`, etc.) survive round-trips, and `maxTokens` is omitted when `0`. Cleanup reapplies the `custom_*` logic (`cleanupproviders`): disabling a flag or removing a provider from `providers.csv` prunes the DSH entries and unreferenced `_API_KEY` credentials.
+Keys always carry the API suffix, even for a single entry. Unknown top-level YAML keys (`ui-onboarding`, `agent-default-model`, etc.) survive round-trips, and `maxTokens` is omitted when `0`. Cleanup reapplies the `custom_*` logic (`cleanupproviders`): disabling a flag or removing a provider from `providers.csv` prunes the DSH entries and unreferenced `CUSTOM_*_API_KEY` credentials.
 
 ## When to use it
 
@@ -203,7 +218,7 @@ Keys always carry the API suffix, even for a single entry. Unknown top-level YAM
 - **When new models appear** — rerun to pull the fresh catalog and push it everywhere
 - **On a new machine** — clone and run `omnilist`; it prompts for the Router base URL + API key, writes `providers.csv`, and fetches the catalog
 - **Whenever your model pickers feel out of sync** — one run reconciles everything
-- **When DSH needs the same catalog** — enable `targets.dsh_router` / `targets.dsh_rest` and `dsh.router_apis` / `dsh.rest_apis`; use `harness_filters` with `->dsh` or `fetch_directly: ["dsh"]` for per-harness control
+- **When DSH needs the same catalog** — enable `targets.dsh_router` / `targets.dsh_rest` and `dsh.router_apis` / `dsh.rest_apis`; use `harness_filters` with `->dsh` or `raw_catalog_harnesses: ["dsh"]` for per-harness control
 
 ## What it does, briefly
 
@@ -224,9 +239,11 @@ You never edit the tool config files directly. `omnilist` is the only thing that
 | `config.local.jsonc` | Your private overrides (gitignored; optional) |
 | `omnilist.cmd` | Generated Windows shim |
 | `providers.csv` | Your provider base URLs + API keys |
-| `models.csv` | Auto-generated model catalog |
+| `models.csv` | Auto-generated model catalog, `model_filters` applied |
+| `models-all.csv` | Auto-generated raw catalog (dedup'd, pre-filter) + `custom_models` |
+| `models-<harness>.csv` | Auto-generated preview of each harness's final model list |
 
-`config.local.jsonc`, `providers.csv`, and `models.csv` are gitignored — treat them as local config/output. `config.jsonc` is tracked, so keep it free of personal values.
+`config.local.jsonc`, `providers.csv`, `models.csv`, `models-all.csv`, and `models-*.csv` are gitignored — treat them as local config/output. `config.jsonc` is tracked, so keep it free of personal values.
 
 ## Troubleshooting
 

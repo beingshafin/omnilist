@@ -18,6 +18,8 @@ const DEFAULTS = {
   paths: {
     models_csv: 'models.csv',
     providers_csv: 'providers.csv',
+    all_models_csv: '',  // raw catalog (dedup only, pre-filter); '' = <models dir>/models-all.csv
+    harness_models_file: 'models-<harness>.csv',  // per-harness preview; <harness> -> t3/dsh/opencode/kilo
     opencode_file: '~/.config/opencode/opencode.jsonc',
     kilo_file: '~/.config/kilo/kilo.jsonc',
     t3_settings_file: '',
@@ -75,8 +77,15 @@ const DEFAULTS = {
   // Syntax: "<rule>" (all harnesses) or "<rule>->t3,dsh" (only listed harnesses).
   // Harness ids: opencode (alias oc), kilo, t3, dsh.
   harness_filters: [],
-  // Which harnesses fetch the Router catalog live instead of reading models.csv.
-  fetch_directly: [], // e.g. ["dsh"] or ["dsh","t3"]
+  // Which harnesses use the raw catalog (models-all.csv) instead of the filtered
+  // models.csv. "Raw" means dedup-only, before model_filters — these harnesses
+  // read models-all.csv and apply only their harness_filters + custom_models.
+  raw_catalog_harnesses: [], // e.g. ["dsh"] or ["dsh","t3"]
+  // Per-harness preview CSVs (models-<harness>.csv):
+  //   "raw"  -> write only for raw_catalog_harnesses, delete strays for others
+  //   "all"  -> write for every harness that syncs
+  //   "none" -> never write, delete any existing preview CSVs
+  harness_previews: 'raw',
   // Custom models to inject into models.csv on every fetch.
   // Format: { id: "provider/model", in: <input_context>, out: <output_context>,
   //           vision?: 0|1, reasoning?: 0|1, tool?: 0|1 }
@@ -130,6 +139,7 @@ const DEFAULTS = {
   dsh: {
     router_apis: ['openai-completions'],
     rest_apis: ['openai-completions'],
+    model_inputs: 'hardcode',   // 'hardcode' | 'vision' | ["text","image"]
   },
 };
 
@@ -154,6 +164,15 @@ function resolvePath(p) {
   p = p.replace(/^~($|\/|\\)/, home + '$1');
   if (!path.isAbsolute(p)) p = path.join(__dirname, p);
   return p;
+}
+
+// Resolve a catalog CSV path (raw catalog or per-harness preview). Absolute
+// paths and ~ are used as-is; bare filenames are anchored next to models.csv so
+// all catalog files stay together even when MODELS_TEST overrides its location.
+function resolveCatalogPath(name) {
+  if (!name) return '';
+  if (name.startsWith('~') || path.isAbsolute(name)) return resolvePath(name);
+  return path.join(path.dirname(MODELS_CSV), name);
 }
 
 function loadConfig() {
@@ -196,6 +215,7 @@ const T3_SETTINGS_FILE = resolvePath(cfg.paths.t3_settings_file) || path.join(T3
 const T3_LOGS_DIR = resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs');
 const DSH_SETTINGS_FILE = process.env.DSH_SETTINGS_FILE || resolvePath(cfg.paths.dsh_settings_file);
 const DSH_CREDENTIALS_FILE = process.env.DSH_CREDENTIALS_FILE || resolvePath(cfg.paths.dsh_credentials_file);
+const ALL_MODELS_CSV = process.env.ALL_MODELS_TEST || resolveCatalogPath(cfg.paths.all_models_csv) || path.join(path.dirname(MODELS_CSV), 'models-all.csv');
 
 // ---------- config shortcuts ----------
 const INSTALL_AS_COMMAND = cfg.cli.install_as_command;
@@ -207,7 +227,8 @@ const FOLLOW_HARDCODED_MODEL_TEMPLATE = cfg.follow_hardcoded_model_template;
 
 const MODEL_FILTERS = cfg.model_filters;
 const HARNESS_FILTERS_RAW = cfg.harness_filters || [];
-const FETCH_DIRECTLY_RAW = cfg.fetch_directly || [];
+const RAW_CATALOG_RAW = cfg.raw_catalog_harnesses || [];
+const HARNESS_PREVIEWS_MODE = ['raw', 'all', 'none'].includes(cfg.harness_previews) ? cfg.harness_previews : 'raw';
 const CUSTOM_MODELS = cfg.custom_models;
 
 const OPENCODE_ROUTER = cfg.targets.opencode_router;
@@ -376,9 +397,10 @@ function readProvidersCsv() {
 
 // Read models.csv (header: id,input_context,output_context,vision,reasoning,tool)
 // into an array of { id, in, out, vision, reasoning, tool }.
-function readModelsCsv() {
-  if (!fs.existsSync(MODELS_CSV)) return [];
-  return fs.readFileSync(MODELS_CSV, 'utf8')
+function readModelsCsv(file) {
+  const p = file || MODELS_CSV;
+  if (!fs.existsSync(p)) return [];
+  return fs.readFileSync(p, 'utf8')
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0)
@@ -392,6 +414,72 @@ function readModelsCsv() {
       reasoning: parts[4] || -1,
       tool: parts[5] || -1,
     }));
+}
+
+function csvRowsToText(rows) {
+  const lines = ['id,input_context,output_context,vision,reasoning,tool'];
+  for (const r of rows) lines.push(`${r.id},${r.in},${r.out},${r.vision},${r.reasoning},${r.tool}`);
+  return lines.join('\n') + '\n';
+}
+
+// Merge custom_models into a model list so custom entries ALWAYS appear in the
+// result, even when a filter (model_filters / harness_filters / keep-only)
+// would otherwise exclude them. On an id collision with a fetched model, the
+// custom entry is authoritative and replaces the fetched copy.
+function mergeCustomModels(rows) {
+  const customs = CUSTOM_MODELS || [];
+  const out = rows.filter((r) => !customs.some((c) => c.id === r.id));
+  for (const c of customs) {
+    out.push({
+      id: c.id,
+      in: c.in || 0,
+      out: c.out || 0,
+      vision: c.vision !== undefined ? c.vision : 1,
+      reasoning: c.reasoning !== undefined ? c.reasoning : 1,
+      tool: c.tool !== undefined ? c.tool : 1,
+    });
+  }
+  return out;
+}
+
+function harnessModelsPath(harnessId) {
+  const template = (cfg.paths && cfg.paths.harness_models_file) || 'models-<harness>.csv';
+  const name = template.replace(/<harness>/g, harnessId);
+  return resolveCatalogPath(name) || path.join(path.dirname(MODELS_CSV), `models-${harnessId}.csv`);
+}
+
+// Per-harness preview CSVs are governed by cfg.harness_previews:
+//   "raw"  -> only harnesses listed in raw_catalog_harnesses get a preview
+//   "all"  -> every harness that syncs writes a preview
+//   "none" -> no previews at all
+function previewAllowed(harnessId) {
+  if (HARNESS_PREVIEWS_MODE === 'all') return true;
+  if (HARNESS_PREVIEWS_MODE === 'none') return false;
+  return RAW_CATALOG.has(normalizeHarnessId(harnessId));
+}
+
+function writeHarnessPreview(harnessId, rows) {
+  if (!previewAllowed(harnessId)) return;
+  const p = harnessModelsPath(harnessId);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, csvRowsToText(rows), 'utf8');
+  console.log(`Wrote ${harnessId} preview to ${p}`);
+}
+
+// Delete per-harness preview CSVs that shouldn't exist under the current
+// harness_previews mode — e.g. a harness no longer in raw_catalog_harnesses, or
+// previews disabled entirely. Only known harness ids are touched, so models.csv
+// and models-all.csv are never deleted.
+function cleanupHarnessPreviews() {
+  if (HARNESS_PREVIEWS_MODE === 'all') return;
+  for (const hid of VALID_HARNESSES) {
+    if (previewAllowed(hid)) continue;
+    const p = harnessModelsPath(hid);
+    if (fs.existsSync(p)) {
+      fs.unlinkSync(p);
+      console.log(`Removed stale ${hid} preview (${p})`);
+    }
+  }
 }
 
 // Recursively find a field by name inside a router model object, so nested
@@ -724,7 +812,7 @@ function getHarnessFilters(harnessId) {
     .filter((e) => !e.targets || e.targets.has(norm))
     .map((e) => e.rule);
 }
-const FETCH_DIRECTLY = new Set((FETCH_DIRECTLY_RAW || []).map((s) => normalizeHarnessId(s)).filter((s) => VALID_HARNESSES.has(s)));
+const RAW_CATALOG = new Set((RAW_CATALOG_RAW || []).map((s) => normalizeHarnessId(s)).filter((s) => VALID_HARNESSES.has(s)));
 
 // ---------- DSH api helpers ----------
 const DSH_API_SUFFIX = {
@@ -739,6 +827,17 @@ function validateDshApis(apis, label) {
     if (!VALID_DSH_APIS.has(a)) throw new Error(`Invalid DSH api "${a}" in ${label}: must be one of ${[...VALID_DSH_APIS].join(', ')}`);
   }
 }
+
+// Resolve the DSH model entry "input" field from cfg.dsh.model_inputs.
+// Modes: 'hardcode' -> ['text','image']; 'vision' -> depends on model.vision;
+// explicit array -> returned as-is.
+function dshModelInputs(m) {
+  const mode = (cfg.dsh && cfg.dsh.model_inputs) || 'hardcode';
+  if (Array.isArray(mode)) return mode.slice();
+  if (mode === 'vision') return (m.vision === 1 || m.vision === '1') ? ['text', 'image'] : ['text'];
+  return ['text', 'image'];
+}
+
 function parseDshKey(key) {
   if (!key.startsWith('custom_')) return null;
   const rest = key.slice('custom_'.length);
@@ -763,48 +862,28 @@ function parseDshKey(key) {
   return { provider, idx, suffix, api };
 }
 
-// Fetch catalog either from models.csv or live endpoint depending on harness
+// Fetch catalog either from models-all.csv or live endpoint depending on harness
+// raw_catalog_harnesses ON -> read models-all.csv (raw), fall back to live fetch if file missing.
+// raw_catalog_harnesses OFF -> read models.csv (already model_filters + custom_models).
 async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0) {
   const harnessFilters = getHarnessFilters(harnessId);
-  const shouldFetchLive = FETCH_DIRECTLY.has(normalizeHarnessId(harnessId));
-  if (shouldFetchLive) {
-    const rows = readProvidersCsv();
-    const router = requireRouterRow(rows);
-    const base = (router.base_url || '').trim().replace(/\/+$/, '');
-    const endpoint = (MODELS_ENDPOINT || '').trim();
-    const modelsUrl = endpoint || (base.toLowerCase().endsWith('/models') ? base : base + '/models');
-    if (!router.api_key) throw new Error('Router provider "' + router.provider + '" has no api_key in ' + PROVIDERS_CSV);
-    const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + router.api_key });
-    const results = [];
-    for (const m of (json.data || [])) {
-      let id = m.id;
-      if (!id) continue;
-      if (m.parent != null) continue;
-      if (id.includes('__provider_')) {
-        const pidx = id.indexOf('__provider_');
-        const name = id.substring(0, pidx);
-        const prov = id.substring(pidx + '__provider_'.length);
-        id = prov + '/' + name;
-      }
-      const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens : (m.context_length != null ? m.context_length : 0);
-      const ctxOut = (m.max_output_tokens != null) ? m.max_output_tokens : 0;
-      if (minInput > 0 && ctxIn < minInput) continue;
-      if (minOutput > 0 && ctxOut < minOutput) continue;
-      results.push({ id, in: ctxIn, out: ctxOut, vision: detectCapability(m, 'vision'), reasoning: detectCapability(m, 'reasoning'), tool: detectCapability(m, 'tool') });
-    }
-    // fetch_directly ON: bypasses model_filters — only harness_filters(targeting this harness)+custom_models; OFF: models.csv was already model_filters+custom_models
-    let filtered = applyModelFilters(results, harnessFilters);
-    const existingIds = new Set(filtered.map((r) => r.id));
-    for (const c of CUSTOM_MODELS) {
-      if (!existingIds.has(c.id)) filtered.push({ id: c.id, in: c.in, out: c.out, vision: c.vision !== undefined ? c.vision : 1, reasoning: c.reasoning !== undefined ? c.reasoning : 1, tool: c.tool !== undefined ? c.tool : 1 });
-    }
-    filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    return filtered;
+  const shouldFetchLive = RAW_CATALOG.has(normalizeHarnessId(harnessId));
+  let base;
+  if (shouldFetchLive && fs.existsSync(ALL_MODELS_CSV)) {
+    base = readModelsCsv(ALL_MODELS_CSV);
+    if (minInput > 0) base = base.filter((m) => m.in >= minInput);
+    if (minOutput > 0) base = base.filter((m) => m.out >= minOutput);
+  } else if (shouldFetchLive) {
+    base = await fetchRawModels(minInput, minOutput);
+  } else {
+    base = readModelsCsv();
+    if (minInput > 0) base = base.filter((m) => m.in >= minInput);
+    if (minOutput > 0) base = base.filter((m) => m.out >= minOutput);
   }
-  let rows = readModelsCsv();
-  if (minInput > 0) rows = rows.filter((m) => m.in >= minInput);
-  if (minOutput > 0) rows = rows.filter((m) => m.out >= minOutput);
-  return applyModelFilters(rows, harnessFilters);
+  // custom_models always survive harness_filters (re-added last, override collisions)
+  let filtered = mergeCustomModels(applyModelFilters(base, harnessFilters));
+  filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return filtered;
 }
 
 // Full hardcoded model entry (used when follow_hardcoded_model_template is on):
@@ -887,14 +966,8 @@ function buildT3DriverInstance(driverName, providerName, displayName, baseUrl, a
   return inst;
 }
 
-// ---------- fetchModels: fetch + build models.csv (DEFAULT target) ----------
-// Each line written as:  model-id,context-input,context-output,vision,reasoning,tool
-// Fetches the special "Router" provider's OpenAI-compatible {base_url}/models
-// (or a full models_endpoint from config) using the api_key as a Bearer token.
-// Filters:
-//   --min-input-context N : skip models with input context < N (0 = no filter, default 200000)
-//   --min-output-limit N   : skip models with output < N (0 = no filter)
-async function fetchModels(minInput = 0, minOutput = 0) {
+// Raw dedup'd catalog from the Router (before model_filters / custom_models).
+async function fetchRawModels(minInput = 0, minOutput = 0) {
   const rows = readProvidersCsv();
   const router = requireRouterRow(rows);
   const base = (router.base_url || '').trim().replace(/\/+$/, '');
@@ -903,34 +976,23 @@ async function fetchModels(minInput = 0, minOutput = 0) {
   if (!router.api_key) {
     throw new Error('Router provider "' + router.provider + '" has no api_key in ' + PROVIDERS_CSV);
   }
-
   console.log('Fetching models from: ' + modelsUrl);
   const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + router.api_key });
   const results = [];
   for (const m of (json.data || [])) {
     let id = m.id;
     if (!id) continue;
-    // Deduplicate: some routers list the same model once as the canonical entry
-    // (parent: null) and again under an alias (parent: <canonical id>). Only
-    // keep the canonical ones. Missing/null parent both mean "canonical".
     if (m.parent != null) continue;
-    // Convert "name__provider_X" -> "X/name"
     if (id.includes('__provider_')) {
       const idx = id.indexOf('__provider_');
       const name = id.substring(0, idx);
       const prov = id.substring(idx + '__provider_'.length);
       id = prov + '/' + name;
     }
-
-    // context limits (input falls back to context_length when max_input_tokens missing)
-    const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens
-      : (m.context_length != null ? m.context_length : 0);
+    const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens : (m.context_length != null ? m.context_length : 0);
     const ctxOut = (m.max_output_tokens != null) ? m.max_output_tokens : 0;
-
-    // Apply filters
     if (minInput > 0 && ctxIn < minInput) continue;
     if (minOutput > 0 && ctxOut < minOutput) continue;
-
     results.push({
       id,
       in: ctxIn,
@@ -940,30 +1002,37 @@ async function fetchModels(minInput = 0, minOutput = 0) {
       tool: detectCapability(m, 'tool'),
     });
   }
+  return results;
+}
 
-  const filtered = applyModelFilters(results, MODEL_FILTERS);
+// ---------- fetchModels: fetch + build models.csv (DEFAULT target) ----------
+// Each line written as:  model-id,context-input,context-output,vision,reasoning,tool
+// Fetches the special "Router" provider's OpenAI-compatible {base_url}/models
+// (or a full models_endpoint from config) using the api_key as a Bearer token.
+// Writes:
+//   models-all.csv — raw dedup'd catalog + custom_models (no model_filters)
+//   models.csv     — model_filters applied on top of models-all.csv
+//
+// Filters:
+//   --min-input-context N : skip models with input context < N (0 = no filter)
+//   --min-output-limit N   : skip models with output < N (0 = no filter)
+async function fetchModels(minInput = 0, minOutput = 0) {
+  const raw = await fetchRawModels(minInput, minOutput);
+  // custom_models are authoritative: they override any colliding fetched model
+  // and are always present in every catalog file, regardless of filters.
+  const rawWithCustom = mergeCustomModels(raw);
 
-  // Merge custom models (skip if id already exists from API/filters)
-  const existingIds = new Set(filtered.map((r) => r.id));
-  for (const c of CUSTOM_MODELS) {
-    if (!existingIds.has(c.id)) {
-      filtered.push({
-        id: c.id,
-        in: c.in,
-        out: c.out,
-        vision: c.vision !== undefined ? c.vision : 1,
-        reasoning: c.reasoning !== undefined ? c.reasoning : 1,
-        tool: c.tool !== undefined ? c.tool : 1,
-      });
-    }
-  }
+  // 1) raw catalog + custom_models -> models-all.csv (before model_filters)
+  const sortedRaw = rawWithCustom.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  fs.mkdirSync(path.dirname(ALL_MODELS_CSV), { recursive: true });
+  fs.writeFileSync(ALL_MODELS_CSV, csvRowsToText(sortedRaw), 'utf8');
+  console.log('Wrote raw catalog to ' + ALL_MODELS_CSV);
 
+  // 2) model_filters -> models.csv (custom_models re-added so they always appear)
+  let filtered = mergeCustomModels(applyModelFilters(sortedRaw, MODEL_FILTERS));
   filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const lines = ['id,input_context,output_context,vision,reasoning,tool'];
-  for (const r of filtered) lines.push(`${r.id},${r.in},${r.out},${r.vision},${r.reasoning},${r.tool}`);
-  const text = lines.join('\n');
   fs.mkdirSync(path.dirname(MODELS_CSV), { recursive: true });
-  fs.writeFileSync(MODELS_CSV, text + '\n', 'utf8');
+  fs.writeFileSync(MODELS_CSV, csvRowsToText(filtered), 'utf8');
   return filtered.length;
 }
 
@@ -1043,7 +1112,7 @@ function syncModelBlock(targetFile) {
 }
 
 // ---------- syncT3Providers: write per-provider claudeAgent instances to t3 settings.json ----------
-// Reads providers.csv and models (csv or live per harness_filters/fetch_directly).
+// Reads providers.csv and models (csv or live per harness_filters/raw_catalog_harnesses).
 // Deletes all providerInstances keys starting with "custom_", then creates custom_<provider>_<n>...
 async function syncT3Providers() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
@@ -1051,6 +1120,7 @@ async function syncT3Providers() {
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
   const modelRows = await getModelsForHarness('t3');
+  writeHarnessPreview('t3', modelRows);
 
   const byProvider = {};
   for (const row of rows) {
@@ -1258,7 +1328,7 @@ function sortProviderInstances(settings) {
 
 async function syncOpencodeRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  const needCsv = !FETCH_DIRECTLY.has('opencode');
+  const needCsv = !RAW_CATALOG.has('opencode');
   if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(OPENCODE_FILE)) throw new Error('opencode.jsonc not found: ' + OPENCODE_FILE);
 
@@ -1331,7 +1401,7 @@ async function syncOpencodeRestProviders() {
 
 async function syncKiloRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  const needCsv = !FETCH_DIRECTLY.has('kilo');
+  const needCsv = !RAW_CATALOG.has('kilo');
   if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(KILO_FILE)) throw new Error('kilo.jsonc not found: ' + KILO_FILE);
 
@@ -1640,14 +1710,14 @@ function cleanupDSHProviders(byProvider, routerName) {
       const inst = providers[k];
       if (inst && inst.apiKeyEnv) referenced.add(inst.apiKeyEnv);
     }
-    // only prune custom_ env vars we manage (PROVIDER[_N]_API_KEY)
+    // only prune custom_ env vars we manage (CUSTOM_PROVIDER[_N]_API_KEY)
     let changed = false;
     for (const env of Object.keys(creds)) {
       if (!/_API_KEY$/.test(env)) continue;
       // if this env is not referenced and it matches a provider we grouped, remove
       if (!referenced.has(env)) {
-        // only remove if it was a DSH-managed key (provider prefix)
-        const prefix = env.replace(/(_\d+)?_API_KEY$/, '').toLowerCase();
+        // strip optional CUSTOM_ prefix + optional _<idx> before _API_KEY to find provider
+        const prefix = env.replace(/^CUSTOM_/, '').replace(/(_\d+)?_API_KEY$/, '').toLowerCase();
         if (grouped[prefix] || (routerName && prefix === routerName.toLowerCase())) {
           delete creds[env];
           removed++;
@@ -1666,7 +1736,7 @@ function cleanupDSHProviders(byProvider, routerName) {
 async function syncRouterProvider(targetFile, harnessId) {
   const hid = harnessId || 'opencode';
   // Keep hard fail for non-live harnesses that still expect models.csv
-  if (!FETCH_DIRECTLY.has(normalizeHarnessId(hid)) && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  if (!RAW_CATALOG.has(normalizeHarnessId(hid)) && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   if (!fs.existsSync(targetFile)) throw new Error('Config file not found: ' + targetFile);
 
@@ -1676,6 +1746,7 @@ async function syncRouterProvider(targetFile, harnessId) {
   const displayName = routerName;
 
   const modelLines = (await getModelsForHarness(hid)).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview(hid, modelLines);
 
   const models = {};
   for (const m of modelLines) {
@@ -1793,6 +1864,10 @@ function parseYamlValue(v) {
   if (v === 'null' || v === '~') return null;
   if (/^-?\d+$/.test(v)) return parseInt(v, 10);
   if (/^-?\d*\.\d+$/.test(v)) return parseFloat(v);
+  // YAML flow sequence: ["text","image"] → round-trip as a real JS array
+  if (/^\[[^\]]*\]$/.test(v.trim())) {
+    try { return JSON.parse(v.trim()); } catch (_) { return v; }
+  }
   return v;
 }
 function yamlEscape(s) {
@@ -1881,19 +1956,20 @@ async function syncDSHRouter() {
   const routerRow = requireRouterRow(rows);
   const routerName = routerRow.provider;
   const models = (await getModelsForHarness('dsh')).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview('dsh', models);
   const settings = readYamlFile(DSH_SETTINGS_FILE);
   if (!settings['llm-pi-ai'] || typeof settings['llm-pi-ai'] !== 'object') settings['llm-pi-ai'] = {};
   if (!settings['llm-pi-ai'].providers || typeof settings['llm-pi-ai'].providers !== 'object' || Array.isArray(settings['llm-pi-ai'].providers)) settings['llm-pi-ai'].providers = {};
   const providers = settings['llm-pi-ai'].providers;
   const creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
-  const envVar = routerName.toUpperCase() + '_API_KEY';
+  const envVar = 'CUSTOM_' + routerName.toUpperCase() + '_API_KEY';
   creds[envVar] = routerRow.api_key;
   for (const api of DSH_ROUTER_APIS) {
     const suffix = dshSuffix(api);
     const key = `custom_${routerName}_${suffix}`;
     const dshModels = models.map(m => {
-      const entry = { id: m.id, contextWindow: m.in };
-      if (m.out) entry.maxTokens = m.out;
+      const entry = { id: m.id, contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
+      if (!m.out) delete entry.maxTokens;
       return entry;
     });
     providers[key] = {
@@ -1915,6 +1991,7 @@ async function syncDSHRestProviders() {
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
   const modelRows = await getModelsForHarness('dsh');
+  writeHarnessPreview('dsh', modelRows);
   const byProvider = {};
   for (const row of rows) {
     if (routerName && row.provider === routerName) continue;
@@ -1935,11 +2012,11 @@ async function syncDSHRestProviders() {
       for (const api of DSH_REST_APIS) {
         const suffix = dshSuffix(api);
         const key = `custom_${provider}_${idx + 1}_${suffix}`;
-        const envVar = providerRows.length > 1 ? `${provider.toUpperCase()}_${idx + 1}_API_KEY` : `${provider.toUpperCase()}_API_KEY`;
+        const envVar = 'CUSTOM_' + (providerRows.length > 1 ? provider.toUpperCase() + '_' + (idx + 1) : provider.toUpperCase()) + '_API_KEY';
         creds[envVar] = row.api_key;
         const dshModels = providerModelCandidates.map(m => {
-          const entry = { id: m.id.slice(prefix.length), contextWindow: m.in };
-          if (m.out) entry.maxTokens = m.out;
+          const entry = { id: m.id.slice(prefix.length), contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
+          if (!m.out) delete entry.maxTokens;
           return entry;
         });
         providers[key] = {
@@ -1987,6 +2064,7 @@ function stripJsoncComments(jsonc) {
 async function syncT3Models(minInput = 0, minOutput = 0) {
   const models = await getModelsForHarness('t3', minInput, minOutput);
   const filtered = models;
+  writeHarnessPreview('t3', filtered);
 
   const customModels = [];
   for (const m of filtered) {
@@ -2432,6 +2510,10 @@ function parseArgs() {
       const created = await ensureRouterProvider();
       if (created) console.log('Providers configured. Fetching the model catalog now...\n');
     }
+
+    // Clean up per-harness preview CSVs that don't belong under the current
+    // harness_previews mode before any sync re-writes the ones that do.
+    cleanupHarnessPreviews();
 
     for (const target of buildOrder()) {
       if (!has(target)) continue;
