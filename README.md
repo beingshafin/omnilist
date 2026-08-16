@@ -2,7 +2,7 @@
 
 One command to fetch your **Router**'s model catalog and keep every AI coding tool's config in sync.
 
-A "Router" is any gateway that fronts multiple model providers behind a single OpenAI-compatible endpoint — e.g. [OmniRoute](https://www.imshafin.tech/blog/omniroute-setup), 9router, agentrouter, or your own. The problem is that OpenCode, Kilo, and T3 each store their model list in their own config files, in their own format. Add or rotate a provider, and you end up pasting the same information into three places.
+A "Router" is any gateway that fronts multiple model providers behind a single OpenAI-compatible endpoint — e.g. [OmniRoute](https://www.imshafin.tech/blog/omniroute-setup), 9router, agentrouter, or your own. The problem is that OpenCode, Kilo, T3, and the DeepSeek harness (DSH) each store their model list in their own config files, in their own format. Add or rotate a provider, and you end up pasting the same information into four places.
 
 Omnilist fixes that. You keep one list of providers and one fetched model catalog, and it pushes everything into every tool for you.
 
@@ -68,16 +68,19 @@ Every key is optional — the script falls back to sensible defaults for anythin
 
 | Section | Controls |
 |---|---|
-| `paths` | Where `models.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, and T3's data live |
+| `paths` | Where `models.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, T3's data, and DSH's `settings.yaml` / `.credentials.yaml` live |
 | `fetch.models_endpoint` | Full URL to the model list. Leave `""` to use `{base_url}/models` |
 | `capabilities.fields` | Which fields the router's model objects use to report `vision` / `reasoning` / `tool` |
 | `capabilities.n_a_defaults` | What sync steps emit when a router doesn't report a capability (default `true`) |
 | `follow_hardcoded_model_template` | Emit the full hardcoded model template into OpenCode/Kilo — all capability flags `true`, plus `modalities` and `variants`; only context/output limits come from `models.csv` (default `true`) |
 | `model_filters` | Model allow/block rules (see below) |
-| `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, …) |
+| `harness_filters` | Second-stage filters on top of `models.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`) |
+| `fetch_directly` | Harnesses that fetch the Router catalog live instead of reading `models.csv` (e.g. `["dsh"]` or `["open code","DS"]`) |
+| `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, `dsh_router`, …) |
 | `t3` | T3 drivers, per-driver strategy, and `[1m]` handling |
+| `dsh` | DSH API variants (`router_apis` / `rest_apis` — `openai-completions` \| `openai-responses` \| `anthropic-messages`) |
 
-Paths may be absolute, relative (to the script dir), or use `~` for your home directory. The environment variables `MODELS_TEST`, `JSONC_TEST`, `KILO_TEST`, `T3_DATA_DIR`, and `OMNILIST_CONFIG` still override paths / the config location.
+Paths may be absolute, relative (to the script dir), or use `~` for your home directory. The environment variables `MODELS_TEST`, `JSONC_TEST`, `KILO_TEST`, `T3_DATA_DIR`, `DSH_SETTINGS_FILE`, `DSH_CREDENTIALS_FILE`, and `OMNILIST_CONFIG` still override paths / the config location.
 
 **`config.jsonc` is committed to the repo**, so don't put machine-specific or personal values in it. If you want personal overrides that stay off GitHub, create **`config.local.jsonc`** (gitignored) next to it with the same shape — its values override `config.jsonc`. Example:
 
@@ -106,6 +109,8 @@ omnilist opencode        # Sync Router models into OpenCode
 omnilist kilo            # Sync Router models into Kilo
 omnilist t3              # Sync Router models into T3
 omnilist t3providers     # Sync per-provider instances into T3
+omnilist dsh             # Sync Router models into DSH (settings.yaml)
+omnilist dshrest         # Sync per-provider instances into DSH
 omnilist all             # Same as running with no arguments
 ```
 
@@ -162,6 +167,35 @@ An **expression** is a boolean formula over the model:
 
 Rules run top-down and the **last matching rule wins** — a later rule overrides earlier ones for the same model, so put the rule you want to win the *last*.
 
+### Harness filters and live fetch
+
+`model_filters` runs at **fetch** time and trims `models.csv`. `harness_filters` runs again at **sync** time on top of `models.csv`, and can target specific harnesses with a `->h1,h2` suffix. Harness ids are `opencode`, `kilo`, `t3`, `dsh` — each accepts multiple aliases, case-insensitive: `opencode` (`oc`/`open code`/`open-code`/`open_code`/`opc`), `kilo` (`kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`), `t3` (`t3code`/`t3-code`/`t3_code`/`t3 code`), `dsh` (`ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`). Bare rules (no suffix) apply to all harnesses.
+
+```jsonc
+"harness_filters": [
+  "!agy/*",                              // all harnesses
+  "!(kc/* && !*free)->t3,dsh",           // only t3 and dsh
+  "!*no-think->deepseek",                // only dsh
+],
+"fetch_directly": ["dsh"],               // or ["open code","DS"] — fetches live from the Router, bypassing models.csv
+```
+
+### DeepSeek harness (DSH)
+
+DSH stores its config in `~/.dsh/settings.yaml` and credentials in `~/.dsh/.credentials.yaml` (both configurable via `paths.dsh_settings_file` / `paths.dsh_credentials_file` and env `DSH_SETTINGS_FILE` / `DSH_CREDENTIALS_FILE`). Enable with `targets.dsh_router` (Router catalog) and `targets.dsh_rest` (per-provider `custom_*` instances). Each selected API creates a separate `custom_*` provider:
+
+- Router: `custom_<router>_<suffix>` (suffix `completions` / `responses` / `messages` for `openai-completions` / `openai-responses` / `anthropic-messages`), `displayName` `<router>_<suffix>`, shared `apiKeyEnv` `<ROUTER>_API_KEY` written to the credentials file.
+- REST: `custom_<provider>_<idx>_<suffix>` per CSV row × API, `displayName` `<provider>_<idx>_<suffix>`, per-row `apiKeyEnv` `<PROVIDER>[_<idx>]_API_KEY`. Model ids are prefix-stripped (`agentrouter/flash` → `flash`).
+
+```jsonc
+"dsh": {
+  "router_apis": ["openai-completions", "anthropic-messages"],
+  "rest_apis": ["openai-completions"]
+}
+```
+
+Keys always carry the API suffix, even for a single entry. Unknown top-level YAML keys (`ui-onboarding`, `agent-default-model`, etc.) survive round-trips, and `maxTokens` is omitted when `0`. Cleanup reapplies the `custom_*` logic (`cleanupproviders`): disabling a flag or removing a provider from `providers.csv` prunes the DSH entries and unreferenced `_API_KEY` credentials.
+
 ## When to use it
 
 - **Right after setting up a Router** — populate OpenCode, Kilo, and T3 in one shot
@@ -169,6 +203,7 @@ Rules run top-down and the **last matching rule wins** — a later rule override
 - **When new models appear** — rerun to pull the fresh catalog and push it everywhere
 - **On a new machine** — clone and run `omnilist`; it prompts for the Router base URL + API key, writes `providers.csv`, and fetches the catalog
 - **Whenever your model pickers feel out of sync** — one run reconciles everything
+- **When DSH needs the same catalog** — enable `targets.dsh_router` / `targets.dsh_rest` and `dsh.router_apis` / `dsh.rest_apis`; use `harness_filters` with `->dsh` or `fetch_directly: ["dsh"]` for per-harness control
 
 ## What it does, briefly
 

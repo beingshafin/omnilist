@@ -20,9 +20,11 @@ const DEFAULTS = {
     providers_csv: 'providers.csv',
     opencode_file: '~/.config/opencode/opencode.jsonc',
     kilo_file: '~/.config/kilo/kilo.jsonc',
-    t3_data_dir: '~/.t3/userdata',
     t3_settings_file: '',
+    t3_data_dir: '~/.t3/userdata',
     t3_logs_dir: '',
+    dsh_settings_file: '~/.dsh/settings.yaml',
+    dsh_credentials_file: '~/.dsh/.credentials.yaml',
   },
   cli: {
     install_as_command: true,
@@ -69,7 +71,12 @@ const DEFAULTS = {
     "!no-think",
     "!compatible",
   ],
-  t3_filters: [],
+  // Unified second-stage filters applied on top of models.csv at sync time.
+  // Syntax: "<rule>" (all harnesses) or "<rule>->t3,dsh" (only listed harnesses).
+  // Harness ids: opencode (alias oc), kilo, t3, dsh.
+  harness_filters: [],
+  // Which harnesses fetch the Router catalog live instead of reading models.csv.
+  fetch_directly: [], // e.g. ["dsh"] or ["dsh","t3"]
   // Custom models to inject into models.csv on every fetch.
   // Format: { id: "provider/model", in: <input_context>, out: <output_context>,
   //           vision?: 0|1, reasoning?: 0|1, tool?: 0|1 }
@@ -91,6 +98,8 @@ const DEFAULTS = {
     kilo_router: true,
     kilo_rest: false,
     kilo_copy_opencode_full_provider_block: false,
+    dsh_router: false,
+    dsh_rest: false,
   },
 
   t3: {
@@ -116,6 +125,11 @@ const DEFAULTS = {
   cleanup_providers: {
     remove_if_false_provider: true,
     remove_if_provider_doesnt_exist: true,
+  },
+
+  dsh: {
+    router_apis: ['openai-completions'],
+    rest_apis: ['openai-completions'],
   },
 };
 
@@ -180,6 +194,8 @@ const KILO_FILE = process.env.KILO_TEST || resolvePath(cfg.paths.kilo_file);
 const T3_DATA_DIR = process.env.T3_DATA_DIR || resolvePath(cfg.paths.t3_data_dir);
 const T3_SETTINGS_FILE = resolvePath(cfg.paths.t3_settings_file) || path.join(T3_DATA_DIR, 'settings.json');
 const T3_LOGS_DIR = resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs');
+const DSH_SETTINGS_FILE = process.env.DSH_SETTINGS_FILE || resolvePath(cfg.paths.dsh_settings_file);
+const DSH_CREDENTIALS_FILE = process.env.DSH_CREDENTIALS_FILE || resolvePath(cfg.paths.dsh_credentials_file);
 
 // ---------- config shortcuts ----------
 const INSTALL_AS_COMMAND = cfg.cli.install_as_command;
@@ -190,7 +206,8 @@ const CLEANUP_DEFAULT = cfg.cleanup_default;
 const FOLLOW_HARDCODED_MODEL_TEMPLATE = cfg.follow_hardcoded_model_template;
 
 const MODEL_FILTERS = cfg.model_filters;
-const T3_FILTERS = cfg.t3_filters;
+const HARNESS_FILTERS_RAW = cfg.harness_filters || [];
+const FETCH_DIRECTLY_RAW = cfg.fetch_directly || [];
 const CUSTOM_MODELS = cfg.custom_models;
 
 const OPENCODE_ROUTER = cfg.targets.opencode_router;
@@ -200,6 +217,8 @@ const T3_REST = cfg.targets.t3_rest;
 const KILO_ROUTER = cfg.targets.kilo_router;
 const KILO_REST = cfg.targets.kilo_rest;
 const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = cfg.targets.kilo_copy_opencode_full_provider_block;
+const DSH_ROUTER = !!cfg.targets.dsh_router;
+const DSH_REST = !!cfg.targets.dsh_rest;
 
 const REMOVE_IF_FALSE_PROVIDER = cfg.cleanup_providers.remove_if_false_provider;
 const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider_doesnt_exist;
@@ -207,6 +226,9 @@ const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider
 const T3_ROUTER_DRIVERS = cfg.t3.router_drivers;
 const T3_REST_PROVIDER_DRIVERS = cfg.t3.rest_provider_drivers;
 const T3_DRIVER_STRATEGY = cfg.t3.driver_strategy;
+
+const DSH_ROUTER_APIS = (cfg.dsh && Array.isArray(cfg.dsh.router_apis) && cfg.dsh.router_apis.length ? cfg.dsh.router_apis : ['openai-completions']);
+const DSH_REST_APIS = (cfg.dsh && Array.isArray(cfg.dsh.rest_apis) && cfg.dsh.rest_apis.length ? cfg.dsh.rest_apis : ['openai-completions']);
 
 // ---------- router detection ----------
 // A provider is special ("the Router") when its whitespace-trimmed `description`
@@ -443,7 +465,7 @@ function getJSON(url, headers) {
 }
 
 // ---------- filter helpers ----------
-// Each model_filters / t3_filters entry is one statement:  [prefix] <expression>
+// Each model_filters entry is one statement:  [prefix] <expression>
 //
 // Rule prefix (the action to take when the expression is TRUE):
 //   "!expr"   -> EXCLUDE the model (block)
@@ -663,6 +685,126 @@ function applyModelFilters(candidates, filters) {
     }
     return keep;
   });
+}
+
+// ---------- harness filter helpers (unified second-stage) ----------
+const HARNESS_VARIANTS = {
+  opencode: ['opencode', 'oc', 'open code', 'open-code', 'open_code', 'opc'],
+  kilo:     ['kilo', 'kc', 'kilo code', 'kilocode', 'kilo-code', 'kilo_code'],
+  dsh:      ['deepseek', 'deepseek_harness', 'deepseek harness', 'ds', 'deepseek-harness', 'dsh'],
+  t3:       ['t3', 't3code', 't3-code', 't3_code', 't3 code'],
+};
+function _canonKey(s) { return String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+const HARNESS_ALIASES = (() => {
+  const m = {};
+  for (const [canon, variants] of Object.entries(HARNESS_VARIANTS)) for (const v of variants) m[_canonKey(v)] = canon;
+  return m;
+})();
+const VALID_HARNESSES = new Set(Object.keys(HARNESS_VARIANTS));
+function normalizeHarnessId(s) {
+  const k = _canonKey(s);
+  if (HARNESS_ALIASES[k] !== undefined) return HARNESS_ALIASES[k];
+  return k;
+}
+function parseHarnessFilterEntry(entry) {
+  const idx = entry.lastIndexOf('->');
+  if (idx === -1) return { rule: entry, targets: null };
+  const rulePart = entry.slice(0, idx);
+  const targetPart = entry.slice(idx + 2).trim();
+  if (!targetPart) return { rule: entry, targets: null };
+  const parts = targetPart.split(',').map((p) => normalizeHarnessId(p.trim())).filter(Boolean);
+  const valid = parts.filter((p) => VALID_HARNESSES.has(p));
+  if (!valid.length) return { rule: entry, targets: null };
+  return { rule: rulePart, targets: new Set(valid) };
+}
+function getHarnessFilters(harnessId) {
+  const norm = normalizeHarnessId(harnessId);
+  return HARNESS_FILTERS_RAW
+    .map((e) => parseHarnessFilterEntry(e))
+    .filter((e) => !e.targets || e.targets.has(norm))
+    .map((e) => e.rule);
+}
+const FETCH_DIRECTLY = new Set((FETCH_DIRECTLY_RAW || []).map((s) => normalizeHarnessId(s)).filter((s) => VALID_HARNESSES.has(s)));
+
+// ---------- DSH api helpers ----------
+const DSH_API_SUFFIX = {
+  'openai-completions': 'completions',
+  'openai-responses': 'responses',
+  'anthropic-messages': 'messages',
+};
+const VALID_DSH_APIS = new Set(Object.keys(DSH_API_SUFFIX));
+function dshSuffix(api) { return DSH_API_SUFFIX[api] || api.replace(/[^a-z0-9]+/g, '_'); }
+function validateDshApis(apis, label) {
+  for (const a of apis) {
+    if (!VALID_DSH_APIS.has(a)) throw new Error(`Invalid DSH api "${a}" in ${label}: must be one of ${[...VALID_DSH_APIS].join(', ')}`);
+  }
+}
+function parseDshKey(key) {
+  if (!key.startsWith('custom_')) return null;
+  const rest = key.slice('custom_'.length);
+  let suffix = null;
+  let api = null;
+  for (const [k, v] of Object.entries(DSH_API_SUFFIX)) {
+    if (rest.endsWith('_' + v)) { suffix = v; api = k; break; }
+  }
+  if (!suffix) return null;
+  const withoutSuffix = rest.slice(0, -(suffix.length + 1));
+  const parts = withoutSuffix.split('_');
+  const last = parts[parts.length - 1];
+  let idx = null;
+  let provider;
+  if (/^\d+$/.test(last) && parts.length > 1) {
+    idx = parseInt(last, 10);
+    provider = parts.slice(0, -1).join('_');
+  } else {
+    provider = withoutSuffix;
+  }
+  if (!provider) return null;
+  return { provider, idx, suffix, api };
+}
+
+// Fetch catalog either from models.csv or live endpoint depending on harness
+async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0) {
+  const harnessFilters = getHarnessFilters(harnessId);
+  const shouldFetchLive = FETCH_DIRECTLY.has(normalizeHarnessId(harnessId));
+  if (shouldFetchLive) {
+    const rows = readProvidersCsv();
+    const router = requireRouterRow(rows);
+    const base = (router.base_url || '').trim().replace(/\/+$/, '');
+    const endpoint = (MODELS_ENDPOINT || '').trim();
+    const modelsUrl = endpoint || (base.toLowerCase().endsWith('/models') ? base : base + '/models');
+    if (!router.api_key) throw new Error('Router provider "' + router.provider + '" has no api_key in ' + PROVIDERS_CSV);
+    const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + router.api_key });
+    const results = [];
+    for (const m of (json.data || [])) {
+      let id = m.id;
+      if (!id) continue;
+      if (m.parent != null) continue;
+      if (id.includes('__provider_')) {
+        const pidx = id.indexOf('__provider_');
+        const name = id.substring(0, pidx);
+        const prov = id.substring(pidx + '__provider_'.length);
+        id = prov + '/' + name;
+      }
+      const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens : (m.context_length != null ? m.context_length : 0);
+      const ctxOut = (m.max_output_tokens != null) ? m.max_output_tokens : 0;
+      if (minInput > 0 && ctxIn < minInput) continue;
+      if (minOutput > 0 && ctxOut < minOutput) continue;
+      results.push({ id, in: ctxIn, out: ctxOut, vision: detectCapability(m, 'vision'), reasoning: detectCapability(m, 'reasoning'), tool: detectCapability(m, 'tool') });
+    }
+    // fetch_directly ON: bypasses model_filters — only harness_filters(targeting this harness)+custom_models; OFF: models.csv was already model_filters+custom_models
+    let filtered = applyModelFilters(results, harnessFilters);
+    const existingIds = new Set(filtered.map((r) => r.id));
+    for (const c of CUSTOM_MODELS) {
+      if (!existingIds.has(c.id)) filtered.push({ id: c.id, in: c.in, out: c.out, vision: c.vision !== undefined ? c.vision : 1, reasoning: c.reasoning !== undefined ? c.reasoning : 1, tool: c.tool !== undefined ? c.tool : 1 });
+    }
+    filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return filtered;
+  }
+  let rows = readModelsCsv();
+  if (minInput > 0) rows = rows.filter((m) => m.in >= minInput);
+  if (minOutput > 0) rows = rows.filter((m) => m.out >= minOutput);
+  return applyModelFilters(rows, harnessFilters);
 }
 
 // Full hardcoded model entry (used when follow_hardcoded_model_template is on):
@@ -901,17 +1043,14 @@ function syncModelBlock(targetFile) {
 }
 
 // ---------- syncT3Providers: write per-provider claudeAgent instances to t3 settings.json ----------
-// Reads providers.csv and models.csv. Deletes all providerInstances keys starting with "custom_",
-// then creates custom_<provider>_<n> for each key of each provider.
-// customModels per instance = models matching <provider>/ prefix, with prefix stripped.
-// Models with input context >= 1,000,000 also get a "[1m]" variant.
-function syncT3Providers() {
+// Reads providers.csv and models (csv or live per harness_filters/fetch_directly).
+// Deletes all providerInstances keys starting with "custom_", then creates custom_<provider>_<n>...
+async function syncT3Providers() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
 
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelRows = readModelsCsv();
+  const modelRows = await getModelsForHarness('t3');
 
   const byProvider = {};
   for (const row of rows) {
@@ -943,7 +1082,7 @@ function syncT3Providers() {
     const withPrefix = modelRows
       .filter((m) => m.id.startsWith(provider + '/'))
       .map((m) => ({ ...m, fullId: m.id }));
-    const filtered = applyModelFilters(withPrefix, T3_FILTERS);
+    const filtered = getHarnessFilters('t3').length ? applyModelFilters(withPrefix, getHarnessFilters('t3')) : withPrefix;
     const providerModelsAll = [];
     for (const m of filtered) {
       const name = m.id.slice(provider.length + 1);
@@ -1117,14 +1256,15 @@ function sortProviderInstances(settings) {
   settings.providerInstances = reordered;
 }
 
-function syncOpencodeRestProviders() {
+async function syncOpencodeRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  const needCsv = !FETCH_DIRECTLY.has('opencode');
+  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(OPENCODE_FILE)) throw new Error('opencode.jsonc not found: ' + OPENCODE_FILE);
 
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelLines = readModelsCsv();
+  const modelLines = await getModelsForHarness('opencode');
 
   const byProvider = {};
   for (const row of rows) {
@@ -1189,14 +1329,15 @@ function syncOpencodeRestProviders() {
   return Object.keys(config.provider).filter(k => k.startsWith('custom_') && !(routerName && k === 'custom_' + routerName)).length;
 }
 
-function syncKiloRestProviders() {
+async function syncKiloRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  const needCsv = !FETCH_DIRECTLY.has('kilo');
+  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(KILO_FILE)) throw new Error('kilo.jsonc not found: ' + KILO_FILE);
 
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelLines = readModelsCsv();
+  const modelLines = await getModelsForHarness('kilo');
 
   const byProvider = {};
   for (const row of rows) {
@@ -1394,15 +1535,139 @@ function cleanupProviders() {
     fs.writeFileSync(spec.file, JSON.stringify(config, null, 2) + '\n', 'utf8');
   }
 
+  // DSH yaml cleanup (keys are custom_<provider>_<suffix> / custom_<provider>_<idx>_<suffix>)
+  removed += cleanupDSHProviders(byProvider, routerName);
+
+  return removed;
+}
+
+function cleanupDSHProviders(byProvider, routerName) {
+  if (!fs.existsSync(DSH_SETTINGS_FILE)) return 0;
+  let settings;
+  try { settings = readYamlFile(DSH_SETTINGS_FILE); } catch (e) { throw new Error('Failed to parse ' + DSH_SETTINGS_FILE + ': ' + e.message); }
+  const providers = settings['llm-pi-ai'] && settings['llm-pi-ai'].providers;
+  if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return 0;
+  let removed = 0;
+  // group by provider (from parseDshKey)
+  const grouped = {};
+  for (const key of Object.keys(providers)) {
+    const parsed = parseDshKey(key);
+    if (!parsed) continue;
+    const p = parsed.provider;
+    if (!grouped[p]) grouped[p] = [];
+    grouped[p].push({ key, parsed, inst: providers[key] });
+  }
+  for (const provider of Object.keys(grouped)) {
+    const isRouter = routerName && provider === routerName;
+    const flag = isRouter ? DSH_ROUTER : DSH_REST;
+    const csvRows = byProvider[provider];
+    const entries = grouped[provider];
+    if (REMOVE_IF_PROVIDER_DOESNT_EXIST && !csvRows) {
+      for (const e of entries) { delete providers[e.key]; removed++; }
+      continue;
+    }
+    if (REMOVE_IF_FALSE_PROVIDER && !flag) {
+      for (const e of entries) { delete providers[e.key]; removed++; }
+      continue;
+    }
+    if (!csvRows || isRouter) {
+      // router: if flag off already handled; otherwise keep as-is (multiple apis)
+      // also handle api changes: remove apis no longer in DSH_ROUTER_APIS
+      if (isRouter) {
+        const allowedSuffixes = new Set((DSH_ROUTER_APIS || []).map(dshSuffix));
+        for (const e of entries) {
+          if (!allowedSuffixes.has(e.parsed.suffix)) { delete providers[e.key]; removed++; }
+        }
+      }
+      continue;
+    }
+    // REST: match by apiKeyEnv's env var value in credentials file
+    let creds = {};
+    try { creds = readCredentialsFile(DSH_CREDENTIALS_FILE); } catch (_) {}
+    const csvKeys = csvRows.map(r => r.api_key);
+    // map inst apiKeyEnv -> csv row index via creds value
+    const placement = entries.map(e => {
+      const env = e.inst && e.inst.apiKeyEnv;
+      const val = env ? creds[env] : null;
+      let rowIdx = val ? csvKeys.indexOf(val) : -1;
+      // fallback: match by baseURL
+      if (rowIdx === -1) {
+        const baseURL = e.inst && e.inst.baseURL;
+        if (baseURL) rowIdx = csvRows.findIndex(r => (r.base_url || '').replace(/\/$/, '') === String(baseURL).replace(/\/$/, ''));
+      }
+      return { entry: e, rowIdx };
+    });
+    // also prune apis not in DSH_REST_APIS
+    const allowedRestSuffixes = new Set((DSH_REST_APIS || []).map(dshSuffix));
+    for (const p of placement) {
+      if (p.rowIdx !== -1 && !allowedRestSuffixes.has(p.entry.parsed.suffix)) {
+        p.rowIdx = -1;
+      }
+    }
+    const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx || a.entry.parsed.suffix.localeCompare(b.entry.parsed.suffix));
+    // rebuild keys as custom_<provider>_<idx>_<suffix> with compacted idx
+    const byRowIdx = {};
+    for (const p of kept) {
+      if (!byRowIdx[p.rowIdx]) byRowIdx[p.rowIdx] = [];
+      byRowIdx[p.rowIdx].push(p);
+    }
+    const rowOrder = Object.keys(byRowIdx).map(n => parseInt(n, 10)).sort((a, b) => a - b);
+    const built = [];
+    rowOrder.forEach((origIdx, newPos) => {
+      const bucket = byRowIdx[origIdx].sort((a, b) => a.entry.parsed.suffix.localeCompare(b.entry.parsed.suffix));
+      for (const p of bucket) {
+        const newKey = `custom_${provider}_${newPos + 1}_${p.entry.parsed.suffix}`;
+        const inst = p.entry.inst;
+        if (inst.displayName) inst.displayName = `${provider}_${newPos + 1}_${p.entry.parsed.suffix}`;
+        built.push({ newKey, inst, oldKey: p.entry.key });
+      }
+    });
+    // prune stale credentials for removed rows/apis
+    const keptRowIdxs = new Set(kept.map(p => p.rowIdx));
+    // delete all old entries
+    for (const e of entries) delete providers[e.key];
+    for (const b of built) providers[b.newKey] = b.inst;
+    removed += (entries.length - built.length);
+    // credentials pruning: remove env vars for rows no longer present
+    // handled after loop for all providers
+    void keptRowIdxs;
+  }
+  // prune credentials that are no longer referenced by any remaining dsh provider
+  try {
+    let creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
+    const referenced = new Set();
+    for (const k of Object.keys(providers)) {
+      const inst = providers[k];
+      if (inst && inst.apiKeyEnv) referenced.add(inst.apiKeyEnv);
+    }
+    // only prune custom_ env vars we manage (PROVIDER[_N]_API_KEY)
+    let changed = false;
+    for (const env of Object.keys(creds)) {
+      if (!/_API_KEY$/.test(env)) continue;
+      // if this env is not referenced and it matches a provider we grouped, remove
+      if (!referenced.has(env)) {
+        // only remove if it was a DSH-managed key (provider prefix)
+        const prefix = env.replace(/(_\d+)?_API_KEY$/, '').toLowerCase();
+        if (grouped[prefix] || (routerName && prefix === routerName.toLowerCase())) {
+          delete creds[env];
+          removed++;
+          changed = true;
+        }
+      }
+    }
+    if (changed) writeYamlFile(DSH_CREDENTIALS_FILE, creds);
+  } catch (_) {}
+  writeYamlFile(DSH_SETTINGS_FILE, settings);
   return removed;
 }
 
 // ---------- syncRouterProvider: write router provider block (no markers, full replace) ----------
-// Reads providers.csv + models.csv, builds complete router provider block.
-// Replaces entire router block in target file. No marker dependency.
-function syncRouterProvider(targetFile) {
+// Reads providers.csv + models (csv or live per harness), builds complete router block.
+async function syncRouterProvider(targetFile, harnessId) {
+  const hid = harnessId || 'opencode';
+  // Keep hard fail for non-live harnesses that still expect models.csv
+  if (!FETCH_DIRECTLY.has(normalizeHarnessId(hid)) && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
-  if (!fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(targetFile)) throw new Error('Config file not found: ' + targetFile);
 
   const rows = readProvidersCsv();
@@ -1410,7 +1675,7 @@ function syncRouterProvider(targetFile) {
   const routerName = routerRow.provider;
   const displayName = routerName;
 
-  const modelLines = readModelsCsv().filter(m => !m.id.endsWith('[1m]'));
+  const modelLines = (await getModelsForHarness(hid)).filter(m => !m.id.endsWith('[1m]'));
 
   const models = {};
   for (const m of modelLines) {
@@ -1447,6 +1712,252 @@ function syncRouterProvider(targetFile) {
   return Object.keys(models).length;
 }
 
+// ---------- yaml helpers (DSH) — zero-dep minimal ----------
+function parseYaml(text) {
+  if (!text || !text.trim()) return {};
+  const lines = text.split(/\r?\n/);
+  const root = {};
+  const stack = [{ indent: -1, obj: root, key: null, isArray: false }];
+  function countIndent(s) { let n = 0; for (const c of s) { if (c === ' ') n++; else if (c === '\t') n += 2; else break; } return n; }
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = countIndent(raw);
+    // pop to parent
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
+    const cur = stack[stack.length - 1];
+    // array item?
+    if (trimmed.startsWith('- ')) {
+      const val = trimmed.slice(2).trim();
+      const arr = cur.obj;
+      if (!Array.isArray(arr)) continue;
+      if (!val) {
+        const obj = {};
+        arr.push(obj);
+        stack.push({ indent, obj, key: null, isArray: false });
+      } else if (val.includes(':')) {
+        const c = val.indexOf(':');
+        const k = val.slice(0, c).trim();
+        const v = val.slice(c + 1).trim();
+        const obj = {};
+        obj[k] = parseYamlValue(v);
+        arr.push(obj);
+        stack.push({ indent, obj, key: null, isArray: false });
+      } else {
+        arr.push(parseYamlValue(val));
+      }
+      continue;
+    }
+    if (trimmed === '-') {
+      const arr = cur.obj;
+      if (Array.isArray(arr)) { const obj = {}; arr.push(obj); stack.push({ indent, obj, key: null, isArray: false }); }
+      continue;
+    }
+    const colon = trimmed.indexOf(':');
+    if (colon === -1) continue;
+    const k = trimmed.slice(0, colon).trim();
+    const vPart = trimmed.slice(colon + 1).trim();
+    // look ahead to decide if value is nested
+    let hasNested = false;
+    for (let j = i + 1; j < lines.length; j++) {
+      const t2 = lines[j].trim();
+      if (!t2 || t2.startsWith('#')) continue;
+      const ind2 = countIndent(lines[j]);
+      if (ind2 > indent) hasNested = true;
+      break;
+    }
+    if (hasNested) {
+      // peek next non-empty line to see if it's an array
+      let isArr = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        const t2 = lines[j].trim();
+        if (!t2 || t2.startsWith('#')) continue;
+        if (t2.startsWith('-')) isArr = true;
+        break;
+      }
+      const child = isArr ? [] : {};
+      cur.obj[k] = child;
+      stack.push({ indent, obj: child, key: k, isArray: isArr });
+    } else {
+      cur.obj[k] = parseYamlValue(vPart);
+    }
+  }
+  return root;
+}
+function parseYamlValue(v) {
+  if (!v) return '';
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (v === 'null' || v === '~') return null;
+  if (/^-?\d+$/.test(v)) return parseInt(v, 10);
+  if (/^-?\d*\.\d+$/.test(v)) return parseFloat(v);
+  return v;
+}
+function yamlEscape(s) {
+  if (s === '' || /[:#\[\]{}&,*!|>'"%`@\-?]/.test(s[0]) || /:\s/.test(s) || /\s#/.test(s) || /\n/.test(s) || s.trim() !== s) return JSON.stringify(s);
+  return s;
+}
+function stringifyYaml(obj, indent) {
+  if (indent === undefined) indent = 0;
+  const pad = '  '.repeat(indent);
+  if (obj === null || obj === undefined) return pad + 'null\n';
+  if (Array.isArray(obj)) {
+    if (!obj.length) return pad + '[]\n';
+    let out = '';
+    for (const v of obj) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const keys = Object.keys(v);
+        if (!keys.length) { out += pad + '- {}\n'; continue; }
+        out += pad + '- ' + yamlEscape(String(keys[0])) + ': ' + yamlValInline(v[keys[0]]) + '\n';
+        for (let i = 1; i < keys.length; i++) out += pad + '  ' + yamlEscape(String(keys[i])) + ': ' + yamlValInline(v[keys[i]]) + '\n';
+        // nested objects beyond first level not needed for DSH models
+        for (const k of keys) {
+          if (v[k] && typeof v[k] === 'object' && !Array.isArray(v[k])) {
+            // re-emit nested if needed (not used in DSH flat models)
+          }
+        }
+      } else if (Array.isArray(v)) {
+        out += pad + '-\n' + stringifyYaml(v, indent + 1);
+      } else {
+        out += pad + '- ' + yamlValInline(v) + '\n';
+      }
+    }
+    return out;
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (!keys.length) return '';
+    let out = '';
+    for (const k of keys) {
+      const v = obj[k];
+      if (v && typeof v === 'object') {
+        if (Array.isArray(v)) {
+          if (!v.length) out += pad + yamlEscape(String(k)) + ': []\n';
+          else out += pad + yamlEscape(String(k)) + ':\n' + stringifyYaml(v, indent + 1);
+        } else {
+          const sub = stringifyYaml(v, indent + 1);
+          if (!sub.trim()) out += pad + yamlEscape(String(k)) + ': {}\n';
+          else out += pad + yamlEscape(String(k)) + ':\n' + sub;
+        }
+      } else {
+        out += pad + yamlEscape(String(k)) + ': ' + yamlValInline(v) + '\n';
+      }
+    }
+    return out;
+  }
+  return pad + yamlValInline(obj) + '\n';
+}
+function yamlValInline(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') return yamlEscape(v);
+  return JSON.stringify(v);
+}
+function readYamlFile(file) {
+  if (!fs.existsSync(file)) return {};
+  const raw = fs.readFileSync(file, 'utf8');
+  if (!raw.trim()) return {};
+  return parseYaml(raw);
+}
+function writeYamlFile(file, obj) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, stringifyYaml(obj), 'utf8');
+}
+function readCredentialsFile(file) {
+  if (!fs.existsSync(file)) return {};
+  const raw = fs.readFileSync(file, 'utf8');
+  if (!raw.trim()) return {};
+  return parseYaml(raw);
+}
+
+// ---------- DSH sync helpers ----------
+async function syncDSHRouter() {
+  validateDshApis(DSH_ROUTER_APIS, 'dsh.router_apis');
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerRow = requireRouterRow(rows);
+  const routerName = routerRow.provider;
+  const models = (await getModelsForHarness('dsh')).filter(m => !m.id.endsWith('[1m]'));
+  const settings = readYamlFile(DSH_SETTINGS_FILE);
+  if (!settings['llm-pi-ai'] || typeof settings['llm-pi-ai'] !== 'object') settings['llm-pi-ai'] = {};
+  if (!settings['llm-pi-ai'].providers || typeof settings['llm-pi-ai'].providers !== 'object' || Array.isArray(settings['llm-pi-ai'].providers)) settings['llm-pi-ai'].providers = {};
+  const providers = settings['llm-pi-ai'].providers;
+  const creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
+  const envVar = routerName.toUpperCase() + '_API_KEY';
+  creds[envVar] = routerRow.api_key;
+  for (const api of DSH_ROUTER_APIS) {
+    const suffix = dshSuffix(api);
+    const key = `custom_${routerName}_${suffix}`;
+    const dshModels = models.map(m => {
+      const entry = { id: m.id, contextWindow: m.in };
+      if (m.out) entry.maxTokens = m.out;
+      return entry;
+    });
+    providers[key] = {
+      displayName: `${routerName}_${suffix}`,
+      apiKeyEnv: envVar,
+      api,
+      baseURL: routerRow.base_url.replace(/\/$/, ''),
+      models: dshModels,
+    };
+  }
+  writeYamlFile(DSH_SETTINGS_FILE, settings);
+  writeYamlFile(DSH_CREDENTIALS_FILE, creds);
+  return DSH_ROUTER_APIS.length;
+}
+
+async function syncDSHRestProviders() {
+  validateDshApis(DSH_REST_APIS, 'dsh.rest_apis');
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const modelRows = await getModelsForHarness('dsh');
+  const byProvider = {};
+  for (const row of rows) {
+    if (routerName && row.provider === routerName) continue;
+    if (!byProvider[row.provider]) byProvider[row.provider] = [];
+    byProvider[row.provider].push(row);
+  }
+  const settings = readYamlFile(DSH_SETTINGS_FILE);
+  if (!settings['llm-pi-ai'] || typeof settings['llm-pi-ai'] !== 'object') settings['llm-pi-ai'] = {};
+  if (!settings['llm-pi-ai'].providers || typeof settings['llm-pi-ai'].providers !== 'object' || Array.isArray(settings['llm-pi-ai'].providers)) settings['llm-pi-ai'].providers = {};
+  const providers = settings['llm-pi-ai'].providers;
+  const creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
+  let count = 0;
+  for (const [provider, providerRows] of Object.entries(byProvider)) {
+    const prefix = provider + '/';
+    // pre-filter models for this provider prefix, then modelRows already harness-filtered
+    const providerModelCandidates = modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]'));
+    providerRows.forEach((row, idx) => {
+      for (const api of DSH_REST_APIS) {
+        const suffix = dshSuffix(api);
+        const key = `custom_${provider}_${idx + 1}_${suffix}`;
+        const envVar = providerRows.length > 1 ? `${provider.toUpperCase()}_${idx + 1}_API_KEY` : `${provider.toUpperCase()}_API_KEY`;
+        creds[envVar] = row.api_key;
+        const dshModels = providerModelCandidates.map(m => {
+          const entry = { id: m.id.slice(prefix.length), contextWindow: m.in };
+          if (m.out) entry.maxTokens = m.out;
+          return entry;
+        });
+        providers[key] = {
+          displayName: `${provider}_${idx + 1}_${suffix}`,
+          apiKeyEnv: envVar,
+          api,
+          baseURL: row.base_url.replace(/\/$/, ''),
+          models: dshModels,
+        };
+        count++;
+      }
+    });
+  }
+  writeYamlFile(DSH_SETTINGS_FILE, settings);
+  writeYamlFile(DSH_CREDENTIALS_FILE, creds);
+  return count;
+}
+
 // Helper: strip JSONC comments while preserving strings
 function stripJsoncComments(jsonc) {
   let result = '';
@@ -1473,19 +1984,9 @@ function stripJsoncComments(jsonc) {
   return result;
 }
 
-function syncT3Models(minInput = 0, minOutput = 0) {
-  if (!fs.existsSync(MODELS_CSV)) {
-    throw new Error('models.csv not found: ' + MODELS_CSV);
-  }
-
-  const models = readModelsCsv()
-    .filter((m) => {
-      if (minInput > 0 && m.in < minInput) return false;
-      if (minOutput > 0 && m.out < minOutput) return false;
-      return true;
-    });
-
-  const filtered = applyModelFilters(models, T3_FILTERS);
+async function syncT3Models(minInput = 0, minOutput = 0) {
+  const models = await getModelsForHarness('t3', minInput, minOutput);
+  const filtered = models;
 
   const customModels = [];
   for (const m of filtered) {
@@ -1747,6 +2248,14 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 't3providers');
   }
+  if (DSH_ROUTER) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'dsh');
+  }
+  if (DSH_REST) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'dshrest');
+  }
   const cleanupIdx = order.indexOf('cleanup');
   order.splice(cleanupIdx, 0, 'cleanupproviders');
   return order;
@@ -1761,6 +2270,9 @@ const WORD_MAP = {
   kilorest: ['kilorest'],
   t3: ['t3models'],
   t3providers: ['t3models', 't3providers'],
+  dsh: ['dsh'],
+  dshrest: ['dshrest'],
+  dshrouter: ['dsh'],
   cleanup: ['cleanup'],
   cleanupproviders: ['cleanupproviders'],
   install: ['install'],
@@ -1774,6 +2286,8 @@ const WORD_MAP = {
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
     if (T3_ROUTER) t.push('t3models');
     if (T3_REST) t.push('t3providers');
+    if (DSH_ROUTER) t.push('dsh');
+    if (DSH_REST) t.push('dshrest');
     t.push('cleanupproviders');
     return t;
   })(),
@@ -1786,6 +2300,8 @@ const WORD_MAP = {
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
     if (T3_ROUTER) t.push('t3models');
     if (T3_REST) t.push('t3providers');
+    if (DSH_ROUTER) t.push('dsh');
+    if (DSH_REST) t.push('dshrest');
     t.push('cleanupproviders');
     return t;
   })(),
@@ -1911,7 +2427,7 @@ function parseArgs() {
     // providers.csv. The `fetch` target then builds models.csv from the model
     // endpoint below. Targets that tolerate a missing Router (the *rest and
     // cleanup steps) don't trigger the prompt.
-    const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models'];
+    const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models', 'dsh'];
     if (ROUTER_TARGETS.some((t) => has(t))) {
       const created = await ensureRouterProvider();
       if (created) console.log('Providers configured. Fetching the model catalog now...\n');
@@ -1931,7 +2447,7 @@ function parseArgs() {
               console.log(`Skipped opencode (not found: ${OPENCODE_FILE})`);
               break;
             }
-            const n = syncRouterProvider(OPENCODE_FILE);
+            const n = await syncRouterProvider(OPENCODE_FILE, 'opencode');
             console.log(`Synced router provider block in ${OPENCODE_FILE} (${n} models)`);
             break;
           }
@@ -1940,7 +2456,7 @@ function parseArgs() {
               console.log(`Skipped kilo (not found: ${KILO_FILE})`);
               break;
             }
-            const n = syncRouterProvider(KILO_FILE);
+            const n = await syncRouterProvider(KILO_FILE, 'kilo');
             console.log(`Synced router provider block in ${KILO_FILE} (${n} models)`);
             break;
           }
@@ -1954,12 +2470,12 @@ function parseArgs() {
             break;
           }
           case 't3models': {
-            const n = syncT3Models(args.minInput, args.minOutput);
+            const n = await syncT3Models(args.minInput, args.minOutput);
             console.log(`Synced flat customModels in ${T3_SETTINGS_FILE} (${n} entries)`);
             break;
           }
           case 't3providers': {
-            const n = syncT3Providers();
+            const n = await syncT3Providers();
             console.log(`Synced per-provider claudeAgent instances in ${T3_SETTINGS_FILE} (${n} instances)`);
             break;
           }
@@ -1968,7 +2484,7 @@ function parseArgs() {
               console.log(`Skipped opencoderest (not found: ${OPENCODE_FILE})`);
               break;
             }
-            const n = syncOpencodeRestProviders();
+            const n = await syncOpencodeRestProviders();
             console.log(`Synced REST provider blocks in ${OPENCODE_FILE} (${n} providers)`);
             break;
           }
@@ -1977,8 +2493,18 @@ function parseArgs() {
               console.log(`Skipped kilorest (not found: ${KILO_FILE})`);
               break;
             }
-            const n = syncKiloRestProviders();
+            const n = await syncKiloRestProviders();
             console.log(`Synced REST provider blocks in ${KILO_FILE} (${n} providers)`);
+            break;
+          }
+          case 'dsh': {
+            const n = await syncDSHRouter();
+            console.log(`Synced DSH router providers in ${DSH_SETTINGS_FILE} (${n} apis)`);
+            break;
+          }
+          case 'dshrest': {
+            const n = await syncDSHRestProviders();
+            console.log(`Synced DSH REST providers in ${DSH_SETTINGS_FILE} (${n} providers)`);
             break;
           }
           case 'cleanupproviders': {

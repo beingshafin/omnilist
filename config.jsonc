@@ -49,6 +49,16 @@
 //    Ids are globs ("*" any run, "?" one char, bare = exact); "$field" reads a
 //    model property.  e.g. "!$input_context < 200000" blocks low-context models.
 //    (fields: $id, $input_context, $output_context, $vision, $reasoning, $tool)
+//
+//  HARNESS FILTERS & LIVE FETCH — second-stage filtering, same expression
+//  language as MODEL FILTERS, applied on top of models.csv at sync time:
+//    "!(kc/* && !*free)->t3,dsh"  only the listed harnesses
+//    "!agy/*"                     no suffix -> applies to all harnesses
+//  fetch_directly OFF -> on top of models.csv (already model_filters + custom_models).
+//  fetch_directly ON  -> bypasses models.csv; live Router fetch (only harness_filters + custom_models).
+//  Harness ids (case-insensitive): opencode (oc/open code/open-code/open_code/opc),
+//    kilo (kc/kilo code/kilocode/kilo-code/kilo_code), t3 (t3code/t3-code/t3_code/t3 code),
+//    dsh (ds/deepseek/deepseek_harness/deepseek harness/deepseek-harness).
 // ============================================================================
 
 
@@ -59,9 +69,11 @@
     "providers_csv": "providers.csv",                        // your providers (base_url, api_key, description)
     "opencode_file": "~/.config/opencode/opencode.jsonc",    // OpenCode config
     "kilo_file": "~/.config/kilo/kilo.jsonc",                // Kilo config
+    "dsh_settings_file": "~/.dsh/settings.yaml",             // DSH settings (yaml)
+    "dsh_credentials_file": "~/.dsh/.credentials.yaml",       // DSH credentials (flat KEY: token, gitignored)
     "t3_data_dir": "~/.t3/userdata",                         // T3 user data folder
     "t3_settings_file": "",                                  // "" = <t3_data_dir>/settings.json
-    "t3_logs_dir": ""                                        // "" = <t3_data_dir>/logs
+    "t3_logs_dir": ""                                       // "" = <t3_data_dir>/logs
   },
 
   // ----- command-line auto-install -----
@@ -98,6 +110,10 @@
     "!$input_context<200000",   // 200k input-context floor
     "*glm*",
     "*deepseek*",
+    "*kimi*",
+    "*minimax*",
+    "*qwen*",
+    "*stepfun*",
 
     // "!kc/*",            // block kc/
     // "!opencode-zen/*",  // block opencode-zen/
@@ -127,8 +143,11 @@
     "!*compatible*"
   ],
 
-  // Same syntax, applied only to T3 customModels lists.
-  "t3_filters": [],
+  // see header "HARNESS FILTERS & LIVE FETCH"
+  "harness_filters": [],
+
+  // see header "HARNESS FILTERS & LIVE FETCH"
+  "fetch_directly": [],
 
   // Manually inject models into models.csv on every fetch.
   // Format: { id: "provider/model", in: <input ctx>, out: <output ctx>, vision?, reasoning?, tool? }
@@ -148,7 +167,9 @@
     "t3_rest": true,                 // per-provider custom_* instances into T3
     "kilo_router": true,             // Router model block into kilo.jsonc
     "kilo_rest": false,              // per-provider REST blocks into kilo.jsonc
-    "kilo_copy_opencode_full_provider_block": false  // copy opencode's whole provider{} into kilo
+    "kilo_copy_opencode_full_provider_block": false, // copy opencode's whole provider{} into kilo
+    "dsh_router": false,             // Router catalog into DSH llm-pi-ai.providers (custom_ per api)
+    "dsh_rest": false                // per-provider custom_* instances into DSH (custom_<provider>_<idx>_<api>)
   },
 
   // ----- T3 driver settings -----
@@ -164,6 +185,12 @@
       "claudeAgent": { "mode": "env", "apiKey": "ANTHROPIC_API_KEY", "baseUrl": "ANTHROPIC_BASE_URL" },
       "codex": { "mode": "launchArgs" }
     }
+  },
+
+  // ----- DeepSeek harness (DSH) -----
+  "dsh": {
+    "router_apis": ["openai-completions"],      // apis that get the full Router catalog (openai-completions | openai-responses | anthropic-messages)
+    "rest_apis": ["openai-completions"]         // apis for per-provider REST instances (same 3 options)
   },
 
   // ----- cleanup of script-managed (custom_*) providers -----

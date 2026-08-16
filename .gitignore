@@ -4,3 +4,4 @@ models.csv
 config.json
 config.local.jsonc
 test/
+.claude/
