@@ -978,6 +978,7 @@ async function fetchRawModels(minInput = 0, minOutput = 0) {
   }
   console.log('Fetching models from: ' + modelsUrl);
   const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + router.api_key });
+  const seen = new Set();
   const results = [];
   for (const m of (json.data || [])) {
     let id = m.id;
@@ -988,7 +989,24 @@ async function fetchRawModels(minInput = 0, minOutput = 0) {
       const name = id.substring(0, idx);
       const prov = id.substring(idx + '__provider_'.length);
       id = prov + '/' + name;
+    } else if (/compatible/.test(id) && m.owned_by) {
+      // Replace the "compatible" path segment with <owned_by>, keep any
+      // prefix before it and the model name after it.
+      // Examples:
+      //   openai-compatible-chat-8f526158/agnes-2.5-pro
+      //     -> nara/agnes-2.5-pro
+      //   no-think/openai-compatible-chat-26e54282/claude-opus-4-6
+      //     -> no-think/ocz/claude-opus-4-6
+      const match = id.match(/^(.+?\/)?[^/]*compatible[^/]+\/(.+)$/);
+      if (match) {
+        const prefix = match[1] ? match[1].replace(/\/$/, '') : '';
+        const owned = m.owned_by.trim();
+        const modelName = match[2].trim();
+        id = prefix ? prefix + '/' + owned + '/' + modelName : owned + '/' + modelName;
+      }
     }
+    if (seen.has(id)) continue;
+    seen.add(id);
     const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens : (m.context_length != null ? m.context_length : 0);
     const ctxOut = (m.max_output_tokens != null) ? m.max_output_tokens : 0;
     if (minInput > 0 && ctxIn < minInput) continue;
