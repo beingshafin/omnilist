@@ -2,7 +2,7 @@
   OMNILIST CONFIGURATION  (JSONC — comments allowed, unlike plain JSON)
 
   WHAT THIS IS
-  Omnilist keeps your AI coding tools (OpenCode, Kilo, T3, DSH) in sync with a
+  Omnilist keeps your AI coding tools (OpenCode, Kilo, T3, DSH, pi, zcode) in sync with a
   single Router's model catalog. You keep ONE list of providers in
   `providers.csv`; omnilist fetches the Router's model list and pushes it
   into every tool's config file for you.
@@ -37,6 +37,8 @@
     * t3_rest          -> per-provider T3 instances
     * kilo_router / kilo_rest -> same for Kilo
     * dsh_router / dsh_rest   -> same for DSH
+    * pi_router / pi_rest     -> same for pi agent (~/.pi/agent/models.json)
+    * zcode_router / zcode_rest -> same for zcode (~/.zcode/v2/config.json)
 
   MODEL FILTERS — C-like expression language (last matching rule wins):
     prefix + expression:  "!" BLOCK   "xxx"/"=xxx" ALLOW   "==xxx" keep-ONLY.
@@ -52,7 +54,9 @@
   raw_catalog_harnesses ON  -> reads models-all.csv (raw catalog); no live fetch needed.
   Harness ids (case-insensitive): opencode (oc/open code/open-code/open_code/opc),
     kilo (kc/kilo code/kilocode/kilo-code/kilo_code), t3 (t3code/t3-code/t3_code/t3 code),
-    dsh (ds/deepseek/deepseek_harness/deepseek harness/deepseek-harness).
+    dsh (ds/deepseek/deepseek_harness/deepseek harness/deepseek-harness),
+    pi (pi/pi-agent/pi_agent/pi agent/piagent),
+    zcode (zcode/z-code/z_code/z code/zc).
   Each sync also writes a per-harness preview CSV: models-<harness>.csv next to
   models.csv, governed by harness_previews ("raw" default -> only raw_catalog_harnesses,
   "all" -> every synced harness, "none" -> never/delete existing previews).
@@ -71,7 +75,9 @@
     "t3_settings_file": "",
     "t3_logs_dir": "",
     "dsh_settings_file": "~/.dsh/settings.yaml",
-    "dsh_credentials_file": "~/.dsh/.credentials.yaml"
+    "dsh_credentials_file": "~/.dsh/.credentials.yaml",
+    "pi_file": "~/.pi/agent/models.json",
+    "zcode_file": "~/.zcode/v2/config.json"
   },
 
   // cli
@@ -144,8 +150,12 @@
     "kilo_router": true,
     "kilo_rest": false,
     "kilo_copy_opencode_full_provider_block": false,
-    "dsh_router": false,
-    "dsh_rest": false
+    "dsh_router": true,
+    "dsh_rest": true,
+    "pi_router": true,
+    "pi_rest": true,
+    "zcode_router": true,
+    "zcode_rest": true
   },
 
   // template

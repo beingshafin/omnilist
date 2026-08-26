@@ -27,6 +27,8 @@ const DEFAULTS = {
     t3_logs_dir: '',
     dsh_settings_file: '~/.dsh/settings.yaml',
     dsh_credentials_file: '~/.dsh/.credentials.yaml',
+    pi_file: '~/.pi/agent/models.json',
+    zcode_file: '~/.zcode/v2/config.json',
   },
   cli: {
     install_as_command: true,
@@ -109,6 +111,10 @@ const DEFAULTS = {
     kilo_copy_opencode_full_provider_block: false,
     dsh_router: false,
     dsh_rest: false,
+    pi_router: false,
+    pi_rest: false,
+    zcode_router: false,
+    zcode_rest: false,
   },
 
   t3: {
@@ -215,6 +221,8 @@ const T3_SETTINGS_FILE = resolvePath(cfg.paths.t3_settings_file) || path.join(T3
 const T3_LOGS_DIR = resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs');
 const DSH_SETTINGS_FILE = process.env.DSH_SETTINGS_FILE || resolvePath(cfg.paths.dsh_settings_file);
 const DSH_CREDENTIALS_FILE = process.env.DSH_CREDENTIALS_FILE || resolvePath(cfg.paths.dsh_credentials_file);
+const PI_FILE = process.env.PI_FILE || resolvePath(cfg.paths.pi_file);
+const ZCODE_FILE = process.env.ZCODE_FILE || resolvePath(cfg.paths.zcode_file);
 const ALL_MODELS_CSV = process.env.ALL_MODELS_TEST || resolveCatalogPath(cfg.paths.all_models_csv) || path.join(path.dirname(MODELS_CSV), 'models-all.csv');
 
 // ---------- config shortcuts ----------
@@ -240,6 +248,10 @@ const KILO_REST = cfg.targets.kilo_rest;
 const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = cfg.targets.kilo_copy_opencode_full_provider_block;
 const DSH_ROUTER = !!cfg.targets.dsh_router;
 const DSH_REST = !!cfg.targets.dsh_rest;
+const PI_ROUTER = !!cfg.targets.pi_router;
+const PI_REST = !!cfg.targets.pi_rest;
+const ZCODE_ROUTER = !!cfg.targets.zcode_router;
+const ZCODE_REST = !!cfg.targets.zcode_rest;
 
 const REMOVE_IF_FALSE_PROVIDER = cfg.cleanup_providers.remove_if_false_provider;
 const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider_doesnt_exist;
@@ -781,6 +793,8 @@ const HARNESS_VARIANTS = {
   kilo:     ['kilo', 'kc', 'kilo code', 'kilocode', 'kilo-code', 'kilo_code'],
   dsh:      ['deepseek', 'deepseek_harness', 'deepseek harness', 'ds', 'deepseek-harness', 'dsh'],
   t3:       ['t3', 't3code', 't3-code', 't3_code', 't3 code'],
+  pi:       ['pi', 'pi-agent', 'pi_agent', 'pi agent', 'piagent'],
+  zcode:    ['zcode', 'z-code', 'z_code', 'z code', 'zc'],
 };
 function _canonKey(s) { return String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 const HARNESS_ALIASES = (() => {
@@ -1623,8 +1637,10 @@ function cleanupProviders() {
     fs.writeFileSync(spec.file, JSON.stringify(config, null, 2) + '\n', 'utf8');
   }
 
-  // DSH yaml cleanup (keys are custom_<provider>_<suffix> / custom_<provider>_<idx>_<suffix>)
+  // DSH  + pi / zcode json cleanup
   removed += cleanupDSHProviders(byProvider, routerName);
+  removed += cleanupPiProviders(byProvider, routerName);
+  removed += cleanupZcodeProviders(byProvider, routerName);
 
   return removed;
 }
@@ -1746,6 +1762,112 @@ function cleanupDSHProviders(byProvider, routerName) {
     if (changed) writeYamlFile(DSH_CREDENTIALS_FILE, creds);
   } catch (_) {}
   writeYamlFile(DSH_SETTINGS_FILE, settings);
+  return removed;
+}
+
+function cleanupPiProviders(byProvider, routerName) {
+  if (!fs.existsSync(PI_FILE)) return 0;
+  let doc;
+  try { doc = readJsonSafe(PI_FILE, { providers: {} }); } catch (e) { throw new Error('Failed to parse ' + PI_FILE + ': ' + e.message); }
+  const providers = doc.providers;
+  if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return 0;
+  let removed = 0;
+  // group custom_* keys by provider (custom_<provider>[_<idx>])
+  const grouped = {};
+  for (const key of Object.keys(providers)) {
+    if (!key.startsWith('custom_')) continue;
+    const parts = key.split('_');
+    const provider = parts[1];
+    if (!provider) continue;
+    if (!grouped[provider]) grouped[provider] = [];
+    grouped[provider].push({ key, inst: providers[key] });
+  }
+  for (const provider of Object.keys(grouped)) {
+    const isRouter = routerName && provider === routerName;
+    const flag = isRouter ? PI_ROUTER : PI_REST;
+    const csvRows = byProvider[provider];
+    const entries = grouped[provider];
+    if (REMOVE_IF_PROVIDER_DOESNT_EXIST && !csvRows) {
+      for (const e of entries) { delete providers[e.key]; removed++; }
+      continue;
+    }
+    if (REMOVE_IF_FALSE_PROVIDER && !flag) {
+      for (const e of entries) { delete providers[e.key]; removed++; }
+      continue;
+    }
+    if (!csvRows || isRouter) continue;
+    const csvKeys = csvRows.map(r => r.api_key);
+    const placement = entries.map(e => ({
+      entry: e,
+      rowIdx: csvKeys.indexOf(e.inst && e.inst.apiKey),
+    }));
+    const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx);
+    const built = [];
+    for (const p of kept) {
+      const newKey = `custom_${provider}_${built.length + 1}`;
+      const inst = p.entry.inst;
+      if (inst.name) inst.name = newKey;
+      built.push({ newKey, inst });
+    }
+    if (built.length === entries.length && built.every(b => providers[b.newKey] === b.inst)) continue;
+    for (const e of entries) delete providers[e.key];
+    for (const b of built) providers[b.newKey] = b.inst;
+    removed += (entries.length - kept.length);
+  }
+  if (removed) writeJsonFile(PI_FILE, doc);
+  return removed;
+}
+
+function cleanupZcodeProviders(byProvider, routerName) {
+  if (!fs.existsSync(ZCODE_FILE)) return 0;
+  let doc;
+  try { doc = readJsonSafe(ZCODE_FILE, { provider: {} }); } catch (e) { throw new Error('Failed to parse ' + ZCODE_FILE + ': ' + e.message); }
+  const map = doc.provider;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+  let removed = 0;
+  const grouped = {};
+  for (const key of Object.keys(map)) {
+    if (key.startsWith('builtin:')) continue;
+    if (!key.startsWith('custom_')) continue;
+    const parts = key.split('_');
+    const provider = parts[1];
+    if (!provider) continue;
+    if (!grouped[provider]) grouped[provider] = [];
+    grouped[provider].push({ key, inst: map[key] });
+  }
+  for (const provider of Object.keys(grouped)) {
+    const isRouter = routerName && provider === routerName;
+    const flag = isRouter ? ZCODE_ROUTER : ZCODE_REST;
+    const csvRows = byProvider[provider];
+    const entries = grouped[provider];
+    if (REMOVE_IF_PROVIDER_DOESNT_EXIST && !csvRows) {
+      for (const e of entries) { delete map[e.key]; removed++; }
+      continue;
+    }
+    if (REMOVE_IF_FALSE_PROVIDER && !flag) {
+      for (const e of entries) { delete map[e.key]; removed++; }
+      continue;
+    }
+    if (!csvRows || isRouter) continue;
+    const csvKeys = csvRows.map(r => r.api_key);
+    const placement = entries.map(e => ({
+      entry: e,
+      rowIdx: csvKeys.indexOf(e.inst && e.inst.options && e.inst.options.apiKey),
+    }));
+    const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx);
+    const built = [];
+    for (const p of kept) {
+      const newKey = `custom_${provider}_${built.length + 1}`;
+      const inst = p.entry.inst;
+      if (inst.name) inst.name = newKey;
+      built.push({ newKey, inst });
+    }
+    if (built.length === entries.length && built.every(b => map[b.newKey] === b.inst)) continue;
+    for (const e of entries) delete map[e.key];
+    for (const b of built) map[b.newKey] = b.inst;
+    removed += (entries.length - kept.length);
+  }
+  if (removed) writeJsonFile(ZCODE_FILE, doc);
   return removed;
 }
 
@@ -1966,6 +2088,49 @@ function readCredentialsFile(file) {
   return parseYaml(raw);
 }
 
+// ---------- pi / zcode helpers ----------
+// customKey avoids double-prefix when provider already starts with custom_.
+function customKey(provider) { const p = String(provider); return p.startsWith('custom_') ? p : 'custom_' + p; }
+function readJsonSafe(file, fallback) {
+  if (!fs.existsSync(file)) return fallback;
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    const json = stripJsoncComments(raw).replace(/,\s*([}\]])/g, '$1').trim();
+    const parsed = JSON.parse(json || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch (_) { return fallback; }
+}
+function ensureParentDir(file) { fs.mkdirSync(path.dirname(file), { recursive: true }); }
+function writeJsonFile(file, obj) { fs.writeFileSync(file, JSON.stringify(obj, null, 2) + '\n', 'utf8'); }
+function piModelsForSync(modelRows) {
+  return modelRows.map(m => ({ id: m.id, name: m.id, reasoning: true, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 1, cacheWrite: 1 }, contextWindow: m.in, maxTokens: m.out }));
+}
+function zcodeModelsForSync(modelRows) {
+  const out = {};
+  for (const m of modelRows) {
+    const key = m.id.includes('/') ? m.id.split('/').pop() : m.id;
+    out[key] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+  }
+  return out;
+}
+function zcodeRouterModelsForSync(modelRows) {
+  const out = {};
+  for (const m of modelRows) out[m.id] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+  return out;
+}
+function parseZcodeCustomKey(key) {
+  const rest = key.slice('custom_'.length);
+  const m = rest.match(/^(.*)_(\d+)$/);
+  if (m) return { base: m[1], idx: parseInt(m[2], 10) };
+  return { base: rest, idx: 1 };
+}
+let _zcodeUpdateOnlyWarned = false;
+function warnZcodeUpdateOnly() {
+  if (_zcodeUpdateOnlyWarned) return;
+  _zcodeUpdateOnlyWarned = true;
+  console.log('Note: zcode is update-only — existing custom_* providers in ~/.zcode/v2/config.json will be updated (baseURL/apiKey/models); no new provider will be created. Create the custom_* entry once manually first.');
+}
+
 // ---------- DSH sync helpers ----------
 async function syncDSHRouter() {
   validateDshApis(DSH_ROUTER_APIS, 'dsh.router_apis');
@@ -2051,6 +2216,133 @@ async function syncDSHRestProviders() {
   writeYamlFile(DSH_SETTINGS_FILE, settings);
   writeYamlFile(DSH_CREDENTIALS_FILE, creds);
   return count;
+}
+
+// ---------- pi sync ----------
+// Pipeline: raw_catalog_harnesses OFF for pi -> model_filters -> models.csv -> harness_filters targeting pi + custom_models | ON -> bypass model_filters -> models-all.csv (or live GET {base_url}/models fallback) -> harness_filters + custom_models — live branch matches fetchRawModels dedup (parent!=null skip, __provider_ rewrite, compatible+owned_by rewrite).
+async function syncPiRouter() {
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerRow = requireRouterRow(rows);
+  const modelRows = (await getModelsForHarness('pi')).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview('pi', modelRows);
+  let doc = readJsonSafe(PI_FILE, { providers: {} });
+  doc.providers = doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers) ? doc.providers : {};
+  const key = customKey(routerRow.provider);
+  doc.providers[key] = { name: key, baseUrl: routerRow.base_url, apiKey: routerRow.api_key, api: 'openai-completions', models: piModelsForSync(modelRows) };
+  ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc); return modelRows.length;
+}
+async function syncPiRestProviders() {
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const modelRows = (await getModelsForHarness('pi')).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview('pi', modelRows);
+  let doc = readJsonSafe(PI_FILE, { providers: {} });
+  doc.providers = doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers) ? doc.providers : {};
+  const byProvider = {};
+  for (const row of rows) {
+    if (routerName && row.provider === routerName) continue;
+    if (!byProvider[row.provider]) byProvider[row.provider] = [];
+    byProvider[row.provider].push(row);
+  }
+  for (const [providerName, providerRows] of Object.entries(byProvider)) {
+    const prefix = providerName + '/';
+    const providerModels = modelRows.filter(m => m.id.startsWith(prefix));
+    providerRows.forEach((row, idx) => {
+      const key = `custom_${providerName}_${idx + 1}`;
+      const models = providerModels.map(m => ({
+        id: m.id.slice(prefix.length),
+        name: m.id.slice(prefix.length),
+        reasoning: true,
+        input: ['text', 'image'],
+        cost: { input: 0, output: 0, cacheRead: 1, cacheWrite: 1 },
+        contextWindow: m.in,
+        maxTokens: m.out
+      }));
+      doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: 'openai-completions', models };
+    });
+  }
+  ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc);
+  return Object.keys(byProvider).reduce((n, k) => n + byProvider[k].length, 0);
+}
+
+// ---------- zcode sync (update-only; router keeps full id, REST strips its own prefix) ----------
+// Matches providers by `name` starting with custom_ (covers UUID object keys) or by the object key itself.
+function zcodeCustomName(entry) {
+  const n = entry && typeof entry.name === 'string' ? entry.name.trim() : '';
+  return n.startsWith('custom_') ? n : '';
+}
+function zcodeLogicalName(key, entry) { return zcodeCustomName(entry) || key; }
+
+async function syncZcodeRouter() {
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerRow = requireRouterRow(rows);
+  const modelRows = (await getModelsForHarness('zcode')).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview('zcode', modelRows);
+  let doc = readJsonSafe(ZCODE_FILE, { provider: {} });
+  doc.provider = doc.provider && typeof doc.provider === 'object' && !Array.isArray(doc.provider) ? doc.provider : {};
+  const routerCustom = customKey(routerRow.provider);
+  let targetKey = null;
+  if (routerCustom in doc.provider) targetKey = routerCustom;
+  else {
+    for (const k of Object.keys(doc.provider)) { if (zcodeLogicalName(k, doc.provider[k]) === routerCustom) { targetKey = k; break; } }
+    if (!targetKey) {
+      const alt = routerCustom + '_1';
+      if (alt in doc.provider) targetKey = alt;
+      else for (const k of Object.keys(doc.provider)) { if (zcodeLogicalName(k, doc.provider[k]) === alt) { targetKey = k; break; } }
+    }
+  }
+  if (!targetKey) return modelRows.length;
+  const cur = doc.provider[targetKey];
+  cur.options = cur.options && typeof cur.options === 'object' && !Array.isArray(cur.options) ? cur.options : {};
+  cur.options.baseURL = routerRow.base_url;
+  cur.options.apiKey = routerRow.api_key;
+  cur.models = zcodeRouterModelsForSync(modelRows);
+  ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc); return modelRows.length;
+}
+async function syncZcodeRestProviders() {
+  if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
+  const rows = readProvidersCsv();
+  const routerName = routerNameOf(rows);
+  const routerCustom = routerName ? customKey(routerName) : '';
+  const routerCustom1 = routerCustom ? routerCustom + '_1' : '';
+  const modelRows = (await getModelsForHarness('zcode')).filter(m => !m.id.endsWith('[1m]'));
+  writeHarnessPreview('zcode', modelRows);
+  let doc = readJsonSafe(ZCODE_FILE, { provider: {} });
+  doc.provider = doc.provider && typeof doc.provider === 'object' && !Array.isArray(doc.provider) ? doc.provider : {};
+  const byProvider = {};
+  for (const row of rows) {
+    if (routerName && row.provider === routerName) continue;
+    if (!byProvider[row.provider]) byProvider[row.provider] = [];
+    byProvider[row.provider].push(row);
+  }
+  for (const key of Object.keys(doc.provider)) {
+    const logical = zcodeLogicalName(key, doc.provider[key]);
+    if (!logical.startsWith('custom_')) continue;
+    if (logical === routerCustom || logical === routerCustom1) continue;
+    const { base, idx } = parseZcodeCustomKey(logical);
+    // base is provider name without custom_ and without trailing _N
+    if (routerName && base === routerName) continue;
+    const group = byProvider[base]; if (!group) continue;
+    const row = group[idx - 1]; if (!row) continue;
+    const prefix = base + '/';
+    const providerModels = modelRows.filter(m => m.id.startsWith(prefix));
+    const models = {};
+    for (const m of providerModels) {
+      const bare = m.id.slice(prefix.length);
+      const dictKey = bare.includes('/') ? bare.split('/').pop() : bare;
+      models[dictKey] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+    }
+    const cur = doc.provider[key];
+    cur.options = cur.options && typeof cur.options === 'object' && !Array.isArray(cur.options) ? cur.options : {};
+    cur.options.baseURL = row.base_url;
+    cur.options.apiKey = row.api_key;
+    cur.models = models;
+  }
+  ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc);
+  return Object.keys(doc.provider).filter(k => zcodeLogicalName(k, doc.provider[k]).startsWith('custom_')).length;
 }
 
 // Helper: strip JSONC comments while preserving strings
@@ -2290,6 +2582,12 @@ Targets (default if none given: fetch + enabled targets + cleanup):
   kilorest        Sync per-key custom_* REST provider blocks into kilo.jsonc
   t3              Sync flat model list into T3 router.customModels
   t3providers     Sync per-provider custom_* instances in T3 settings.json
+  dsh             Sync Router models into DSH (settings.yaml)
+  dshrest         Sync per-provider instances into DSH
+  pi              Sync Router models into pi agent (models.json)
+  pirest          Sync per-provider instances into pi agent
+  zcode           Sync Router models into zcode (config.json)
+  zcoderest       Sync per-provider instances into zcode
   cleanupproviders  Reconcile script-managed custom_* providers (opt-in via flags)
   cleanup         Delete transient files (e.g. T3 logs dir)
   install         Register "${CLI_COMMAND_NAME}" as a command (shim + User PATH + npm shim)
@@ -2352,6 +2650,22 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'dshrest');
   }
+  if (PI_ROUTER) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'pi');
+  }
+  if (PI_REST) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'pirest');
+  }
+  if (ZCODE_ROUTER) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'zcode');
+  }
+  if (ZCODE_REST) {
+    const idx = order.indexOf('cleanup');
+    order.splice(idx, 0, 'zcoderest');
+  }
   const cleanupIdx = order.indexOf('cleanup');
   order.splice(cleanupIdx, 0, 'cleanupproviders');
   return order;
@@ -2369,6 +2683,10 @@ const WORD_MAP = {
   dsh: ['dsh'],
   dshrest: ['dshrest'],
   dshrouter: ['dsh'],
+  pi: ['pi'],
+  pirest: ['pirest'],
+  zcode: ['zcode'],
+  zcoderest: ['zcoderest'],
   cleanup: ['cleanup'],
   cleanupproviders: ['cleanupproviders'],
   install: ['install'],
@@ -2384,6 +2702,10 @@ const WORD_MAP = {
     if (T3_REST) t.push('t3providers');
     if (DSH_ROUTER) t.push('dsh');
     if (DSH_REST) t.push('dshrest');
+    if (PI_ROUTER) t.push('pi');
+    if (PI_REST) t.push('pirest');
+    if (ZCODE_ROUTER) t.push('zcode');
+    if (ZCODE_REST) t.push('zcoderest');
     t.push('cleanupproviders');
     return t;
   })(),
@@ -2398,6 +2720,10 @@ const WORD_MAP = {
     if (T3_REST) t.push('t3providers');
     if (DSH_ROUTER) t.push('dsh');
     if (DSH_REST) t.push('dshrest');
+    if (PI_ROUTER) t.push('pi');
+    if (PI_REST) t.push('pirest');
+    if (ZCODE_ROUTER) t.push('zcode');
+    if (ZCODE_REST) t.push('zcoderest');
     t.push('cleanupproviders');
     return t;
   })(),
@@ -2523,7 +2849,7 @@ function parseArgs() {
     // providers.csv. The `fetch` target then builds models.csv from the model
     // endpoint below. Targets that tolerate a missing Router (the *rest and
     // cleanup steps) don't trigger the prompt.
-    const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models', 'dsh'];
+    const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models', 'dsh', 'pi', 'zcode'];
     if (ROUTER_TARGETS.some((t) => has(t))) {
       const created = await ensureRouterProvider();
       if (created) console.log('Providers configured. Fetching the model catalog now...\n');
@@ -2605,6 +2931,28 @@ function parseArgs() {
           case 'dshrest': {
             const n = await syncDSHRestProviders();
             console.log(`Synced DSH REST providers in ${DSH_SETTINGS_FILE} (${n} providers)`);
+            break;
+          }
+          case 'pi': {
+            const n = await syncPiRouter();
+            console.log(`Synced pi router provider in ${PI_FILE} (${n} models)`);
+            break;
+          }
+          case 'pirest': {
+            const n = await syncPiRestProviders();
+            console.log(`Synced pi REST providers in ${PI_FILE} (${n} providers)`);
+            break;
+          }
+          case 'zcode': {
+            if (ZCODE_ROUTER || ZCODE_REST) warnZcodeUpdateOnly();
+            const n = await syncZcodeRouter();
+            console.log(`Synced zcode router provider in ${ZCODE_FILE} (${n} models)`);
+            break;
+          }
+          case 'zcoderest': {
+            if (ZCODE_ROUTER || ZCODE_REST) warnZcodeUpdateOnly();
+            const n = await syncZcodeRestProviders();
+            console.log(`Synced zcode REST providers in ${ZCODE_FILE} (${n} providers)`);
             break;
           }
           case 'cleanupproviders': {

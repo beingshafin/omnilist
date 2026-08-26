@@ -7,3 +7,4 @@ config.json
 config.local.jsonc
 test/
 .claude/
+.agents/
