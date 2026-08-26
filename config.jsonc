@@ -186,7 +186,7 @@
 
   // adapters — uniform shape for every harness: opencode/kilo npm, dsh api, pi api, zcode kind, opencodex adapter.
   // Each harness gets { router_adapters: [...], rest_adapters: [...] } (free-form strings, verbatim into that harness's field).
-  // Single adapter -> bare key custom_<provider> (no __<adapter>, no _1); multi-adapter -> key = custom_<provider>[_<N>]__<adapter> (verbatim __ raw string, instance outer).
+  // Single adapter -> bare key c_<provider> (no __<adapter>, no _1); multi-adapter -> key = c_<provider>[_<N>]__<adapter> (verbatim __ raw string, instance outer).
   // DSH legacy keys dsh.router_apis / rest_apis are still accepted as fallback.
 
   "opencode": {

@@ -7,6 +7,14 @@ const http = require('http');
 const readline = require('readline');
 const { execFileSync } = require('child_process');
 
+// ---------- provider prefix ----------
+const PREFIX = 'c_';
+const PREFIX_UPPER = 'C_';
+function providerKey(provider) {
+  const p = String(provider);
+  return p.startsWith(PREFIX) ? p : PREFIX + p;
+}
+
 // ---------- config ----------
 const home = os.homedir();
 // Config is read from config.jsonc next to this script (override the whole
@@ -138,8 +146,8 @@ const DEFAULTS = {
     },
   },
 
-  // If true, remove script-managed (custom_*) providers whose feature flag is false.
-  // If true, remove script-managed (custom_*) providers that no longer exist in providers.csv.
+  // If true, remove script-managed (c_*) providers whose feature flag is false.
+  // If true, remove script-managed (c_*) providers that no longer exist in providers.csv.
   cleanup_providers: {
     remove_if_false_provider: true,
     remove_if_provider_doesnt_exist: true,
@@ -896,8 +904,8 @@ function dshModelInputs(m) {
 }
 
 function parseDshKey(key) {
-  if (!key.startsWith('custom_')) return null;
-  let rest = key.slice('custom_'.length);
+  if (!key.startsWith(PREFIX)) return null;
+  let rest = key.slice(PREFIX.length);
   // Support new __<adapter> suffix (verbatim). Strip it first if present.
   let adapterSuffix = null;
   const cut = rest.lastIndexOf('__');
@@ -1193,7 +1201,7 @@ function syncModelBlock(targetFile) {
 
 // ---------- syncT3Providers: write per-provider claudeAgent instances to t3 settings.json ----------
 // Reads providers.csv and models (csv or live per harness_filters/raw_catalog_harnesses).
-// Deletes all providerInstances keys starting with "custom_", then creates custom_<provider>_<n>...
+// Deletes all providerInstances keys starting with "c_", then creates c_<provider>_<n>...
 async function syncT3Providers() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
 
@@ -1218,7 +1226,7 @@ async function syncT3Providers() {
   // Snapshot current enabled state BEFORE deleting, so we can restore it.
   const prevEnabled = {};
   for (const key of Object.keys(settings.providerInstances)) {
-    if (key.startsWith('custom_') && !(routerName && key.startsWith('custom_' + routerName + '_'))) {
+    if (key.startsWith(PREFIX) && !(routerName && key.startsWith(PREFIX + routerName + '_'))) {
       prevEnabled[key] = !!settings.providerInstances[key].enabled;
       delete settings.providerInstances[key];
     }
@@ -1246,7 +1254,7 @@ async function syncT3Providers() {
         const driverName = driverEntry.driver;
         const supports1m = !!driverEntry['1m'];
         const providerModels = supports1m ? providerModelsAll : providerModelsAll.filter(m => !m.endsWith('[1m]'));
-        const key = `custom_${provider}_${idx + 1}_${driverName}`;
+        const key = `${PREFIX}${provider}_${idx + 1}_${driverName}`;
         settings.providerInstances[key] = buildT3DriverInstance(
           driverName,
           provider,
@@ -1358,8 +1366,8 @@ function ensureRouterInstances(settings) {
   const activeDriverNames = new Set(activeDrivers.map(e => e.driver));
 
   for (const key of Object.keys(settings.providerInstances)) {
-    if (routerName && key.startsWith('custom_' + routerName + '_')) {
-      const driverName = key.slice(('custom_' + routerName + '_').length);
+    if (routerName && key.startsWith(PREFIX + routerName + '_')) {
+      const driverName = key.slice((PREFIX + routerName + '_').length);
       if (!activeDriverNames.has(driverName)) {
         delete settings.providerInstances[key];
       }
@@ -1374,7 +1382,7 @@ function ensureRouterInstances(settings) {
 
   activeDrivers.forEach((entry) => {
     const driverName = entry.driver;
-    const key = `custom_${routerName}_${driverName}`;
+    const key = `${PREFIX}${routerName}_${driverName}`;
     settings.providerInstances[key] = buildT3DriverInstance(
       driverName,
       routerName,
@@ -1388,18 +1396,18 @@ function ensureRouterInstances(settings) {
 }
 
 // Sort providerInstances so that:
-//   1. "custom_<router>_*" entries are always first
-//   2. All non-custom_ entries come next (any manually-added ones like claudeAgent, opencode, etc.)
-//   3. All remaining custom_* entries come last, in reverse creation order (newest first)
+//   1. "c_<router>_*" entries are always first
+//   2. All non-c_ entries come next (any manually-added ones like claudeAgent, opencode, etc.)
+//   3. All remaining c_* entries come last, in reverse creation order (newest first)
 function sortProviderInstances(settings) {
   if (!settings.providerInstances) return;
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const routerPrefix = routerName ? 'custom_' + routerName + '_' : '__none__';
+  const routerPrefix = routerName ? PREFIX + routerName + '_' : '__none__';
   const keys = Object.keys(settings.providerInstances);
   const routerEntries = keys.filter((k) => routerName && k.startsWith(routerPrefix));
-  const others = keys.filter((k) => !k.startsWith('custom_'));
-  const customs = keys.filter((k) => k.startsWith('custom_') && !(routerName && k.startsWith(routerPrefix))).reverse();
+  const others = keys.filter((k) => !k.startsWith(PREFIX));
+  const customs = keys.filter((k) => k.startsWith(PREFIX) && !(routerName && k.startsWith(routerPrefix))).reverse();
   const ordered = [...routerEntries, ...others, ...customs];
   const reordered = {};
   for (const k of ordered) reordered[k] = settings.providerInstances[k];
@@ -1456,7 +1464,7 @@ async function syncOpencodeRestProviders() {
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
       for (const adapter of restAdapters) {
-        const key = `custom_${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+        const key = `${PREFIX}${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         config.provider[key] = {
           name: key,
           npm: adapter,
@@ -1471,7 +1479,7 @@ async function syncOpencodeRestProviders() {
   }
 
   fs.writeFileSync(OPENCODE_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && !(routerName && k.startsWith('custom_' + routerName))).length;
+  return Object.keys(config.provider).filter(k => k.startsWith(PREFIX) && !(routerName && k.startsWith(PREFIX + routerName))).length;
 }
 
 async function syncKiloRestProviders() {
@@ -1524,7 +1532,7 @@ async function syncKiloRestProviders() {
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
       for (const adapter of restAdapters) {
-        const key = `custom_${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+        const key = `${PREFIX}${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         config.provider[key] = {
           name: key,
           npm: adapter,
@@ -1539,14 +1547,14 @@ async function syncKiloRestProviders() {
   }
 
   fs.writeFileSync(KILO_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => k.startsWith('custom_') && !(routerName && k.startsWith('custom_' + routerName))).length;
+  return Object.keys(config.provider).filter(k => k.startsWith(PREFIX) && !(routerName && k.startsWith(PREFIX + routerName))).length;
 }
 
-// ---------- cleanupProviders: reconcile custom_* providers in all config files ----------
-// For each config file, removes script-managed (custom_*) providers per:
+// ---------- cleanupProviders: reconcile c_* providers in all config files ----------
+// For each config file, removes script-managed (c_*) providers per:
 //   REMOVE_IF_FALSE_PROVIDER:        remove providers whose feature flag is false
 //   REMOVE_IF_PROVIDER_DOESNT_EXIST: remove providers that no longer exist in providers.csv
-// Never touches non-custom_ entries, so user-added providers are preserved.
+// Never touches non-c_ entries, so user-added providers are preserved.
 // Also renumbers per-provider indices to match providers.csv (1..N). Instances are
 // matched to CSV rows by API key, so deleted keys are dropped and indices compacted.
 function cleanupProviders() {
@@ -1577,7 +1585,7 @@ function cleanupProviders() {
       routerFlag: OPENCODE_ROUTER,
       restFlag: OPENCODE_REST,
       labelField: 'name',
-      labelFor: (provider, idx) => `custom_${provider}_${idx}`,
+      labelFor: (provider, idx) => `${PREFIX}${provider}_${idx}`,
       apiKeyOf: (inst) => inst && inst.options && inst.options.apiKey,
     },
     {
@@ -1586,7 +1594,7 @@ function cleanupProviders() {
       routerFlag: KILO_ROUTER,
       restFlag: KILO_REST,
       labelField: 'name',
-      labelFor: (provider, idx) => `custom_${provider}_${idx}`,
+      labelFor: (provider, idx) => `${PREFIX}${provider}_${idx}`,
       apiKeyOf: (inst) => inst && inst.options && inst.options.apiKey,
     },
     {
@@ -1626,7 +1634,7 @@ function cleanupProviders() {
 
     const grouped = {};
     for (const key of Object.keys(container)) {
-      if (!key.startsWith('custom_')) continue;
+      if (!key.startsWith(PREFIX)) continue;
       const parts = key.split('_');
       const provider = parts[1];
       if (!provider) continue;
@@ -1660,9 +1668,9 @@ function cleanupProviders() {
         });
         const built = kept.map((e, i) => {
           const inst = instancePart(i, kept.length);
-          const driverMatch = e.key.match(/^custom_[^_]+(?:_\d+)?_(.+)$/);
+          const driverMatch = e.key.match(new RegExp('^' + PREFIX.replace('_', '\\_') + '[^_]+(?:_\\d+)?_(.+)$'));
           const driver = driverMatch ? driverMatch[1] : '';
-          const newKey = `custom_${provider}${inst === '' ? '' : inst}_${driver}`.replace(/_$/, '');
+          const newKey = `${PREFIX}${provider}${inst === '' ? '' : inst}_${driver}`.replace(/_$/, '');
           return { newKey, inst: e.inst };
         });
         if (built.length === entries.length && built.every((b) => container[b.newKey] === b.inst)) continue;
@@ -1710,7 +1718,7 @@ function cleanupProviders() {
         const bucket = byRow.get(ri).sort((a, b) => String(a.adapter || '').localeCompare(String(b.adapter || '')));
         for (const p of bucket) {
           const suf = adapterSuffix(p.adapter || restAdapters[0] || '', restAdapters);
-          const newKey = `custom_${provider}${inst}${suf}`;
+          const newKey = `${PREFIX}${provider}${inst}${suf}`;
           const instObj = p.entry.inst;
           if (spec.labelField && instObj[spec.labelField]) {
             instObj[spec.labelField] = newKey;
@@ -1818,7 +1826,7 @@ function cleanupDSHProviders(byProvider, routerName) {
       }
     }
     const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx || String(a.entry.parsed.suffix || '').localeCompare(String(b.entry.parsed.suffix || '')));
-    // rebuild keys as custom_<provider>[_<N>]__<adapter> with compacted instance numbers (first instance bare)
+    // rebuild keys as c_<provider>[_<N>]__<adapter> with compacted instance numbers (first instance bare)
     const byRowIdx = {};
     for (const p of kept) {
       if (!byRowIdx[p.rowIdx]) byRowIdx[p.rowIdx] = [];
@@ -1833,7 +1841,7 @@ function cleanupDSHProviders(byProvider, routerName) {
         // Derive the adapter raw for this placement: prefer the instance's api field if present, else stored suffix expansion
         const apiForKey = (p.entry.inst && p.entry.inst.api) ? String(p.entry.inst.api).trim() : (expand(p.entry.parsed.suffix) || restAdapters[0] || '');
         const suf = adapterSuffix(apiForKey, restAdapters);
-        const newKey = `custom_${provider}${inst}${suf}`;
+        const newKey = `${PREFIX}${provider}${inst}${suf}`;
         const instObj = p.entry.inst;
         if (instObj.displayName) instObj.displayName = `${provider}${inst}${suf}`;
         built.push({ newKey, inst: instObj, oldKey: p.entry.key });
@@ -1854,7 +1862,7 @@ function cleanupDSHProviders(byProvider, routerName) {
   // prune credentials that are no longer referenced by any remaining dsh provider
   try {
     let creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
-    // Build a lowercase lookup so CUSTOM_ vs custom_ env vars match either way.
+    // Build a lowercase lookup so C_ vs c_ env vars match either way.
     const referenced = new Set();
     for (const k of Object.keys(providers)) {
       const inst = providers[k];
@@ -1863,14 +1871,14 @@ function cleanupDSHProviders(byProvider, routerName) {
         referenced.add(inst.apiKeyEnv.toLowerCase());
       }
     }
-    // only prune custom_ env vars we manage (CUSTOM_PROVIDER[_N]_API_KEY)
+    // only prune c_ env vars we manage (C_PROVIDER[_N]_API_KEY)
     let changed = false;
     for (const env of Object.keys(creds)) {
       if (!/_API_KEY$/i.test(env)) continue;
       // if this env is not referenced (case-insensitive) and it matches a provider we grouped, remove
       if (!referenced.has(env) && !referenced.has(env.toLowerCase())) {
-        // strip optional CUSTOM_ prefix + optional _<idx> before _API_KEY to find provider
-        const prefix = env.replace(/^CUSTOM_/i, '').replace(/(_\d+)?_API_KEY$/i, '').toLowerCase();
+        // strip optional CUSTOM_/C_ prefix + optional _<idx> before _API_KEY to find provider
+        const prefix = env.replace(/^(?:CUSTOM_|C_)/i, '').replace(/(_\d+)?_API_KEY$/i, '').toLowerCase();
         if (grouped[prefix] || (routerName && prefix === routerName.toLowerCase())) {
           delete creds[env];
           removed++;
@@ -1891,10 +1899,10 @@ function cleanupPiProviders(byProvider, routerName) {
   const providers = doc.providers;
   if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return 0;
   let removed = 0;
-  // group custom_* keys by provider (custom_<provider>[_<idx>])
+  // group c_* keys by provider (c_<provider>[_<idx>])
   const grouped = {};
   for (const key of Object.keys(providers)) {
-    if (!key.startsWith('custom_')) continue;
+    if (!key.startsWith(PREFIX)) continue;
     const parts = key.split('_');
     const provider = parts[1];
     if (!provider) continue;
@@ -1923,7 +1931,7 @@ function cleanupPiProviders(byProvider, routerName) {
     const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx);
     const built = [];
     for (const p of kept) {
-      const newKey = `custom_${provider}_${built.length + 1}`;
+      const newKey = `${PREFIX}${provider}_${built.length + 1}`;
       const inst = p.entry.inst;
       if (inst.name) inst.name = newKey;
       built.push({ newKey, inst });
@@ -1947,7 +1955,7 @@ function cleanupZcodeProviders(byProvider, routerName) {
   const grouped = {};
   for (const key of Object.keys(map)) {
     if (key.startsWith('builtin:')) continue;
-    if (!key.startsWith('custom_')) continue;
+    if (!key.startsWith(PREFIX)) continue;
     const parts = key.split('_');
     const provider = parts[1];
     if (!provider) continue;
@@ -1976,7 +1984,7 @@ function cleanupZcodeProviders(byProvider, routerName) {
     const kept = placement.filter(p => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx);
     const built = [];
     for (const p of kept) {
-      const newKey = `custom_${provider}_${built.length + 1}`;
+      const newKey = `${PREFIX}${provider}_${built.length + 1}`;
       const inst = p.entry.inst;
       if (inst.name) inst.name = newKey;
       built.push({ newKey, inst });
@@ -1997,11 +2005,11 @@ function cleanupOpencodexProviders(byProvider, routerName) {
   const providers = doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers) ? doc.providers : null;
   if (!providers) return 0;
   let removed = 0;
-  // group custom_* keys by base provider (custom_<provider>[_<N>])
+  // group c_* keys by base provider (c_<provider>[_<N>])
   const grouped = {};
   for (const key of Object.keys(providers)) {
-    if (!key.startsWith('custom_')) continue;
-    const rest = key.slice('custom_'.length);
+    if (!key.startsWith(PREFIX)) continue;
+    const rest = key.slice(PREFIX.length);
     const m = rest.match(/^(.*)_(\d+)$/);
     const provider = m ? m[1] : rest;
     if (!provider) continue;
@@ -2022,9 +2030,9 @@ function cleanupOpencodexProviders(byProvider, routerName) {
         doc.customModels = doc.customModels.filter((cm) => !cm || cm.provider !== entries[0].key && !entries.some((en) => en.key === cm.provider));
         // also catch stripped naming: any customModels whose provider base matches
         doc.customModels = doc.customModels.filter((cm) => {
-          if (!cm || !cm.provider || !cm.provider.startsWith('custom_' + provider)) return true;
-          // if cm.provider is custom_provider or custom_provider_N, it belongs to this group
-          const r = cm.provider.slice('custom_'.length);
+          if (!cm || !cm.provider || !cm.provider.startsWith(PREFIX + provider)) return true;
+          // if cm.provider starts with the provider prefix, it belongs to this group
+          const r = cm.provider.slice(PREFIX.length);
           const mm = r.match(/^(.*)_(\d+)$/);
           const base = mm ? mm[1] : r;
           return base !== provider;
@@ -2056,11 +2064,11 @@ function cleanupOpencodexProviders(byProvider, routerName) {
     // prefer apiKey match, fallback to baseUrl
     for (const p of placement) if (p.rowIdx === -1 && p.baseUrlIdx !== -1) p.rowIdx = p.baseUrlIdx;
     const kept = placement.filter((p) => p.rowIdx !== -1).sort((a, b) => a.rowIdx - b.rowIdx);
-    // rebuild compacted keys: custom_<provider>, custom_<provider>_2, ...
+    // rebuild compacted keys: c_<provider>, c_<provider>_2, ...
     const built = [];
     for (let i = 0; i < kept.length; i++) {
       const p = kept[i];
-      const newKey = `custom_${provider}${i === 0 ? '' : '_' + (i + 1)}`;
+      const newKey = `${PREFIX}${provider}${i === 0 ? '' : '_' + (i + 1)}`;
       built.push({ newKey, inst: p.entry.inst, oldKey: p.entry.key, rowIdx: p.rowIdx });
     }
     const needsRebuild = built.length !== entries.length || !built.every((b) => providers[b.newKey] === b.inst && b.newKey === b.oldKey);
@@ -2102,7 +2110,7 @@ function cleanupOpencodexProviders(byProvider, routerName) {
   if (Array.isArray(doc.customModels)) {
     const liveKeys = new Set(Object.keys(providers));
     const before = doc.customModels.length;
-    doc.customModels = doc.customModels.filter((cm) => !cm || !cm.provider || !cm.provider.startsWith('custom_') || liveKeys.has(cm.provider));
+    doc.customModels = doc.customModels.filter((cm) => !cm || !cm.provider || !cm.provider.startsWith(PREFIX) || liveKeys.has(cm.provider));
     removed += before - doc.customModels.length;
   }
   if (removed || dirtyProviders) writeJsonFile(OPENCODEX_FILE, doc);
@@ -2112,9 +2120,9 @@ function cleanupOpencodexProviders(byProvider, routerName) {
 // Router provider block helpers (opencode/kilo write npm; pi/zcode/opencodex get their own routers)
 function routerAdaptersFor(harnessId) { return getAdapters(harnessId, 'router'); }
 function ocRouterKey(routerName, adapters) {
-  // With single adapter -> bare custom_<provider>; multi -> one key per adapter with __<adapter>.
+  // With single adapter -> bare c_<provider>; multi -> one key per adapter with __<adapter>.
   // Router never has instances, so only adapters matter. Caller loops adapters and writes each key.
-  return (adapter) => `custom_${routerName}${adapterSuffix(adapter, adapters)}`;
+  return (adapter) => `${PREFIX}${routerName}${adapterSuffix(adapter, adapters)}`;
 }
 
 // ---------- syncRouterProvider: write router provider block (no markers, full replace) ----------
@@ -2153,13 +2161,13 @@ async function syncRouterProvider(targetFile, harnessId) {
   const json = stripJsoncComments(raw).replace(/,\s*([}\]])/g, '$1').trim();
   try { config = JSON.parse(json); } catch (e) { throw new Error('Failed to parse ' + targetFile + ': ' + e.message); }
   config.provider = config.provider || {};
-  // Router adapters: one provider entry per adapter, key = custom_<provider> or custom_<provider>__<adapter>.
+  // Router adapters: one provider entry per adapter, key = c_<provider> or c_<provider>__<adapter>.
   // For opencode/kilo the adapter is the npm value; other harnesses have dedicated router sync functions (not this generic one).
-  // Name keeps backward-compat bare provider (tests expect "9router" not "custom_9router"); for multi-adapter the suffix is added to name.
+  // Name keeps backward-compat bare provider (tests expect "9router" not "c_9router"); for multi-adapter the suffix is added to name.
   const adapters = routerAdaptersFor(hid);
   const effectiveAdapters = adapters.length ? adapters : ['@ai-sdk/openai-compatible'];
   for (const adapter of effectiveAdapters) {
-    const key = `custom_${routerName}${adapterSuffix(adapter, adapters)}`;
+    const key = `${PREFIX}${routerName}${adapterSuffix(adapter, adapters)}`;
     const displayName = `${routerName}${adapterSuffix(adapter, adapters)}`;
     const routerBlock = {
       name: displayName,
@@ -2343,8 +2351,8 @@ function readCredentialsFile(file) {
 }
 
 // ---------- pi / zcode helpers ----------
-// customKey avoids double-prefix when provider already starts with custom_.
-function customKey(provider) { const p = String(provider); return p.startsWith('custom_') ? p : 'custom_' + p; }
+// customKey avoids double-prefix when provider already starts with the prefix.
+function customKey(provider) { const p = String(provider); return p.startsWith(PREFIX) ? p : PREFIX + p; }
 function readJsonSafe(file, fallback) {
   if (!fs.existsSync(file)) return fallback;
   try {
@@ -2373,7 +2381,7 @@ function zcodeRouterModelsForSync(modelRows) {
   return out;
 }
 function parseZcodeCustomKey(key) {
-  const rest = key.slice('custom_'.length);
+  const rest = key.slice(PREFIX.length);
   const m = rest.match(/^(.*)_(\d+)$/);
   if (m) return { base: m[1], idx: parseInt(m[2], 10) };
   return { base: rest, idx: 1 };
@@ -2382,7 +2390,7 @@ let _zcodeUpdateOnlyWarned = false;
 function warnZcodeUpdateOnly() {
   if (_zcodeUpdateOnlyWarned) return;
   _zcodeUpdateOnlyWarned = true;
-  console.log('Note: zcode is update-only — existing custom_* providers in ~/.zcode/v2/config.json will be updated (baseURL/apiKey/models); no new provider will be created. Create the custom_* entry once manually first.');
+  console.log('Note: zcode is update-only — existing c_* providers in ~/.zcode/v2/config.json will be updated (baseURL/apiKey/models); no new provider will be created. Create the c_* entry once manually first.');
 }
 
 // ---------- opencodex helpers ----------
@@ -2465,12 +2473,12 @@ async function syncDSHRouter() {
   if (!settings['llm-pi-ai'].providers || typeof settings['llm-pi-ai'].providers !== 'object' || Array.isArray(settings['llm-pi-ai'].providers)) settings['llm-pi-ai'].providers = {};
   const providers = settings['llm-pi-ai'].providers;
   const creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
-  const envVar = 'CUSTOM_' + routerName.toUpperCase() + '_API_KEY';
+  const envVar = PREFIX_UPPER + routerName.toUpperCase() + '_API_KEY';
   creds[envVar] = routerRow.api_key;
   const routerAdapters = getAdapters('dsh', 'router');
   for (const api of routerAdapters) {
     const suf = adapterSuffix(api, routerAdapters);
-    const key = `custom_${routerName}${suf}`;
+    const key = `${PREFIX}${routerName}${suf}`;
     const dshModels = models.map(m => {
       const entry = { id: m.id, contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
       if (!m.out) delete entry.maxTokens;
@@ -2513,8 +2521,8 @@ async function syncDSHRestProviders() {
     const providerModelCandidates = modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]'));
     providerRows.forEach((row, idx) => {
       for (const api of restAdapters) {
-        const key = `custom_${provider}${instancePart(idx, providerRows.length)}${adapterSuffix(api, restAdapters)}`;
-        const envVar = 'CUSTOM_' + (providerRows.length > 1 ? provider.toUpperCase() + '_' + (idx + 1) : provider.toUpperCase()) + '_API_KEY';
+        const key = `${PREFIX}${provider}${instancePart(idx, providerRows.length)}${adapterSuffix(api, restAdapters)}`;
+        const envVar = PREFIX_UPPER + (providerRows.length > 1 ? provider.toUpperCase() + '_' + (idx + 1) : provider.toUpperCase()) + '_API_KEY';
         creds[envVar] = row.api_key;
         const dshModels = providerModelCandidates.map(m => {
           const entry = { id: m.id.slice(prefix.length), contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
@@ -2554,7 +2562,7 @@ async function syncPiRouter() {
   doc.providers = doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers) ? doc.providers : {};
   const routerAdapters = getAdapters('pi', 'router');
   for (const adapter of routerAdapters) {
-    const key = `custom_${routerName}${adapterSuffix(adapter, routerAdapters)}`;
+    const key = `${PREFIX}${routerName}${adapterSuffix(adapter, routerAdapters)}`;
     doc.providers[key] = { name: key, baseUrl: routerRow.base_url, apiKey: routerRow.api_key, api: adapter, models: piModelsForSync(modelRows) };
   }
   ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc); return modelRows.length * routerAdapters.length || modelRows.length;
@@ -2588,7 +2596,7 @@ async function syncPiRestProviders() {
         maxTokens: m.out
       }));
       for (const adapter of restAdapters) {
-        const key = `custom_${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+        const key = `${PREFIX}${providerName}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: adapter, models };
       }
     });
@@ -2613,7 +2621,7 @@ async function syncOpencodexRouter() {
   const routerAdapters = getAdapters('opencodex', 'router');
   const routerKeys = [];
   for (const adapter of routerAdapters) {
-    const key = `custom_${routerName}${adapterSuffix(adapter, routerAdapters)}`;
+    const key = `${PREFIX}${routerName}${adapterSuffix(adapter, routerAdapters)}`;
     routerKeys.push(key);
     doc.providers[key] = ocxProviderEntry(routerRow, adapter);
     // upsert customModels for this adapter key (router keeps full id)
@@ -2632,11 +2640,11 @@ async function syncOpencodexRouter() {
   {
     const live = new Set(routerKeys);
     const before = doc.customModels.length;
-    doc.customModels = doc.customModels.filter((e) => { if (!e || !e.provider || !e.provider.startsWith(`custom_${routerName}`)) return true; // not a router key (rest etc.)
-      // router key is custom_<routerName> or _<routerName>__<adapter>
-      const rest = e.provider.slice(`custom_${routerName}`.length);
+    doc.customModels = doc.customModels.filter((e) => { if (!e || !e.provider || !e.provider.startsWith(`${PREFIX}${routerName}`)) return true; // not a router key (rest etc.)
+      // router key is c_<routerName> or _<routerName>__<adapter>
+      const rest = e.provider.slice(`${PREFIX}${routerName}`.length);
       if (rest === '' || rest.startsWith('__')) return live.has(e.provider);
-      return true; // not a router adapter key (e.g. custom_router_2)
+      return true; // not a router adapter key (e.g. c_router_2)
     });
     void before;
   }
@@ -2664,13 +2672,13 @@ async function syncOpencodexRestProviders() {
   if (!doc.providers || typeof doc.providers !== 'object' || Array.isArray(doc.providers)) doc.providers = {};
   if (!Array.isArray(doc.customModels)) doc.customModels = [];
   const restAdapters = getAdapters('opencodex', 'rest');
-  // create/update providers custom_* keys for rest — instance outer, adapter inner
+  // create/update providers c_* keys for rest — instance outer, adapter inner
   for (const [provider, providerRows] of Object.entries(byProvider)) {
     const prefix = provider + '/';
     const providerModels = modelRows.filter((m) => m.id.startsWith(prefix));
     providerRows.forEach((row, idx) => {
       for (const adapter of restAdapters) {
-        const key = `custom_${provider}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+        const key = `${PREFIX}${provider}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         doc.providers[key] = ocxProviderEntry(row, adapter);
         const modelIds = new Set(providerModels.map((m) => m.id.slice(prefix.length)));
         doc.customModels = doc.customModels.filter((e) => {
@@ -2700,10 +2708,10 @@ async function syncOpencodexRestProviders() {
 }
 
 // ---------- zcode sync (update-only; router keeps full id, REST strips its own prefix) ----------
-// Matches providers by `name` starting with custom_ (covers UUID object keys) or by the object key itself.
+// Matches providers by `name` starting with c_ (covers UUID object keys) or by the object key itself.
 function zcodeCustomName(entry) {
   const n = entry && typeof entry.name === 'string' ? entry.name.trim() : '';
-  return n.startsWith('custom_') ? n : '';
+  return n.startsWith(PREFIX) ? n : '';
 }
 function zcodeLogicalName(key, entry) { return zcodeCustomName(entry) || key; }
 
@@ -2746,7 +2754,7 @@ async function syncZcodeRouter() {
   }
   // Multi-adapter: create one entry per adapter
   for (const adapter of routerAdapters) {
-    const key = `custom_${routerName}${adapterSuffix(adapter, routerAdapters)}`;
+    const key = `${PREFIX}${routerName}${adapterSuffix(adapter, routerAdapters)}`;
     // Try to reuse any existing key with same logical name + same adapter, else create under that key.
     let targetKey = null;
     if (key in doc.provider) targetKey = key;
@@ -2784,9 +2792,9 @@ async function syncZcodeRestProviders() {
   }
   for (const key of Object.keys(doc.provider)) {
     const logical = zcodeLogicalName(key, doc.provider[key]);
-    if (!logical.startsWith('custom_')) continue;
+    if (!logical.startsWith(PREFIX)) continue;
     if (logical === routerCustom || logical === routerCustom1) continue;
-    // REST logical is custom_<provider>[_<N>][__<adapter>]. Strip adapter suffix first.
+    // REST logical is c_<provider>[_<N>][__<adapter>]. Strip adapter suffix first.
     let withoutAdapter = logical;
     let adapterForThisKey = null;
     if (logical.includes('__')) {
@@ -2817,7 +2825,7 @@ async function syncZcodeRestProviders() {
     cur.models = models;
   }
   ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc);
-  return Object.keys(doc.provider).filter(k => zcodeLogicalName(k, doc.provider[k]).startsWith('custom_')).length;
+  return Object.keys(doc.provider).filter(k => zcodeLogicalName(k, doc.provider[k]).startsWith(PREFIX)).length;
 }
 
 // Helper: strip JSONC comments while preserving strings
@@ -2872,10 +2880,10 @@ async function syncT3Models(minInput = 0, minOutput = 0) {
   ensureRouterInstances(settings);
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const routerEntries = Object.entries(settings.providerInstances).filter(([k]) => routerName && k.startsWith('custom_' + routerName + '_'));
+  const routerEntries = Object.entries(settings.providerInstances).filter(([k]) => routerName && k.startsWith(PREFIX + routerName + '_'));
   for (const [key, instance] of routerEntries) {
     if (!instance.config) instance.config = {};
-    const driverName = key.slice(('custom_' + routerName + '_').length);
+    const driverName = key.slice((PREFIX + routerName + '_').length);
     const driverEntry = T3_ROUTER_DRIVERS.find(e => e && typeof e === 'object' && e.driver === driverName);
     const supports1m = driverEntry ? !!driverEntry['1m'] : true;
     const modelsForDriver = supports1m
@@ -2897,7 +2905,7 @@ async function syncT3Models(minInput = 0, minOutput = 0) {
 //   node omnilist.js kilo            -> sync router model block into kilo.jsonc
 //   node omnilist.js kilopro         -> copy provider{} block opencode -> kilo
 //   node omnilist.js t3              -> sync flat model list into t3 claudeAgent
-//   node omnilist.js t3pro           -> t3 flat list + per-provider custom_* instances
+//   node omnilist.js t3pro           -> t3 flat list + per-provider c_* instances
 //   node omnilist.js all             -> fetch + opencode + kilo + t3
 //   node omnilist.js allpro          -> fetch + opencode + kilo + kilopro + t3pro
 //   node omnilist.js opencode kilo   -> combine targets (space-separated)
@@ -3052,22 +3060,22 @@ providers.csv, and the fetch step then builds models.csv from the model endpoint
 Targets (default if none given: fetch + enabled targets + cleanup):
   fetch           Fetch models -> models.csv from the Router's {base_url}/models
   opencode        Sync router provider block into opencode.jsonc
-  opencoderest    Sync per-key custom_* REST provider blocks into opencode.jsonc
+  opencoderest    Sync per-key c_* REST provider blocks into opencode.jsonc
   kilo            Sync router provider block into kilo.jsonc
-  kilorest        Sync per-key custom_* REST provider blocks into kilo.jsonc
+  kilorest        Sync per-key c_* REST provider blocks into kilo.jsonc
   t3              Sync flat model list into T3 router.customModels
-  t3providers     Sync per-provider custom_* instances in T3 settings.json
+  t3providers     Sync per-provider c_* instances in T3 settings.json
   dsh             Sync Router models into DSH (settings.yaml)
   dshrest         Sync per-provider instances into DSH
   pi              Sync Router models into pi agent (models.json)
   pirest          Sync per-provider instances into pi agent
   zcode           Sync Router models into zcode (config.json)
   zcoderest       Sync per-provider instances into zcode
-  opencodex       Sync Router models into opencodex (config.json) — custom_* provider
-  opencodexrest   Sync per-provider instances into opencodex — custom_* providers
+  opencodex       Sync Router models into opencodex (config.json) — c_* provider
+  opencodexrest   Sync per-provider instances into opencodex — c_* providers
   ocx             Alias for opencodex
   ocxrest         Alias for opencodexrest
-  cleanupproviders  Reconcile script-managed custom_* providers (opt-in via flags)
+  cleanupproviders  Reconcile script-managed c_* providers (opt-in via flags)
   cleanup         Delete transient files (e.g. T3 logs dir)
   install         Register "${CLI_COMMAND_NAME}" as a command (shim + User PATH + npm shim)
   uninstall       Remove the registered command
