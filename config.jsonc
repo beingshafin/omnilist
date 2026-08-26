@@ -39,6 +39,7 @@
     * dsh_router / dsh_rest   -> same for DSH
     * pi_router / pi_rest     -> same for pi agent (~/.pi/agent/models.json)
     * zcode_router / zcode_rest -> same for zcode (~/.zcode/v2/config.json)
+    * opencodex_router / opencodex_rest -> same for opencodex (~/.opencodex/config.json)  [aliases: ocx / opencodex / open codex]
 
   MODEL FILTERS — C-like expression language (last matching rule wins):
     prefix + expression:  "!" BLOCK   "xxx"/"=xxx" ALLOW   "==xxx" keep-ONLY.
@@ -56,7 +57,8 @@
     kilo (kc/kilo code/kilocode/kilo-code/kilo_code), t3 (t3code/t3-code/t3_code/t3 code),
     dsh (ds/deepseek/deepseek_harness/deepseek harness/deepseek-harness),
     pi (pi/pi-agent/pi_agent/pi agent/piagent),
-    zcode (zcode/z-code/z_code/z code/zc).
+    zcode (zcode/z-code/z_code/z code/zc),
+    ocx (ox/opencodex/open codex/open-codex/open_codex).
   Each sync also writes a per-harness preview CSV: models-<harness>.csv next to
   models.csv, governed by harness_previews ("raw" default -> only raw_catalog_harnesses,
   "all" -> every synced harness, "none" -> never/delete existing previews).
@@ -77,7 +79,8 @@
     "dsh_settings_file": "~/.dsh/settings.yaml",
     "dsh_credentials_file": "~/.dsh/.credentials.yaml",
     "pi_file": "~/.pi/agent/models.json",
-    "zcode_file": "~/.zcode/v2/config.json"
+    "zcode_file": "~/.zcode/v2/config.json",
+    "opencodex_file": "~/.opencodex/config.json"
   },
 
   // cli
@@ -155,7 +158,9 @@
     "pi_router": true,
     "pi_rest": true,
     "zcode_router": true,
-    "zcode_rest": true
+    "zcode_rest": true,
+    "opencodex_router": false,
+    "opencodex_rest": false
   },
 
   // template
@@ -179,10 +184,38 @@
     }
   },
 
+  // adapters — uniform shape for every harness: opencode/kilo npm, dsh api, pi api, zcode kind, opencodex adapter.
+  // Each harness gets { router_adapters: [...], rest_adapters: [...] } (free-form strings, verbatim into that harness's field).
+  // Single adapter -> bare key custom_<provider> (no __<adapter>, no _1); multi-adapter -> key = custom_<provider>[_<N>]__<adapter> (verbatim __ raw string, instance outer).
+  // DSH legacy keys dsh.router_apis / rest_apis are still accepted as fallback.
+
+  "opencode": {
+    "router_adapters": ["@ai-sdk/openai-compatible"],
+    "rest_adapters": ["@ai-sdk/openai-compatible"] 
+  },
+
+  "kilo":     { 
+    "router_adapters": ["@ai-sdk/openai-compatible"],
+    "rest_adapters": ["@ai-sdk/openai-compatible"] 
+  },
+
+  "pi":       { 
+    "router_adapters": ["openai-completions"],         
+    "rest_adapters": ["openai-completions"] 
+  },
+  "zcode":    { 
+    "router_adapters": ["openai-compatible"],          
+    "rest_adapters": ["openai-compatible"] 
+  },
+  "opencodex":{ 
+    "router_adapters": ["openai-chat"],                
+    "rest_adapters": ["openai-chat"] 
+  },
+
   // dsh
   "dsh": {
-    "router_apis": ["openai-completions"],
-    "rest_apis": ["openai-completions"],
+    "router_adapters": ["openai-completions"],
+    "rest_adapters": ["openai-completions"],
     "model_inputs": "hardcode"
   },
 
@@ -190,5 +223,11 @@
   "cleanup_providers": {
     "remove_if_false_provider": true,
     "remove_if_provider_doesnt_exist": true
-  }
+  },
+
+  // custom commands — run AFTER all sync targets finish, detached in the
+  // background so the terminal session is not hijacked. Each string is
+  // launched as:  Start-Process cmd -ArgumentList "/c <command>" -WindowStyle Hidden -PassThru  (Windows)
+  // or detached spawn on other platforms. Example:  ["ocx sync", "ocx claude desktop apply"]
+  "custom_commands": []
 }
