@@ -157,10 +157,10 @@
     "dsh_rest": true,
     "pi_router": true,
     "pi_rest": true,
-    "zcode_router": true,
-    "zcode_rest": true,
-    "opencodex_router": false,
-    "opencodex_rest": false
+    "zcode_router": false,
+    "zcode_rest": false,
+    "opencodex_router": true,
+    "opencodex_rest": true
   },
 
   // template
@@ -229,5 +229,9 @@
   // background so the terminal session is not hijacked. Each string is
   // launched as:  Start-Process cmd -ArgumentList "/c <command>" -WindowStyle Hidden -PassThru  (Windows)
   // or detached spawn on other platforms. Example:  ["ocx sync", "ocx claude desktop apply"]
-  "custom_commands": []
+  "custom_commands": [
+    "ocx sync",
+    "ocx start",
+    "ocx claude dekstop apply"
+  ]
 }
