@@ -2560,17 +2560,26 @@ function writeJsonFile(file, obj) { fs.writeFileSync(file, JSON.stringify(obj, n
 function piModelsForSync(modelRows) {
   return modelRows.map(m => ({ id: m.id, name: m.id, reasoning: true, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 1, cacheWrite: 1 }, contextWindow: m.in, maxTokens: m.out }));
 }
+// ZCode's config loader requires limit.context and limit.output to be positive numbers
+// (zod .positive()); a single zero anywhere rejects the ENTIRE config.json and ZCode
+// rebuilds it from scratch on launch, wiping every custom provider. Clamp any
+// zero/NaN CSV value to a sane positive default instead of writing it verbatim.
+function zcodeSanitizeLimit(context, output) {
+  const ctx = Number.isFinite(context) && context > 0 ? context : 1000000;
+  const out = Number.isFinite(output) && output > 0 ? output : 32768;
+  return { context: ctx, output: out };
+}
 function zcodeModelsForSync(modelRows) {
   const out = {};
   for (const m of modelRows) {
     const key = m.id.includes('/') ? m.id.split('/').pop() : m.id;
-    out[key] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+    out[key] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
   }
   return out;
 }
 function zcodeRouterModelsForSync(modelRows) {
   const out = {};
-  for (const m of modelRows) out[m.id] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+  for (const m of modelRows) out[m.id] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
   return out;
 }
 function parseZcodeCustomKey(key) {
@@ -2583,7 +2592,7 @@ let _zcodeUpdateOnlyWarned = false;
 function warnZcodeUpdateOnly() {
   if (_zcodeUpdateOnlyWarned) return;
   _zcodeUpdateOnlyWarned = true;
-  console.log('Note: zcode is update-only — existing c-* providers in ~/.zcode/v2/config.json will be updated (baseURL/apiKey/models); no new provider will be created. Legacy c_* entries are renamed to the new c-* format in place. Create the entry once manually first.');
+  console.log('Note: zcode sync inserts missing c-* providers into ~/.zcode/v2/config.json and updates existing ones (baseURL/apiKey/models). Legacy c_* entries are renamed to the new c-* format in place.');
 }
 
 // ---------- opencodex helpers ----------
@@ -2903,9 +2912,9 @@ async function syncOpencodexRestProviders() {
   return Object.keys(byProvider).reduce((n, k) => n + byProvider[k].length, 0);
 }
 
-// ---------- zcode sync (update-only; router keeps full id, REST strips its own prefix) ----------
+// ---------- zcode sync (insert-if-missing + update; router keeps full id, REST strips its own prefix) ----------
 // Matches providers by `name` starting with c- (covers UUID object keys) or by the object key itself.
-// Legacy c_* names are also recognized (fallback) so they can be updated + renamed to the new format.
+// Missing providers are created with source:"custom"; legacy c_* names are recognized and renamed to c-*.
 function zcodeCustomName(entry) {
   const n = entry && typeof entry.name === 'string' ? entry.name.trim() : '';
   return isManagedKey(n) ? n : '';
@@ -2922,8 +2931,8 @@ async function syncZcodeRouter() {
   let doc = readJsonSafe(ZCODE_FILE, { provider: {} });
   doc.provider = doc.provider && typeof doc.provider === 'object' && !Array.isArray(doc.provider) ? doc.provider : {};
   const routerAdapters = getAdapters('zcode', 'router');
-  // If single adapter and update-only: try to update existing key in place (preserve prior behavior).
-  // If multi-adapter, create missing router adapter entries (kind = adapter).
+  // Single adapter: update the existing entry in place, or insert it if missing.
+  // Multi-adapter: create one entry per adapter (kind = adapter).
   const models = zcodeRouterModelsForSync(modelRows);
   if (routerAdapters.length <= 1) {
     const routerCustom = customKey(routerName);
@@ -2944,15 +2953,20 @@ async function syncZcodeRouter() {
         }
       }
     }
-    if (!targetKey) return modelRows.length;
+    // insert if missing: create the router provider entry when no existing key matches
+    if (!targetKey) targetKey = routerCustom;
     const adapter = routerAdapters[0] || 'openai-compatible';
-    const cur = doc.provider[targetKey];
+    const isNewEntry = !(targetKey in doc.provider);
+    const cur = doc.provider[targetKey] || {};
     cur.name = customKey(routerName) + adapterSuffix(adapter, routerAdapters);
     cur.kind = adapter;
+    if (isNewEntry) cur.source = 'custom';
     cur.options = cur.options && typeof cur.options === 'object' && !Array.isArray(cur.options) ? cur.options : {};
+    cur.options.apiKeyRequired = true;
     cur.options.baseURL = routerRow.base_url;
     cur.options.apiKey = routerRow.api_key;
     cur.models = models;
+    doc.provider[targetKey] = cur;
     // rename the object key to the new format if it was found under a legacy/alt key
     if (targetKey !== routerCustom) {
       delete doc.provider[targetKey];
@@ -2973,9 +2987,12 @@ async function syncZcodeRouter() {
       if (!targetKey) targetKey = key;
     }
     const cur = doc.provider[targetKey] || {};
+    const isNewEntry = !doc.provider[targetKey];
     cur.name = key;
     cur.kind = adapter;
+    if (isNewEntry) cur.source = 'custom';
     cur.options = cur.options && typeof cur.options === 'object' && !Array.isArray(cur.options) ? cur.options : {};
+    cur.options.apiKeyRequired = true;
     cur.options.baseURL = routerRow.base_url;
     cur.options.apiKey = routerRow.api_key;
     cur.models = models;
@@ -3037,7 +3054,7 @@ async function syncZcodeRestProviders() {
     for (const m of providerModels) {
       const bare = m.id.slice(prefix.length);
       const dictKey = bare.includes('/') ? bare.split('/').pop() : bare;
-      models[dictKey] = { limit: { context: m.in, output: m.out }, modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+      models[dictKey] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
     }
     const cur = doc.provider[key];
     // keep kind in sync when multiple adapters
@@ -3047,9 +3064,42 @@ async function syncZcodeRestProviders() {
     }
     else if (restAdapters.length === 1) cur.kind = restAdapters[0];
     cur.options = cur.options && typeof cur.options === 'object' && !Array.isArray(cur.options) ? cur.options : {};
+    cur.options.apiKeyRequired = true;
     cur.options.baseURL = row.base_url;
     cur.options.apiKey = row.api_key;
     cur.models = models;
+  }
+  // Insert pass: create entries for providers.csv rows that have no matching
+  // c-* key yet (one entry per rest adapter, same key scheme as above).
+  const existingLogicals = new Set(Object.keys(doc.provider).map(k => zcodeLogicalName(k, doc.provider[k])));
+  for (const [base, group] of Object.entries(byProvider)) {
+    if (routerSimp && base === routerSimp) continue;
+    for (let idx = 1; idx <= group.length; idx++) {
+      const row = group[idx - 1];
+      const withoutAdapter = PREFIX + base + (idx > 1 ? `-${idx}` : '');
+      for (const adapter of restAdapters) {
+        const suffix = restAdapters.length > 1 ? '-' + simplifyName(adapter) : '';
+        const logical = withoutAdapter + suffix;
+        if (existingLogicals.has(logical)) continue;
+        const prefix = base + '/';
+        const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
+        const models = {};
+        for (const m of providerModels) {
+          const bare = m.id.slice(prefix.length);
+          const dictKey = bare.includes('/') ? bare.split('/').pop() : bare;
+          models[dictKey] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
+        }
+        const objKey = logical in doc.provider ? logical + '-' + Object.keys(doc.provider).length : logical;
+        doc.provider[objKey] = {
+          name: logical,
+          kind: adapter,
+          source: 'custom',
+          options: { baseURL: row.base_url, apiKey: row.api_key, apiKeyRequired: true },
+          models,
+        };
+        existingLogicals.add(logical);
+      }
+    }
   }
   ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc);
   return Object.keys(doc.provider).filter(k => isManagedKey(zcodeLogicalName(k, doc.provider[k]))).length;
