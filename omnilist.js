@@ -137,11 +137,15 @@ const DEFAULTS = {
   // models-filtered.csv. "Raw" means dedup-only, before model_filters — these harnesses
   // read models-all.csv and apply only their harness_filters + custom_models.
   raw_catalog_harnesses: [], // e.g. ["dsh"] or ["dsh","t3"]
-  // Per-harness preview CSVs (models-<harness>.csv):
-  //   "raw"  -> write only for raw_catalog_harnesses, delete strays for others
-  //   "all"  -> write for every harness that syncs
-  //   "none" -> never write, delete any existing preview CSVs
-  harness_previews: 'raw',
+  // Per-harness model list CSVs (models-<harness>.csv):
+  //   "raw"        -> write only for raw_catalog_harnesses, delete strays for others
+  //   "all"        -> write for every harness that syncs
+  //   "configured" -> write only for harnesses specifically targeted by harness_filters
+  //                   ("<rule>->t3,dsh"); rules without "->" apply to all harnesses and
+  //                   don't make a harness "configured"
+  //   "none"       -> never write, delete any existing preview CSVs
+  // (No default key here so a legacy "harness_previews" value isn't shadowed;
+  // resolved after load: show_harness_model_list wins over harness_previews.)
   // Custom models to inject into models-filtered.csv on every fetch.
   // Format: { id: "provider/model", in: <input_context>, out: <output_context>,
   //           vision?: 0|1, reasoning?: 0|1, tool?: 0|1 }
@@ -305,7 +309,9 @@ const FOLLOW_HARDCODED_MODEL_TEMPLATE = cfg.follow_hardcoded_model_template;
 const MODEL_FILTERS = cfg.model_filters;
 const HARNESS_FILTERS_RAW = cfg.harness_filters || [];
 const RAW_CATALOG_RAW = cfg.raw_catalog_harnesses || [];
-const HARNESS_PREVIEWS_MODE = ['raw', 'all', 'none'].includes(cfg.harness_previews) ? cfg.harness_previews : 'raw';
+// Legacy name "harness_previews" is still accepted as a fallback.
+const _previewsPref = cfg.show_harness_model_list !== undefined ? cfg.show_harness_model_list : cfg.harness_previews;
+const HARNESS_PREVIEWS_MODE = ['raw', 'all', 'configured', 'none'].includes(_previewsPref) ? _previewsPref : 'raw';
 const CUSTOM_MODELS = cfg.custom_models;
 
 // ---------- model_sort ----------
@@ -611,14 +617,36 @@ function harnessModelsPath(harnessId) {
   return resolveCatalogPath(name) || path.join(path.dirname(MODELS_CSV), `models-${harnessId}.csv`);
 }
 
-// Per-harness preview CSVs are governed by cfg.harness_previews:
-//   "raw"  -> only harnesses listed in raw_catalog_harnesses get a preview
-//   "all"  -> every harness that syncs writes a preview
-//   "none" -> no previews at all
+// Harnesses specifically targeted by harness_filters entries carrying a
+// "->h1,h2" suffix. Entries without "->" apply to all harnesses and are not
+// "configured" — no dedicated CSV is written for them under 'configured' mode.
+// Computed lazily: normalizeHarnessId's alias table is defined further down.
+let _configuredPreviewHarnesses = null;
+function configuredPreviewHarnesses() {
+  if (!_configuredPreviewHarnesses) {
+    _configuredPreviewHarnesses = new Set(
+      HARNESS_FILTERS_RAW
+        .map((e) => parseHarnessFilterEntry(e))
+        .filter((e) => e.targets)
+        .flatMap((e) => [...e.targets])
+    );
+  }
+  return _configuredPreviewHarnesses;
+}
+
+// Per-harness model list CSVs are governed by cfg.show_harness_model_list:
+//   "raw"        -> only harnesses listed in raw_catalog_harnesses get a CSV
+//   "all"        -> every harness that syncs writes a CSV
+//   "configured" -> only harnesses specifically targeted by harness_filters
+//                   ("<rule>->t3,dsh"); rules without "->" target all harnesses
+//                   and don't make a harness "configured"
+//   "none"       -> no CSVs at all
 function previewAllowed(harnessId) {
   if (HARNESS_PREVIEWS_MODE === 'all') return true;
   if (HARNESS_PREVIEWS_MODE === 'none') return false;
-  return RAW_CATALOG.has(normalizeHarnessId(harnessId));
+  const norm = normalizeHarnessId(harnessId);
+  if (HARNESS_PREVIEWS_MODE === 'configured') return configuredPreviewHarnesses().has(norm);
+  return RAW_CATALOG.has(norm);
 }
 
 function writeHarnessPreview(harnessId, rows) {
@@ -629,10 +657,10 @@ function writeHarnessPreview(harnessId, rows) {
   console.log(`Wrote ${harnessId} preview to ${p}`);
 }
 
-// Delete per-harness preview CSVs that shouldn't exist under the current
-// harness_previews mode — e.g. a harness no longer in raw_catalog_harnesses, or
-// previews disabled entirely. Only known harness ids are touched, so models-filtered.csv
-// and models-all.csv are never deleted.
+// Delete per-harness model list CSVs that shouldn't exist under the current
+// show_harness_model_list mode — e.g. a harness no longer in raw_catalog_harnesses,
+// no longer targeted by harness_filters, or previews disabled entirely. Only known
+// harness ids are touched, so models-filtered.csv and models-all.csv are never deleted.
 function cleanupHarnessPreviews() {
   if (HARNESS_PREVIEWS_MODE === 'all') return;
   for (const hid of VALID_HARNESSES) {
@@ -2565,8 +2593,8 @@ function piModelsForSync(modelRows) {
 // rebuilds it from scratch on launch, wiping every custom provider. Clamp any
 // zero/NaN CSV value to a sane positive default instead of writing it verbatim.
 function zcodeSanitizeLimit(context, output) {
-  const ctx = Number.isFinite(context) && context > 0 ? context : 1000000;
-  const out = Number.isFinite(output) && output > 0 ? output : 32768;
+  const ctx = Number.isFinite(context) && context > 0 ? context : 999999;
+  const out = Number.isFinite(output) && output > 0 ? output : 127777;
   return { context: ctx, output: out };
 }
 function zcodeModelsForSync(modelRows) {
@@ -3637,7 +3665,7 @@ function parseArgs() {
     }
 
     // Clean up per-harness preview CSVs that don't belong under the current
-    // harness_previews mode before any sync re-writes the ones that do.
+    // show_harness_model_list mode before any sync re-writes the ones that do.
     cleanupHarnessPreviews();
 
     for (const target of buildOrder()) {

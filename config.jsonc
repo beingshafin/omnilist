@@ -69,9 +69,11 @@
     pi (pi/pi-agent/pi_agent/pi agent/piagent),
     zcode (zcode/z-code/z_code/z code/zc),
     ocx (ox/opencodex/open codex/open-codex/open_codex).
-  Each sync also writes a per-harness preview CSV: models-<harness>.csv next to
-  models-filtered.csv, governed by harness_previews ("raw" default -> only raw_catalog_harnesses,
-  "all" -> every synced harness, "none" -> never/delete existing previews).
+  Each sync also writes a per-harness model list CSV: models-<harness>.csv next to
+  models-filtered.csv, governed by show_harness_model_list ("raw" default -> only
+  raw_catalog_harnesses, "all" -> every synced harness, "configured" -> only harnesses
+  targeted by harness_filters ("rule->t3,dsh"; rules without "->" don't count),
+  "none" -> never/delete existing).
 */
 
 {
@@ -153,8 +155,8 @@
   // raw catalog
   "raw_catalog_harnesses": [],
 
-  // previews
-  "harness_previews": "raw",
+  // previews: per-harness model list CSVs (models-<harness>.csv)
+  "show_harness_model_list": "raw",
 
   // custom models
   "custom_models": [],

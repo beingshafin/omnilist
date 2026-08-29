@@ -77,7 +77,7 @@ Every key is optional — the script falls back to sensible defaults for anythin
 | `model_sort` | Sort order for the filtered model pipeline (`models-filtered.csv`, harness previews, every harness config). Comma-separated keys using the CSV column names — `id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool` — with a leading `-` for descending, e.g. `"-input_context"` = largest context first (ties always break by id). Default: id ascending. `models-all.csv` stays id-sorted regardless |
 | `harness_filters` | Second-stage filters on top of `models-filtered.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`, `pi` aliases `pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`, `zcode` aliases `zcode`/`z-code`/`z_code`/`z code`/`zc`, `ocx` aliases `ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`). Also accepts top/bottom-N directives: `(top100)` applies to every harness, `(top100)->t3,dsh` only to t3 and dsh |
 | `raw_catalog_harnesses` | Harnesses that bypass `models-filtered.csv` and read `models-all.csv` (raw catalog) instead (e.g. `["dsh"]` or `["open code","DS"]`) |
-| `harness_previews` | Per-harness preview CSVs: `"raw"` (default — only `raw_catalog_harnesses`), `"all"` (every synced harness), `"none"` (never write, delete existing) |
+| `show_harness_model_list` | Per-harness model list CSVs: `"raw"` (default — only `raw_catalog_harnesses`), `"all"` (every synced harness), `"configured"` (only harnesses targeted by `harness_filters` `"<rule>->t3,dsh"`; a bare rule without `->` applies to all harnesses and doesn't count), `"none"` (never write, delete existing). Legacy name `harness_previews` still works |
 | `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, `dsh_router`, `pi_router`, `zcode_router`, `opencodex_router`, …) |
 | `t3` | T3 drivers, per-driver strategy, and `[1m]` handling |
 | `dsh` | DSH API variants (`router_apis` / `rest_apis` — `openai-completions` \| `openai-responses` \| `anthropic-messages`) and `model_inputs` (`hardcode` / `vision` / explicit array) |
@@ -215,9 +215,10 @@ Top/bottom-N directives truncate the **sorted** list — `top100` keeps the firs
 ],
 ```
 
-Preview CSVs are governed by `harness_previews`:
+Preview CSVs are governed by `show_harness_model_list`:
 - `"raw"` (default) — write previews **only** for harnesses listed in `raw_catalog_harnesses`, and delete stale `models-<harness>.csv` for the rest.
 - `"all"` — write a preview for **every** harness that syncs.
+- `"configured"` — write a preview **only** for harnesses specifically targeted by `harness_filters` entries with a `->` suffix (e.g. `"!(cond && !open)->t3,dsh"` writes `models-t3.csv` and `models-dsh.csv`). A rule without `->` applies to all harnesses and doesn't make any harness "configured".
 - `"none"` — never write previews; existing `models-<harness>.csv` files are deleted on each run.
 
 The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models-filtered.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models-filtered.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
