@@ -116,7 +116,7 @@ omnilist pi              # Sync Router models into pi agent (models.json)
 omnilist pirest          # Sync per-provider instances into pi agent
 omnilist zcode           # Sync Router models into zcode (config.json)
 omnilist zcoderest       # Sync per-provider instances into zcode
-omnilist ocx             # Sync Router models into opencodex (config.json) — c_* provider (alias: opencodex)
+omnilist ocx             # Sync Router models into opencodex (config.json) — c-* provider (alias: opencodex)
 omnilist ocxrest         # Sync per-provider instances into opencodex (aliases: opencodexrest)
 omnilist all             # Same as running with no arguments
 ```
@@ -200,15 +200,15 @@ The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `m
 
 ### Adapter / connection methods (per-harness, uniform)
 
-Adapters are uniform: every harness gets `{ router_adapters: [...], rest_adapters: [...] }` with free-form strings (written verbatim into that harness's field): **opencode/kilo → `npm`**, **dsh → `api`**, **pi → `api`**, **zcode → `kind`**, **opencodex → `adapter`**. DSH legacy `router_apis`/`rest_apis` are still accepted. Single adapter → bare key `c_<provider>` (and `_2`, `_3` for duplicate provider rows, first stays bare); multi-adapter → `__<adapter>` suffix on every key (verbatim, e.g. `c_omniroute__@ai-sdk/anthropic`) combined as `c_<provider>[_<N>]__<adapter>` (instance outer, adapter inner: `c_agentrouter__a`, `c_agentrouter_2__a`, `c_agentrouter__b`, ...). T3 has no adapters / harnesses.
+**Key naming (all harnesses):** managed keys are `c-<simplified-provider>[-<N>][-<simplified-adapter>]` (t3: `c-<simplified-provider>-<N>-<simplified-driver>`). "Simplified" means lowercased with everything except `a-z`/`0-9` stripped — `Open&Router_Pro` → `openrouterpro`, `@ai-sdk/openai-compatible` → `aisdkopenaicompatible`. First row of a provider stays bare (no number); duplicates get `-2`, `-3`; t3 always numbers (`-1-`, `-2-`, ...). Multi-adapter configs append the simplified adapter (`c-agentrouter-2-openaicompletions`); single-adapter stays bare. Adapters themselves are uniform: every harness gets `{ router_adapters: [...], rest_adapters: [...] }` with free-form strings (written verbatim into that harness's field): **opencode/kilo → `npm`**, **dsh → `api`**, **pi → `api`**, **zcode → `kind`**, **opencodex → `adapter`**. DSH legacy `router_apis`/`rest_apis` are still accepted. Legacy `c_...` keys from older versions are treated as stale and removed by `cleanupproviders`. T3 has no adapters / harnesses.
 
 
 ### DeepSeek harness (DSH)
 
-DSH stores its config in `~/.dsh/settings.yaml` and credentials in `~/.dsh/.credentials.yaml` (both configurable via `paths.dsh_settings_file` / `paths.dsh_credentials_file` and env `DSH_SETTINGS_FILE` / `DSH_CREDENTIALS_FILE`). Enable with `targets.dsh_router` (Router catalog) and `targets.dsh_rest` (per-provider `c_*` instances). Each selected API creates a separate `c_*` provider:
+DSH stores its config in `~/.dsh/settings.yaml` and credentials in `~/.dsh/.credentials.yaml` (both configurable via `paths.dsh_settings_file` / `paths.dsh_credentials_file` and env `DSH_SETTINGS_FILE` / `DSH_CREDENTIALS_FILE`). Enable with `targets.dsh_router` (Router catalog) and `targets.dsh_rest` (per-provider `c-*` instances). Each selected API creates a separate `c-*` provider:
 
-- Router: `c_<router>_<suffix>` (suffix `completions` / `responses` / `messages` for `openai-completions` / `openai-responses` / `anthropic-messages`), `displayName` `<router>_<suffix>`, shared `apiKeyEnv` `C_<ROUTER>_API_KEY` written to the credentials file.
-- REST: `c_<provider>_<idx>_<suffix>` per CSV row × API, `displayName` `<provider>_<idx>_<suffix>`, per-row `apiKeyEnv` `C_<PROVIDER>[_<idx>]_API_KEY`. Model ids are prefix-stripped (`agentrouter/flash` → `flash`).
+- Router: `c-<router>[-<simplified-adapter>]`, `displayName` `<router><suffix>`, shared `apiKeyEnv` `C_<ROUTER>_API_KEY` written to the credentials file (env vars keep underscore style with the simplified uppercase provider name).
+- REST: `c-<provider>[-<N>][-<simplified-adapter>]` per CSV row × API, `displayName` `<provider><suffix>`, per-row `apiKeyEnv` `C_<PROVIDER>[_<N>]_API_KEY`. Model ids are prefix-stripped (`agentrouter/flash` → `flash`).
 
 DSH model entries include an `input` field driven by `dsh.model_inputs`: `hardcode` (default) emits `input: ['text','image']` for every model; `vision` emits `['text','image']` only for vision models; an explicit array uses that array for all models.
 
@@ -220,36 +220,36 @@ DSH model entries include an `input` field driven by `dsh.model_inputs`: `hardco
 }
 ```
 
-Keys always carry the API suffix, even for a single entry. Unknown top-level YAML keys (`ui-onboarding`, `agent-default-model`, etc.) survive round-trips, and `maxTokens` is omitted when `0`. Cleanup reapplies the `c_*` logic (`cleanupproviders`): disabling a flag or removing a provider from `providers.csv` prunes the DSH entries and unreferenced `C_*_API_KEY` credentials.
+Keys always carry the API suffix, even for a single entry. Unknown top-level YAML keys (`ui-onboarding`, `agent-default-model`, etc.) survive round-trips, and `maxTokens` is omitted when `0`. Cleanup reapplies the `c-*` logic (`cleanupproviders`): disabling a flag or removing a provider from `providers.csv` prunes the DSH entries and unreferenced `C_*_API_KEY` credentials.
 
 ### pi agent
 
-pi stores its catalog at `~/.pi/agent/models.json` (configurable via `paths.pi_file` and env `PI_FILE`). Enable with `targets.pi_router` (Router) and `targets.pi_rest` (per-provider). Keys are `c_<provider>[_<idx>]` (`name` mirrors the key, `api: "openai-completions"`):
+pi stores its catalog at `~/.pi/agent/models.json` (configurable via `paths.pi_file` and env `PI_FILE`). Enable with `targets.pi_router` (Router) and `targets.pi_rest` (per-provider). Keys are `c-<provider>[-<idx>]` (`name` mirrors the key, `api: "openai-completions"`):
 
-- Router: single `providers["c_<router>"]` entry with all filtered models
-- REST: grouped by `provider` (every `providers.csv` row whose `description` is not `Router`); models filtered to `provider + '/'` prefix then stripped (`agentrouter/claude-opus-4-8` → `claude-opus-4-8`); duplicate rows for the same provider become `c_<provider>_1`, `c_<provider>_2`, … sharing the same filtered model list
+- Router: single `providers["c-<router>"]` entry with all filtered models
+- REST: grouped by `provider` (every `providers.csv` row whose `description` is not `Router`); models filtered to `provider + '/'` prefix then stripped (`agentrouter/claude-opus-4-8` → `claude-opus-4-8`); duplicate rows for the same provider become `c-<provider>-1`, `c-<provider>-2`, … sharing the same filtered model list
 
-Each model entry is `{ id, name, reasoning:true, input:["text","image"], cost:{input:0,output:0,cacheRead:1,cacheWrite:1}, contextWindow, maxTokens }` with limits from the catalog. Unknown top-level keys are preserved; `[1m]`-suffixed ids are excluded. Preview: `models-pi.csv`. Cleanup only prunes `c_*` keys (matched/renumbered by `apiKey`); other user keys and `builtin:*` (n/a for pi) are preserved.
+Each model entry is `{ id, name, reasoning:true, input:["text","image"], cost:{input:0,output:0,cacheRead:1,cacheWrite:1}, contextWindow, maxTokens }` with limits from the catalog. Unknown top-level keys are preserved; `[1m]`-suffixed ids are excluded. Preview: `models-pi.csv`. Cleanup only prunes `c-*` keys (matched/renumbered by `apiKey`); other user keys and `builtin:*` (n/a for pi) are preserved.
 
 ### opencodex (OCX)
 
-opencodex stores its catalog at `~/.opencodex/config.json` (configurable via `paths.opencodex_file` and env `OPENCODEX_FILE` / `OCX_FILE`). Enable with `targets.opencodex_router` / `targets.opencodex_rest`. Keys are `c_<provider>[_<N>]` (mirrors the Router/REST pattern, but with opencodex's own `adapter` / `apiKeyPool` shape):
+opencodex stores its catalog at `~/.opencodex/config.json` (configurable via `paths.opencodex_file` and env `OPENCODEX_FILE` / `OCX_FILE`). Enable with `targets.opencodex_router` / `targets.opencodex_rest`. Keys are `c-<provider>[-<N>]` (mirrors the Router/REST pattern, but with opencodex's own `adapter` / `apiKeyPool` shape):
 
-- Router: single `providers["c_<router>"]` entry (`adapter:"openai-chat"`, `baseUrl`, `allowPrivateNetwork:true`, `authMode:"key"`, `apiKey`, `apiKeyPool:[{id:8hex, key}]`, `liveModels:false`) and `defaultProvider="c_<router>"`.
-- REST: grouped by `provider` (every non-Router `providers.csv` row); models filtered to `provider + '/'` then stripped (`agentrouter/flash` → `flash`); duplicate rows for the same provider become `c_<provider>`, `c_<provider>_2`, … Each gets its own `customModels` entries with stripped `modelId`.
+- Router: single `providers["c-<router>"]` entry (`adapter:"openai-chat"`, `baseUrl`, `allowPrivateNetwork:true`, `authMode:"key"`, `apiKey`, `apiKeyPool:[{id:8hex, key}]`, `liveModels:false`) and `defaultProvider="c-<router>"`.
+- REST: grouped by `provider` (every non-Router `providers.csv` row); models filtered to `provider + '/'` then stripped (`agentrouter/flash` → `flash`); duplicate rows for the same provider become `c-<provider>`, `c-<provider>-2`, … Each gets its own `customModels` entries with stripped `modelId`.
 
-Router `customModels` keep the full `provider/model` id (`agentrouter/claude-opus-5`); REST `customModels` keep the stripped bare name (`claude-opus-5`). Each `customModels` entry is `{ id: uuid, provider: "c_<provider>[_<N>]", modelId, addedAt }`. Unknown top-level keys (`port`, `openai`, `subagentModels`, `claudeCode.desktopProfile`, …) are preserved; `claudeCode` is ensured to `{ authMode:"proxy" }` (created if missing, otherwise only `authMode` forced to `proxy`). Preview: `models-ocx.csv`. Cleanup prunes `c_*` providers and scoped `customModels` by flag/provider existence and `apiKey`/`baseUrl` renumbering; `openai` and non-`c_*` keys are preserved. `defaultProvider` is only set by the Router sync; REST does not overwrite it.
+Router `customModels` keep the full `provider/model` id (`agentrouter/claude-opus-5`); REST `customModels` keep the stripped bare name (`claude-opus-5`). Each `customModels` entry is `{ id: uuid, provider: "c-<provider>[-<N>]", modelId, addedAt }`. Unknown top-level keys (`port`, `openai`, `subagentModels`, `claudeCode.desktopProfile`, …) are preserved; `claudeCode` is ensured to `{ authMode:"proxy" }` (created if missing, otherwise only `authMode` forced to `proxy`). Preview: `models-ocx.csv`. Cleanup prunes `c-*` providers and scoped `customModels` by flag/provider existence and `apiKey`/`baseUrl` renumbering; `openai` and non-`c-*` keys are preserved. `defaultProvider` is only set by the Router sync; REST does not overwrite it.
 
 When `claudeCode.authMode` is (or becomes) `proxy`, a gentle warning checks `~/.claude/settings.json` for a custom `api`/`base` URL (`ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `baseUrl`, `apiUrl`, etc.). If found, the file is backed up to `settings.json.bak` and cleared to `{}` so the proxy is not shadowed.
 
 ### zcode
 
-zcode stores its catalog at `~/.zcode/v2/config.json` (configurable via `paths.zcode_file` and env `ZCODE_FILE`). Enable with `targets.zcode_router` / `targets.zcode_rest`. Keys are `c_<provider>[_<idx>]` (`name` mirrors the key, `kind: "openai-compatible"`, `options: { apiKey, baseURL, apiKeyRequired:true }`, `source: "custom"`):
+zcode stores its catalog at `~/.zcode/v2/config.json` (configurable via `paths.zcode_file` and env `ZCODE_FILE`). Enable with `targets.zcode_router` / `targets.zcode_rest`. Keys are `c-<provider>[-<idx>]` (`name` mirrors the key, `kind: "openai-compatible"`, `options: { apiKey, baseURL, apiKeyRequired:true }`, `source: "custom"`):
 
-- Router: single `provider["c_<router>"]`
-- REST: grouped by `provider` (every non-Router `providers.csv` row); models filtered to `provider + '/'` then stripped and keyed by bare name (`a/b/c` → `c`); duplicate rows for the same provider become `c_<provider>_1`, `c_<provider>_2`, …
+- Router: single `provider["c-<router>"]`
+- REST: grouped by `provider` (every non-Router `providers.csv` row); models filtered to `provider + '/'` then stripped and keyed by bare name (`a/b/c` → `c`); duplicate rows for the same provider become `c-<provider>-1`, `c-<provider>-2`, …
 
-Models are `{ limit:{context,output}, modalities:{input:["text","image","video"],output:["text"]}, zcode:{modalitiesConfigured:true} }`. All `builtin:*` provider entries (any `kind`/`options`/`enabled`/`systemDisabledReason`/`models` shape) and unknown top-level keys are preserved verbatim. Preview: `models-zcode.csv`. Cleanup never deletes `builtin:*`; only `c_*` keys are gated by `cleanup_providers` flags (matched/renumbered by `options.apiKey`).
+Models are `{ limit:{context,output}, modalities:{input:["text","image","video"],output:["text"]}, zcode:{modalitiesConfigured:true} }`. All `builtin:*` provider entries (any `kind`/`options`/`enabled`/`systemDisabledReason`/`models` shape) and unknown top-level keys are preserved verbatim. Preview: `models-zcode.csv`. Cleanup never deletes `builtin:*`; only `c-*` keys are gated by `cleanup_providers` flags (matched/renumbered by `options.apiKey`).
 
 ## When to use it
 
@@ -307,7 +307,7 @@ Removes the global command and PATH entry. Your config files and local data are 
 
 ## Running the tests
 
-The repo ships a zero-dependency test suite (`test/omnilist.test.js`) that spins up a mock OpenAI-compatible router and verifies the whole pipeline — fetch → `models.csv` capability columns, the `c_<routerName>` blocks in OpenCode/Kilo, T3 router + REST instances, multi-Router handling, and stale-entry cleanup.
+The repo ships a zero-dependency test suite (`test/omnilist.test.js`) that spins up a mock OpenAI-compatible router and verifies the whole pipeline — fetch → `models.csv` capability columns, the `c-<routerName>` blocks in OpenCode/Kilo, T3 router + REST instances, multi-Router handling, and stale-entry cleanup.
 
 ```powershell
 node --test test/omnilist.test.js

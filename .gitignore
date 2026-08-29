@@ -8,3 +8,4 @@ config.local.jsonc
 test/
 .claude/
 .agents/
+.zcode/
