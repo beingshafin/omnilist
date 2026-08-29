@@ -1,6 +1,6 @@
 omnilist.cmd
 providers.csv
-models.csv
+models-filtered.csv
 models-all.csv
 models-*.csv
 config.json

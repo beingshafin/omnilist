@@ -23,7 +23,7 @@
   home directory.  e.g. "~/.config/opencode/opencode.jsonc"
 
   ENVIRONMENT OVERRIDES (these still win over both files):
-    MODELS_TEST     -> override models.csv path
+    MODELS_TEST     -> override models-filtered.csv path
     JSONC_TEST      -> override opencode.jsonc path
     KILO_TEST       -> override kilo.jsonc path
     T3_DATA_DIR     -> override T3 userdata dir
@@ -46,12 +46,22 @@
     Ids are globs ("*" any run, "?" one char, bare = exact); "$field" reads a
     model property.  e.g. "!$input_context < 200000" blocks low-context models.
     (fields: $id, $input_context, $output_context, $vision, $reasoning, $tool)
+    Also accepts top/bottom-N directives: "top100"/"bottom100" truncate the
+    sorted catalog to the first/last N models (baked into models-filtered.csv).
+
+  MODEL SORT — "model_sort" orders the filtered pipeline (models-filtered.csv,
+  previews, every harness config). Comma-separated CSV column names with a
+  leading "-" for descending; ties break by id. Default: id ascending.
+    e.g. "model_sort": "-input_context"  -> largest context first.
 
   HARNESS FILTERS & RAW CATALOG — second-stage filtering, same expression
-  language as MODEL FILTERS, applied on top of models.csv at sync time:
+  language as MODEL FILTERS, applied on top of models-filtered.csv at sync time:
     "!(cond && !open)->t3,dsh"  only the listed harnesses
     "!agy/*"                     no suffix -> applies to all harnesses
-  raw_catalog_harnesses OFF -> on top of models.csv (already model_filters + custom_models).
+    "(top100)"                   top/bottom-N directive for all harnesses
+    "(top100)->t3,dsh"           top-N only for t3 and dsh (REST providers get
+                                 the N applied to their own models, not global)
+  raw_catalog_harnesses OFF -> on top of models-filtered.csv (already model_filters + custom_models).
   raw_catalog_harnesses ON  -> reads models-all.csv (raw catalog); no live fetch needed.
   Harness ids (case-insensitive): opencode (oc/open code/open-code/open_code/opc),
     kilo (kc/kilo code/kilocode/kilo-code/kilo_code), t3 (t3code/t3-code/t3_code/t3 code),
@@ -60,14 +70,14 @@
     zcode (zcode/z-code/z_code/z code/zc),
     ocx (ox/opencodex/open codex/open-codex/open_codex).
   Each sync also writes a per-harness preview CSV: models-<harness>.csv next to
-  models.csv, governed by harness_previews ("raw" default -> only raw_catalog_harnesses,
+  models-filtered.csv, governed by harness_previews ("raw" default -> only raw_catalog_harnesses,
   "all" -> every synced harness, "none" -> never/delete existing previews).
 */
 
 {
   // paths
   "paths": {
-    "models_csv": "models.csv",
+    "models_csv": "models-filtered.csv",
     "providers_csv": "providers.csv",
     "all_models_csv": "models-all.csv",
     "harness_models_file": "models-<harness>.csv",
@@ -103,6 +113,11 @@
     },
     "n_a_defaults": { "vision": true, "reasoning": true, "tool": true }
   },
+
+  // model sort: order for the filtered pipeline (models-filtered.csv, previews,
+  // every harness config). CSV column names, leading "-" = descending, comma-
+  // separated multi-key; ties break by id. Default: id ascending.
+  "model_sort": "id",
 
   // model filters
   "model_filters": [

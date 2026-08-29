@@ -68,14 +68,15 @@ Every key is optional — the script falls back to sensible defaults for anythin
 
 | Section | Controls |
 |---|---|
-| `paths` | Where `models.csv`, `models-all.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, T3's data, DSH's `settings.yaml` / `.credentials.yaml`, pi's `models.json`, zcode's `config.json`, and opencodex's `config.json` live (`all_models_csv` = raw catalog, `harness_models_file` = per-harness preview template, `pi_file` / `zcode_file` / `opencodex_file`) |
+| `paths` | Where `models-filtered.csv`, `models-all.csv`, `providers.csv`, `opencode.jsonc`, `kilo.jsonc`, T3's data, DSH's `settings.yaml` / `.credentials.yaml`, pi's `models.json`, zcode's `config.json`, and opencodex's `config.json` live (`all_models_csv` = raw catalog, `harness_models_file` = per-harness preview template, `pi_file` / `zcode_file` / `opencodex_file`) |
 | `fetch.models_endpoint` | Full URL to the model list. Leave `""` to use `{base_url}/models` |
 | `capabilities.fields` | Which fields the router's model objects use to report `vision` / `reasoning` / `tool` |
 | `capabilities.n_a_defaults` | What sync steps emit when a router doesn't report a capability (default `true`) |
-| `follow_hardcoded_model_template` | Emit the full hardcoded model template into OpenCode/Kilo — all capability flags `true`, plus `modalities` and `variants`; only context/output limits come from `models.csv` (default `true`) |
-| `model_filters` | Model allow/block rules (see below) |
-| `harness_filters` | Second-stage filters on top of `models.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`, `pi` aliases `pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`, `zcode` aliases `zcode`/`z-code`/`z_code`/`z code`/`zc`, `ocx` aliases `ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`) |
-| `raw_catalog_harnesses` | Harnesses that bypass `models.csv` and read `models-all.csv` (raw catalog) instead (e.g. `["dsh"]` or `["open code","DS"]`) |
+| `follow_hardcoded_model_template` | Emit the full hardcoded model template into OpenCode/Kilo — all capability flags `true`, plus `modalities` and `variants`; only context/output limits come from `models-filtered.csv` (default `true`) |
+| `model_filters` | Model allow/block rules (see below). Also accepts `top<N>`/`bottom<N>` directives (e.g. `top100`) that truncate the catalog to the first/last N models of the sorted list — baked into `models-filtered.csv` at fetch time |
+| `model_sort` | Sort order for the filtered model pipeline (`models-filtered.csv`, harness previews, every harness config). Comma-separated keys using the CSV column names — `id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool` — with a leading `-` for descending, e.g. `"-input_context"` = largest context first (ties always break by id). Default: id ascending. `models-all.csv` stays id-sorted regardless |
+| `harness_filters` | Second-stage filters on top of `models-filtered.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`, `pi` aliases `pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`, `zcode` aliases `zcode`/`z-code`/`z_code`/`z code`/`zc`, `ocx` aliases `ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`). Also accepts top/bottom-N directives: `(top100)` applies to every harness, `(top100)->t3,dsh` only to t3 and dsh |
+| `raw_catalog_harnesses` | Harnesses that bypass `models-filtered.csv` and read `models-all.csv` (raw catalog) instead (e.g. `["dsh"]` or `["open code","DS"]`) |
 | `harness_previews` | Per-harness preview CSVs: `"raw"` (default — only `raw_catalog_harnesses`), `"all"` (every synced harness), `"none"` (never write, delete existing) |
 | `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, `dsh_router`, `pi_router`, `zcode_router`, `opencodex_router`, …) |
 | `t3` | T3 drivers, per-driver strategy, and `[1m]` handling |
@@ -105,7 +106,7 @@ No arguments runs the full pipeline: fetch the catalog, sync every enabled targe
 ### Run a specific step
 
 ```powershell
-omnilist fetch           # Refresh models.csv only
+omnilist fetch           # Refresh models-filtered.csv only
 omnilist opencode        # Sync Router models into OpenCode
 omnilist kilo            # Sync Router models into Kilo
 omnilist t3              # Sync Router models into T3
@@ -176,7 +177,7 @@ Rules run top-down and the **last matching rule wins** — a later rule override
 
 ### Harness filters and live fetch
 
-`model_filters` runs at **fetch** time and trims `models.csv`. `harness_filters` runs again at **sync** time on top of `models.csv`, and can target specific harnesses with a `->h1,h2` suffix. Harness ids are `opencode`, `kilo`, `t3`, `dsh`, `pi`, `zcode`, `ocx` — each accepts multiple aliases, case-insensitive: `opencode` (`oc`/`open code`/`open-code`/`open_code`/`opc`), `kilo` (`kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`), `t3` (`t3code`/`t3-code`/`t3_code`/`t3 code`), `dsh` (`ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`), `pi` (`pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`), `zcode` (`zcode`/`z-code`/`z_code`/`z code`/`zc`), `ocx` (`ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`). Bare rules (no suffix) apply to all harnesses.
+`model_filters` runs at **fetch** time and trims `models-filtered.csv`. `harness_filters` runs again at **sync** time on top of `models-filtered.csv`, and can target specific harnesses with a `->h1,h2` suffix. Harness ids are `opencode`, `kilo`, `t3`, `dsh`, `pi`, `zcode`, `ocx` — each accepts multiple aliases, case-insensitive: `opencode` (`oc`/`open code`/`open-code`/`open_code`/`opc`), `kilo` (`kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`), `t3` (`t3code`/`t3-code`/`t3_code`/`t3 code`), `dsh` (`ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`), `pi` (`pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`), `zcode` (`zcode`/`z-code`/`z_code`/`z code`/`zc`), `ocx` (`ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`). Bare rules (no suffix) apply to all harnesses.
 
 ```jsonc
 "harness_filters": [
@@ -184,19 +185,44 @@ Rules run top-down and the **last matching rule wins** — a later rule override
   "!(kc/* && !*free)->t3,dsh",           // only t3 and dsh
   "!*no-think->deepseek",                // only dsh
 ],
-"raw_catalog_harnesses": ["dsh"],       // or ["open code","DS"] — reads models-all.csv (raw catalog), bypassing models.csv
+"raw_catalog_harnesses": ["dsh"],       // or ["open code","DS"] — reads models-all.csv (raw catalog), bypassing models-filtered.csv
 ```
 
-The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models-filtered.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models-filtered.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+
+### Sorting and top/bottom-N
+
+`model_sort` orders the filtered pipeline — `models-filtered.csv`, every preview, and every harness config block:
+
+```jsonc
+"model_sort": "-input_context",           // largest context first; ties break by id
+"model_sort": "-input_context,id",        // multi-key, comma-separated
+```
+
+Fields are the `models-filtered.csv` column names (`id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool`); a leading `-` means descending. `models-all.csv` keeps its id-sorted order regardless.
+
+Top/bottom-N directives truncate the **sorted** list — `top100` keeps the first 100, `bottom100` the last 100 — so they compose with the sort: `top100` + `"-input_context"` = the 100 largest-context models.
+
+- In `model_filters` (e.g. `"top100"`): applied at fetch time, baked into `models-filtered.csv`, affects every harness.
+- In `harness_filters` (e.g. `"(top100)"` or `"(top100)->t3,dsh"`): applied at sync time — a bare `(top100)` affects all harnesses, the `->` suffix targets specific ones. If multiple directives match a harness, the last one wins.
+- REST providers: the N applies to each provider's **own** models (after prefix-filtering from `models-filtered.csv`), not the global catalog — a provider with 30 models keeps all 30 under `top100`.
+- `custom_models[]` entries always survive and never consume N slots.
+
+```jsonc
+"harness_filters": [
+  "(top100)",            // every harness: first 100 of the sorted catalog
+  "(top50)->t3,dsh",     // t3 and dsh instead get the first 50
+],
+```
 
 Preview CSVs are governed by `harness_previews`:
 - `"raw"` (default) — write previews **only** for harnesses listed in `raw_catalog_harnesses`, and delete stale `models-<harness>.csv` for the rest.
 - `"all"` — write a preview for **every** harness that syncs.
 - `"none"` — never write previews; existing `models-<harness>.csv` files are deleted on each run.
 
-The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models-filtered.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models-filtered.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
 
-`custom_models[]` entries are **never excluded by any filter** — `model_filters`, `harness_filters`, keep-only (`==`) rules, and `-mi`/`-mo` CLI filters can't drop them. They're added to every catalog file (`models-all.csv`, `models.csv`, and every `models-<harness>.csv` preview) and every harness sync, and on an id collision with a model the Router already returns, the injected entry wins — its context limits and capabilities are what get written. All three catalog paths are configurable under `paths` (`all_models_csv`, `harness_models_file`).
+`custom_models[]` entries are **never excluded by any filter** — `model_filters`, `harness_filters`, keep-only (`==`) rules, and `-mi`/`-mo` CLI filters can't drop them. They're added to every catalog file (`models-all.csv`, `models-filtered.csv`, and every `models-<harness>.csv` preview) and every harness sync, and on an id collision with a model the Router already returns, the injected entry wins — its context limits and capabilities are what get written. All three catalog paths are configurable under `paths` (`all_models_csv`, `harness_models_file`).
 
 ### Adapter / connection methods (per-harness, uniform)
 
@@ -264,7 +290,7 @@ Models are `{ limit:{context,output}, modalities:{input:["text","image","video"]
 
 1. Calls your Router's `{base_url}/models` endpoint (Bearer key) to fetch the live model catalog
 2. Deduplicates aliases: a model whose `parent` is non-null is an alias of its canonical `parent: null` entry, so only the canonical one is kept
-3. Writes `models.csv` with context limits and per-model capabilities (`vision`, `reasoning`, `tool`)
+3. Writes `models-filtered.csv` with context limits and per-model capabilities (`vision`, `reasoning`, `tool`)
 4. Filters models by your rules and syncs the catalog into OpenCode, Kilo, and T3 in their native formats
 5. Cleans up stale provider entries and temporary T3 logs
 
@@ -279,11 +305,11 @@ You never edit the tool config files directly. `omnilist` is the only thing that
 | `config.local.jsonc` | Your private overrides (gitignored; optional) |
 | `omnilist.cmd` | Generated Windows shim |
 | `providers.csv` | Your provider base URLs + API keys |
-| `models.csv` | Auto-generated model catalog, `model_filters` applied |
+| `models-filtered.csv` | Auto-generated model catalog, `model_filters` applied |
 | `models-all.csv` | Auto-generated raw catalog (dedup'd, pre-filter) + `custom_models` |
 | `models-<harness>.csv` | Auto-generated preview of each harness's final model list |
 
-`config.local.jsonc`, `providers.csv`, `models.csv`, `models-all.csv`, and `models-*.csv` are gitignored — treat them as local config/output. `config.jsonc` is tracked, so keep it free of personal values.
+`config.local.jsonc`, `providers.csv`, `models-filtered.csv`, `models-all.csv`, and `models-*.csv` are gitignored — treat them as local config/output. `config.jsonc` is tracked, so keep it free of personal values.
 
 ## Troubleshooting
 
@@ -307,7 +333,7 @@ Removes the global command and PATH entry. Your config files and local data are 
 
 ## Running the tests
 
-The repo ships a zero-dependency test suite (`test/omnilist.test.js`) that spins up a mock OpenAI-compatible router and verifies the whole pipeline — fetch → `models.csv` capability columns, the `c-<routerName>` blocks in OpenCode/Kilo, T3 router + REST instances, multi-Router handling, and stale-entry cleanup.
+The repo ships a zero-dependency test suite (`test/omnilist.test.js`) that spins up a mock OpenAI-compatible router and verifies the whole pipeline — fetch → `models-filtered.csv` capability columns, the `c-<routerName>` blocks in OpenCode/Kilo, T3 router + REST instances, multi-Router handling, and stale-entry cleanup.
 
 ```powershell
 node --test test/omnilist.test.js

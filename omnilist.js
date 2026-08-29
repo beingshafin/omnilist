@@ -69,7 +69,7 @@ const home = os.homedir();
 
 const DEFAULTS = {
   paths: {
-    models_csv: 'models.csv',
+    models_csv: 'models-filtered.csv',
     providers_csv: 'providers.csv',
     all_models_csv: '',  // raw catalog (dedup only, pre-filter); '' = <models dir>/models-all.csv
     harness_models_file: 'models-<harness>.csv',  // per-harness preview; <harness> -> t3/dsh/opencode/kilo
@@ -94,7 +94,7 @@ const DEFAULTS = {
   fetch: {
     models_endpoint: '',
   },
-  // Capability detection when building models.csv.
+  // Capability detection when building models-filtered.csv.
   // Each entry lists field names (in priority order) to read from a router model
   // object. Fields are searched at the top level and inside nested objects such
   // as "capabilities" (e.g. capabilities.reasoning). Values become 1 (true),
@@ -129,12 +129,12 @@ const DEFAULTS = {
     "!no-think",
     "!compatible",
   ],
-  // Unified second-stage filters applied on top of models.csv at sync time.
+  // Unified second-stage filters applied on top of models-filtered.csv at sync time.
   // Syntax: "<rule>" (all harnesses) or "<rule>->t3,dsh" (only listed harnesses).
   // Harness ids: opencode (alias oc), kilo, t3, dsh.
   harness_filters: [],
   // Which harnesses use the raw catalog (models-all.csv) instead of the filtered
-  // models.csv. "Raw" means dedup-only, before model_filters — these harnesses
+  // models-filtered.csv. "Raw" means dedup-only, before model_filters — these harnesses
   // read models-all.csv and apply only their harness_filters + custom_models.
   raw_catalog_harnesses: [], // e.g. ["dsh"] or ["dsh","t3"]
   // Per-harness preview CSVs (models-<harness>.csv):
@@ -142,7 +142,7 @@ const DEFAULTS = {
   //   "all"  -> write for every harness that syncs
   //   "none" -> never write, delete any existing preview CSVs
   harness_previews: 'raw',
-  // Custom models to inject into models.csv on every fetch.
+  // Custom models to inject into models-filtered.csv on every fetch.
   // Format: { id: "provider/model", in: <input_context>, out: <output_context>,
   //           vision?: 0|1, reasoning?: 0|1, tool?: 0|1 }
   custom_models: [],
@@ -151,8 +151,8 @@ const DEFAULTS = {
 
   // Emit the full hardcoded model template into OpenCode/Kilo provider blocks:
   // every capability flag hardcoded true + "modalities" + "variants", with only
-  // the context/output limits taken from models.csv. When false, capability
-  // flags are read from models.csv and no modalities/variants are emitted.
+  // the context/output limits taken from models-filtered.csv. When false, capability
+  // flags are read from models-filtered.csv and no modalities/variants are emitted.
   follow_hardcoded_model_template: true,
 
   targets: {
@@ -241,7 +241,7 @@ function resolvePath(p) {
 }
 
 // Resolve a catalog CSV path (raw catalog or per-harness preview). Absolute
-// paths and ~ are used as-is; bare filenames are anchored next to models.csv so
+// paths and ~ are used as-is; bare filenames are anchored next to models-filtered.csv so
 // all catalog files stay together even when MODELS_TEST overrides its location.
 function resolveCatalogPath(name) {
   if (!name) return '';
@@ -279,7 +279,7 @@ function loadConfig() {
 const cfg = loadConfig();
 
 // ---------- resolved paths ----------
-const MODELS_CSV = process.env.MODELS_TEST || resolvePath(cfg.paths.models_csv) || path.join(__dirname, 'models.csv');
+const MODELS_CSV = process.env.MODELS_TEST || resolvePath(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv');
 const PROVIDERS_CSV = resolvePath(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
 const OPENCODE_FILE = process.env.JSONC_TEST || resolvePath(cfg.paths.opencode_file);
 const KILO_FILE = process.env.KILO_TEST || resolvePath(cfg.paths.kilo_file);
@@ -307,6 +307,49 @@ const HARNESS_FILTERS_RAW = cfg.harness_filters || [];
 const RAW_CATALOG_RAW = cfg.raw_catalog_harnesses || [];
 const HARNESS_PREVIEWS_MODE = ['raw', 'all', 'none'].includes(cfg.harness_previews) ? cfg.harness_previews : 'raw';
 const CUSTOM_MODELS = cfg.custom_models;
+
+// ---------- model_sort ----------
+// cfg.model_sort orders the filtered model pipeline (models-filtered.csv, harness previews,
+// every harness config). Fields use the models-filtered.csv column names; leading '-' = descending;
+// comma-separated multi-key allowed; ties always break by id so output is deterministic.
+// models-all.csv (raw catalog) stays id-sorted regardless.
+const SORT_FIELDS = { id: 'id', input_context: 'in', output_context: 'out', vision: 'vision', reasoning: 'reasoning', tool: 'tool' };
+function parseModelSort(spec) {
+  if (spec === undefined || spec === null || spec === '') return null;
+  if (typeof spec !== 'string') throw new Error(`model_sort must be a string, got ${typeof spec}`);
+  const keys = spec.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!keys.length) return null;
+  const parsed = [];
+  for (const k of keys) {
+    const desc = k.startsWith('-');
+    const name = desc ? k.slice(1) : k;
+    const key = SORT_FIELDS[name];
+    if (!key) throw new Error(`model_sort: unknown field "${name}" (valid: ${Object.keys(SORT_FIELDS).join(', ')})`);
+    parsed.push({ key, desc });
+  }
+  return parsed;
+}
+const MODEL_SORT = parseModelSort(cfg.model_sort);
+// Sort a model list per MODEL_SORT (default: id ascending — the pre-existing behavior).
+function sortModels(rows) {
+  const list = rows.slice();
+  if (!MODEL_SORT) {
+    list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return list;
+  }
+  const cmp = (a, b) => {
+    for (const { key, desc } of MODEL_SORT) {
+      const av = a[key]; const bv = b[key];
+      if (av !== bv) {
+        const lt = typeof av === 'string' ? av < bv : av < bv;
+        return desc ? (lt ? 1 : -1) : (lt ? -1 : 1);
+      }
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  };
+  list.sort(cmp);
+  return list;
+}
 
 const OPENCODE_ROUTER = cfg.targets.opencode_router;
 const OPENCODE_REST = cfg.targets.opencode_rest;
@@ -438,7 +481,7 @@ function makeLineReader() {
 
 // On a fresh install providers.csv doesn't exist (or has no Router row). Prompt
 // the user for the Router's base URL + API key and write a minimal providers.csv
-// so the normal fetch step can populate models.csv. Returns the created provider
+// so the normal fetch step can populate models-filtered.csv. Returns the created provider
 // name, or null when a Router already existed and nothing needed to change.
 async function ensureRouterProvider() {
   const rows = readProvidersCsv();
@@ -515,7 +558,7 @@ function readProvidersCsv() {
   }).filter((r) => r.provider);
 }
 
-// Read models.csv (header: id,input_context,output_context,vision,reasoning,tool)
+// Read models-filtered.csv (header: id,input_context,output_context,vision,reasoning,tool)
 // into an array of { id, in, out, vision, reasoning, tool }.
 function readModelsCsv(file) {
   const p = file || MODELS_CSV;
@@ -588,7 +631,7 @@ function writeHarnessPreview(harnessId, rows) {
 
 // Delete per-harness preview CSVs that shouldn't exist under the current
 // harness_previews mode — e.g. a harness no longer in raw_catalog_harnesses, or
-// previews disabled entirely. Only known harness ids are touched, so models.csv
+// previews disabled entirely. Only known harness ids are touched, so models-filtered.csv
 // and models-all.csv are never deleted.
 function cleanupHarnessPreviews() {
   if (HARNESS_PREVIEWS_MODE === 'all') return;
@@ -642,7 +685,7 @@ function detectCapability(m, key) {
   return -1;
 }
 
-// Map a models.csv capability cell (0/1/-1) to a boolean for config output.
+// Map a models-filtered.csv capability cell (0/1/-1) to a boolean for config output.
 function capBool(value, key) {
   if (value === 1 || value === '1' || value === true) return true;
   if (value === 0 || value === '0' || value === false) return false;
@@ -933,7 +976,43 @@ function getHarnessFilters(harnessId) {
   return HARNESS_FILTERS_RAW
     .map((e) => parseHarnessFilterEntry(e))
     .filter((e) => !e.targets || e.targets.has(norm))
-    .map((e) => e.rule);
+    .map((e) => e.rule)
+    .filter((rule) => !parseTopNDirective(rule)); // top-N directives are handled separately
+}
+// ---------- top/bottom-N directives ----------
+// "top100" / "bottom100" / "(top100)" / "( bottom50 )" — parens optional. Usable in
+// model_filters (baked into models-filtered.csv) and harness_filters ("(top100)->t3,dsh"
+// targets specific harnesses). The N is taken from the SORTED list: top = first N,
+// bottom = last N. custom_models always survive and don't consume N slots.
+function parseTopNDirective(rule) {
+  if (typeof rule !== 'string') return null;
+  const m = rule.trim().match(/^\(?top(\d+)\)?$/i);
+  if (m) return { dir: 'top', n: parseInt(m[1], 10) };
+  const b = rule.trim().match(/^\(?bottom(\d+)\)?$/i);
+  if (b) return { dir: 'bottom', n: parseInt(b[1], 10) };
+  return null;
+}
+// Last matching directive wins.
+function getHarnessTopN(harnessId) {
+  const norm = normalizeHarnessId(harnessId);
+  let result = null;
+  for (const entry of HARNESS_FILTERS_RAW) {
+    const { rule, targets } = parseHarnessFilterEntry(entry);
+    const directive = parseTopNDirective(rule);
+    if (!directive) continue;
+    if (!targets || targets.has(norm)) result = directive;
+  }
+  return result;
+}
+// Apply a top/bottom-N rule to a model list (no rule -> unchanged). custom_models
+// entries always survive and don't consume N slots; the result stays sorted.
+function applyTopNDirective(rows, directive) {
+  if (!directive || !directive.n) return rows;
+  const customs = CUSTOM_MODELS || [];
+  const customsInRows = rows.filter((r) => customs.some((c) => c.id === r.id));
+  const fetched = rows.filter((r) => !customs.some((c) => c.id === r.id));
+  const kept = directive.dir === 'top' ? fetched.slice(0, directive.n) : fetched.slice(-directive.n);
+  return sortModels([...kept, ...customsInRows]);
 }
 const RAW_CATALOG = new Set((RAW_CATALOG_RAW || []).map((s) => normalizeHarnessId(s)).filter((s) => VALID_HARNESSES.has(s)));
 
@@ -1005,8 +1084,11 @@ function parseManagedDshKey(key) {
 
 // Fetch catalog either from models-all.csv or live endpoint depending on harness
 // raw_catalog_harnesses ON -> read models-all.csv (raw), fall back to live fetch if file missing.
-// raw_catalog_harnesses OFF -> read models.csv (already model_filters + custom_models).
-async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0) {
+// raw_catalog_harnesses OFF -> read models-filtered.csv (already model_filters + custom_models).
+// opts.applyTopN === false skips the harness top/bottom-N directive — REST provider
+// syncs opt out because their N applies to the per-provider prefix-filtered subset,
+// not the global catalog (they call applyHarnessTopN on the subset instead).
+async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0, opts = {}) {
   const harnessFilters = getHarnessFilters(harnessId);
   const shouldFetchLive = RAW_CATALOG.has(normalizeHarnessId(harnessId));
   let base;
@@ -1023,13 +1105,19 @@ async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0) {
   }
   // custom_models always survive harness_filters (re-added last, override collisions)
   let filtered = mergeCustomModels(applyModelFilters(base, harnessFilters));
-  filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  filtered = sortModels(filtered);
+  if (opts.applyTopN !== false) filtered = applyTopNDirective(filtered, getHarnessTopN(harnessId));
   return filtered;
+}
+// Apply this harness's top/bottom-N rule to an already-narrowed model subset
+// (e.g. one REST provider's prefix-filtered models).
+function applyHarnessTopN(rows, harnessId) {
+  return applyTopNDirective(rows, getHarnessTopN(harnessId));
 }
 
 // Full hardcoded model entry (used when follow_hardcoded_model_template is on):
 // every capability flag is true, modalities + variants are always present, and
-// only the context/output limits come from models.csv.
+// only the context/output limits come from models-filtered.csv.
 function templateModelEntry(displayName, ctxIn, ctxOut) {
   return {
     name: displayName,
@@ -1164,13 +1252,13 @@ async function fetchRawModels(minInput = 0, minOutput = 0) {
   return results;
 }
 
-// ---------- fetchModels: fetch + build models.csv (DEFAULT target) ----------
+// ---------- fetchModels: fetch + build models-filtered.csv (DEFAULT target) ----------
 // Each line written as:  model-id,context-input,context-output,vision,reasoning,tool
 // Fetches the special "Router" provider's OpenAI-compatible {base_url}/models
 // (or a full models_endpoint from config) using the api_key as a Bearer token.
 // Writes:
 //   models-all.csv — raw dedup'd catalog + custom_models (no model_filters)
-//   models.csv     — model_filters applied on top of models-all.csv
+//   models-filtered.csv     — model_filters applied on top of models-all.csv
 //
 // Filters:
 //   --min-input-context N : skip models with input context < N (0 = no filter)
@@ -1187,9 +1275,16 @@ async function fetchModels(minInput = 0, minOutput = 0) {
   fs.writeFileSync(ALL_MODELS_CSV, csvRowsToText(sortedRaw), 'utf8');
   console.log('Wrote raw catalog to ' + ALL_MODELS_CSV);
 
-  // 2) model_filters -> models.csv (custom_models re-added so they always appear)
-  let filtered = mergeCustomModels(applyModelFilters(sortedRaw, MODEL_FILTERS));
-  filtered.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // 2) model_filters + top-N -> models-filtered.csv (custom_models re-added so they always appear).
+  //    top-N directives are sliced off the SORTED list: top = first N, bottom = last N.
+  const exprRules = (MODEL_FILTERS || []).filter((rule) => !parseTopNDirective(rule));
+  let directive = null;
+  for (const rule of MODEL_FILTERS || []) {
+    const d = parseTopNDirective(rule);
+    if (d) directive = d;
+  }
+  let filtered = mergeCustomModels(applyModelFilters(sortedRaw, exprRules));
+  filtered = applyTopNDirective(sortModels(filtered), directive);
   fs.mkdirSync(path.dirname(MODELS_CSV), { recursive: true });
   fs.writeFileSync(MODELS_CSV, csvRowsToText(filtered), 'utf8');
   return filtered.length;
@@ -1198,7 +1293,7 @@ async function fetchModels(minInput = 0, minOutput = 0) {
 // ---------- syncModelBlock: update router models via markers (in a given file) ----------
 function syncModelBlock(targetFile) {
   if (!fs.existsSync(MODELS_CSV)) {
-    throw new Error('models.csv not found: ' + MODELS_CSV);
+    throw new Error('models-filtered.csv not found: ' + MODELS_CSV);
   }
   const ids = readModelsCsv();
 
@@ -1280,7 +1375,7 @@ async function syncT3Providers() {
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
   const routerBase = routerName ? routerKeyBase(routerName) : null;
-  const modelRows = await getModelsForHarness('t3');
+  const modelRows = await getModelsForHarness('t3', 0, 0, { applyTopN: false });
   writeHarnessPreview('t3', modelRows);
 
   const byProvider = {};
@@ -1314,8 +1409,10 @@ async function syncT3Providers() {
       .filter((m) => m.id.startsWith(provider + '/'))
       .map((m) => ({ ...m, fullId: m.id }));
     const filtered = getHarnessFilters('t3').length ? applyModelFilters(withPrefix, getHarnessFilters('t3')) : withPrefix;
+    // top/bottom-N applies per provider subset (before [1m] variants inflate the count)
+    const topNFiltered = applyHarnessTopN(filtered, 't3');
     const providerModelsAll = [];
-    for (const m of filtered) {
+    for (const m of topNFiltered) {
       const name = m.id.slice(provider.length + 1);
       providerModelsAll.push(name);
       if (m.in >= 1000000) providerModelsAll.push(name + '[1m]');
@@ -1418,7 +1515,7 @@ function copyProviderBlockToKilo() {
   return KILO_FILE;
 }
 
-// Reads models.csv and writes model IDs into:
+// Reads models-filtered.csv and writes model IDs into:
 //   settings.json -> providerInstances -> <router driver blocks> -> config -> customModels
 // Models with input context >= 1,000,000 also get a "[1m]" variant.
 // Active router drivers from T3_ROUTER_DRIVERS become provider instances.
@@ -1493,12 +1590,12 @@ function sortProviderInstances(settings) {
 async function syncOpencodeRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const needCsv = !RAW_CATALOG.has('opencode');
-  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models-filtered.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(OPENCODE_FILE)) throw new Error('opencode.jsonc not found: ' + OPENCODE_FILE);
 
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelLines = await getModelsForHarness('opencode');
+  const modelLines = await getModelsForHarness('opencode', 0, 0, { applyTopN: false });
 
   const byProvider = {};
   for (const row of rows) {
@@ -1524,8 +1621,7 @@ async function syncOpencodeRestProviders() {
     if (routerName && providerName === routerName) continue;
     const prefix = providerName + '/';
     providerRows.forEach((row, idx) => {
-      const providerModels = modelLines
-        .filter(m => m.id.startsWith(prefix))
+      const providerModels = applyHarnessTopN(modelLines.filter(m => m.id.startsWith(prefix)), 'opencode')
         .map(m => {
           const modelId = m.id.slice(prefix.length);
           return FOLLOW_HARDCODED_MODEL_TEMPLATE
@@ -1561,12 +1657,12 @@ async function syncOpencodeRestProviders() {
 async function syncKiloRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const needCsv = !RAW_CATALOG.has('kilo');
-  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  if (needCsv && !fs.existsSync(MODELS_CSV)) throw new Error('models-filtered.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(KILO_FILE)) throw new Error('kilo.jsonc not found: ' + KILO_FILE);
 
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelLines = await getModelsForHarness('kilo');
+  const modelLines = await getModelsForHarness('kilo', 0, 0, { applyTopN: false });
 
   const byProvider = {};
   for (const row of rows) {
@@ -1592,8 +1688,7 @@ async function syncKiloRestProviders() {
     if (routerName && providerName === routerName) continue;
     const prefix = providerName + '/';
     providerRows.forEach((row, idx) => {
-      const providerModels = modelLines
-        .filter(m => m.id.startsWith(prefix))
+      const providerModels = applyHarnessTopN(modelLines.filter(m => m.id.startsWith(prefix)), 'kilo')
         .map(m => {
           const modelId = m.id.slice(prefix.length);
           return FOLLOW_HARDCODED_MODEL_TEMPLATE
@@ -2209,8 +2304,8 @@ function ocRouterKey(routerName, adapters) {
 // Reads providers.csv + models (csv or live per harness), builds complete router block.
 async function syncRouterProvider(targetFile, harnessId) {
   const hid = harnessId || 'opencode';
-  // Keep hard fail for non-live harnesses that still expect models.csv
-  if (!RAW_CATALOG.has(normalizeHarnessId(hid)) && !fs.existsSync(MODELS_CSV)) throw new Error('models.csv not found: ' + MODELS_CSV);
+  // Keep hard fail for non-live harnesses that still expect models-filtered.csv
+  if (!RAW_CATALOG.has(normalizeHarnessId(hid)) && !fs.existsSync(MODELS_CSV)) throw new Error('models-filtered.csv not found: ' + MODELS_CSV);
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   if (!fs.existsSync(targetFile)) throw new Error('Config file not found: ' + targetFile);
 
@@ -2600,7 +2695,7 @@ async function syncDSHRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelRows = await getModelsForHarness('dsh');
+  const modelRows = await getModelsForHarness('dsh', 0, 0, { applyTopN: false });
   writeHarnessPreview('dsh', modelRows);
   const byProvider = {};
   for (const row of rows) {
@@ -2617,7 +2712,7 @@ async function syncDSHRestProviders() {
   const restAdapters = getAdapters('dsh', 'rest');
   for (const [provider, providerRows] of Object.entries(byProvider)) {
     const prefix = provider + '/';
-    const providerModelCandidates = modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]'));
+    const providerModelCandidates = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]')), 'dsh');
     const simp = simplifyName(provider);
     providerRows.forEach((row, idx) => {
       for (const api of restAdapters) {
@@ -2650,7 +2745,7 @@ async function syncDSHRestProviders() {
 }
 
 // ---------- pi sync ----------
-// Pipeline: raw_catalog_harnesses OFF for pi -> model_filters -> models.csv -> harness_filters targeting pi + custom_models | ON -> bypass model_filters -> models-all.csv (or live GET {base_url}/models fallback) -> harness_filters + custom_models — live branch matches fetchRawModels dedup (parent!=null skip, __provider_ rewrite, compatible+owned_by rewrite).
+// Pipeline: raw_catalog_harnesses OFF for pi -> model_filters -> models-filtered.csv -> harness_filters targeting pi + custom_models | ON -> bypass model_filters -> models-all.csv (or live GET {base_url}/models fallback) -> harness_filters + custom_models — live branch matches fetchRawModels dedup (parent!=null skip, __provider_ rewrite, compatible+owned_by rewrite).
 async function syncPiRouter() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const rows = readProvidersCsv();
@@ -2671,7 +2766,7 @@ async function syncPiRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelRows = (await getModelsForHarness('pi')).filter(m => !m.id.endsWith('[1m]'));
+  const modelRows = (await getModelsForHarness('pi', 0, 0, { applyTopN: false })).filter(m => !m.id.endsWith('[1m]'));
   writeHarnessPreview('pi', modelRows);
   let doc = readJsonSafe(PI_FILE, { providers: {} });
   doc.providers = doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers) ? doc.providers : {};
@@ -2684,7 +2779,7 @@ async function syncPiRestProviders() {
   const restAdapters = getAdapters('pi', 'rest');
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     const prefix = providerName + '/';
-    const providerModels = modelRows.filter(m => m.id.startsWith(prefix));
+    const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'pi');
     providerRows.forEach((row, idx) => {
       const models = providerModels.map(m => ({
         id: m.id.slice(prefix.length),
@@ -2706,7 +2801,7 @@ async function syncPiRestProviders() {
 }
 
 // ---------- opencodex sync ----------
-// Pipeline: raw_catalog_harnesses OFF for ocx -> model_filters -> models.csv -> harness_filters targeting ocx + custom_models
+// Pipeline: raw_catalog_harnesses OFF for ocx -> model_filters -> models-filtered.csv -> harness_filters targeting ocx + custom_models
 //           ON -> bypass model_filters -> models-all.csv (or live GET {base_url}/models fallback) -> harness_filters + custom_models
 async function syncOpencodexRouter() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
@@ -2761,7 +2856,7 @@ async function syncOpencodexRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
   const rows = readProvidersCsv();
   const routerName = routerNameOf(rows);
-  const modelRows = (await getModelsForHarness('ocx')).filter((m) => !m.id.endsWith('[1m]'));
+  const modelRows = (await getModelsForHarness('ocx', 0, 0, { applyTopN: false })).filter((m) => !m.id.endsWith('[1m]'));
   writeHarnessPreview('ocx', modelRows);
   const byProvider = {};
   for (const row of rows) {
@@ -2776,7 +2871,7 @@ async function syncOpencodexRestProviders() {
   // create/update providers c_* keys for rest — instance outer, adapter inner
   for (const [provider, providerRows] of Object.entries(byProvider)) {
     const prefix = provider + '/';
-    const providerModels = modelRows.filter((m) => m.id.startsWith(prefix));
+    const providerModels = applyHarnessTopN(modelRows.filter((m) => m.id.startsWith(prefix)), 'ocx');
     providerRows.forEach((row, idx) => {
       for (const adapter of restAdapters) {
         const key = `${PREFIX}${simplifyName(provider)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
@@ -2899,7 +2994,7 @@ async function syncZcodeRestProviders() {
   const routerName = routerNameOf(rows);
   const routerCustom = routerName ? customKey(routerName) : '';
   const routerCustom1 = routerCustom ? routerCustom + '-1' : '';
-  const modelRows = (await getModelsForHarness('zcode')).filter(m => !m.id.endsWith('[1m]'));
+  const modelRows = (await getModelsForHarness('zcode', 0, 0, { applyTopN: false })).filter(m => !m.id.endsWith('[1m]'));
   writeHarnessPreview('zcode', modelRows);
   let doc = readJsonSafe(ZCODE_FILE, { provider: {} });
   doc.provider = doc.provider && typeof doc.provider === 'object' && !Array.isArray(doc.provider) ? doc.provider : {};
@@ -2937,7 +3032,7 @@ async function syncZcodeRestProviders() {
     const group = byProvider[base]; if (!group) continue;
     const row = group[idx - 1]; if (!row) continue;
     const prefix = base + '/';
-    const providerModels = modelRows.filter(m => m.id.startsWith(prefix));
+    const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
     const models = {};
     for (const m of providerModels) {
       const bare = m.id.slice(prefix.length);
@@ -3033,7 +3128,7 @@ async function syncT3Models(minInput = 0, minOutput = 0) {
 
 // ---------- run ----------
 // Usage:
-//   node omnilist.js                 -> DEFAULT: fetch models -> models.csv only
+//   node omnilist.js                 -> DEFAULT: fetch models -> models-filtered.csv only
 //   node omnilist.js opencode        -> sync router model block into opencode.jsonc
 //   node omnilist.js kilo            -> sync router model block into kilo.jsonc
 //   node omnilist.js kilopro         -> copy provider{} block opencode -> kilo
@@ -3188,10 +3283,10 @@ any additional Router rows are reported on the console and ignored.
 
 First run: if no Router is configured (providers.csv missing or has no "Router"
 row), you'll be prompted for the Router base URL + API key. That creates
-providers.csv, and the fetch step then builds models.csv from the model endpoint.
+providers.csv, and the fetch step then builds models-filtered.csv from the model endpoint.
 
 Targets (default if none given: fetch + enabled targets + cleanup):
-  fetch           Fetch models -> models.csv from the Router's {base_url}/models
+  fetch           Fetch models -> models-filtered.csv from the Router's {base_url}/models
   opencode        Sync router provider block into opencode.jsonc
   opencoderest    Sync per-key c-* REST provider blocks into opencode.jsonc
   kilo            Sync router provider block into kilo.jsonc
@@ -3482,7 +3577,7 @@ function parseArgs() {
 
     // First-run bootstrap: if no Router is configured and this run includes a
     // target that requires one, prompt for the base URL + API key to create
-    // providers.csv. The `fetch` target then builds models.csv from the model
+    // providers.csv. The `fetch` target then builds models-filtered.csv from the model
     // endpoint below. Targets that tolerate a missing Router (the *rest and
     // cleanup steps) don't trigger the prompt.
     const ROUTER_TARGETS = ['fetch', 'opencode', 'kilo', 't3models', 'dsh', 'pi', 'zcode', 'opencodex'];
