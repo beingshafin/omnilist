@@ -3953,28 +3953,47 @@ if (require.main === module)
           if (process.platform === 'win32') {
             // A direct detached spawn gets its own console window (visible
             // flash). Start-Process -WindowStyle Hidden gives the child a
-            // hidden console instead, and its children inherit it. The
-            // ArgumentList is single-quoted with '' escaping so quotes inside
-            // `cmd` survive PowerShell parsing. The PowerShell wrapper is
-            // awaited (it returns as soon as Start-Process has spawned the
-            // hidden child) so the script cannot exit before the child exists;
-            // the child itself is fully detached and outlives the script.
-            const argList = `/c ${cmd}`.replace(/'/g, "''");
-            const psCmd = `Start-Process cmd -ArgumentList '${argList}' -WindowStyle Hidden`;
+            // hidden console instead, and its children inherit it.
+            // -WorkingDirectory ensures the child runs from the script's cwd
+            // rather than C:\Windows\System32 (which breaks commands that rely
+            // on relative paths or cwd-relative config).
+            // Quotes: single quotes survive cmd /c; backticks are escaped as
+            // `` ` `` so the PowerShell argument string stays intact; the full
+            // command is wrapped in outer double quotes so the entire string is
+            // passed as one argument to cmd.exe /c.
+            const workingDir = process.cwd();
+            const escapedBackticks = cmd.replace(/`/g, '``');
+            const inner = `cmd.exe /c "${escapedBackticks}"`;
+            const psCmd = `Start-Process cmd -ArgumentList '${inner}' -WindowStyle Hidden -WorkingDirectory '${workingDir}'`;
             const encoded = Buffer.from(psCmd, 'utf16le').toString('base64');
             const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
-              stdio: 'ignore',
+              stdio: 'pipe',
               windowsHide: true,
             });
-            await new Promise((resolve) => {
-              child.on('error', () => resolve());
-              child.on('close', () => resolve());
+            let psStderr = '';
+            child.stderr.on('data', (d) => { psStderr += d; });
+            const bgExitCode = await new Promise((resolve) => {
+              child.on('error', (err) => resolve({ err }));
+              child.on('close', (exitCode) => resolve({ exitCode }));
             });
+            if (bgExitCode.err) {
+              console.error(`[custom_commands] FAILED to start background "${cmd}": ${bgExitCode.err.message}`);
+              failed = true;
+            } else if (bgExitCode.exitCode !== 0) {
+              // PowerShell wrapper itself failed — child may or may not have started.
+              console.error(`[custom_commands] Background launch wrapper FAILED (exit ${bgExitCode.exitCode}): ${cmd}`);
+              if (psStderr.trim()) console.error(`[custom_commands] Wrapper output:\n${psStderr.trim()}`);
+              failed = true;
+            } else {
+              console.log(`[custom_commands] Background launched: ${cmd}`);
+            }
+            continue;
           } else {
             const child = spawn(cmd, { shell: true, detached: true, stdio: 'ignore' });
             child.unref();
+            console.log(`[custom_commands] Background launched: ${cmd}`);
+            continue;
           }
-          continue;
         }
         // shell:true runs the string through cmd /d /s /c (Windows) or sh -c
         // (POSIX). Spawning the shell as an argv array instead would make Node

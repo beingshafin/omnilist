@@ -288,7 +288,7 @@
       "anthropic-messages"
     ]
   },
-  
+
   // cleanup providers
   "cleanup_providers": {
     "remove_if_false_provider": true,
@@ -304,8 +304,8 @@
   // failures don't stop the chain but make the script exit 1.
   // Example:  ["bg:ocx start", "ocx sync", "sleep 5", "ocx claude desktop apply"]
   "custom_commands": [
+    "bg:ocx restart",
     "ocx sync",
-    "bg:ocx start",
-    "ocx claude dekstop apply"
+    "ocx claude desktop apply"
   ]
 }
