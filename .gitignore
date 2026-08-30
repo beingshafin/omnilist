@@ -9,3 +9,4 @@ test/
 .claude/
 .agents/
 .zcode/
+*.bak

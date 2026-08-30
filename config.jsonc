@@ -234,36 +234,61 @@
   // Single adapter -> bare key c_<provider> (no __<adapter>, no _1); multi-adapter -> key = c_<provider>[_<N>]__<adapter> (verbatim __ raw string, instance outer).
   // DSH legacy keys dsh.router_apis / rest_apis are still accepted as fallback.
 
+  // adapters — opencode
   "opencode": {
-    "router_adapters": ["@ai-sdk/openai-compatible"],
-    "rest_adapters": ["@ai-sdk/openai-compatible"] 
+    "router_adapters": [
+      "@ai-sdk/anthropic"
+    ],
+    "rest_adapters": [
+      "@ai-sdk/anthropic"
+    ]
   },
-
-  "kilo":     { 
-    "router_adapters": ["@ai-sdk/openai-compatible"],
-    "rest_adapters": ["@ai-sdk/openai-compatible"] 
+  // adapters — kilo
+  "kilo": {
+    "router_adapters": [
+      "@ai-sdk/anthropic"
+    ],
+    "rest_adapters": [
+      "@ai-sdk/anthropic"
+    ]
   },
-
-  "pi":       { 
-    "router_adapters": ["openai-completions"],         
-    "rest_adapters": ["openai-completions"] 
+  // adapters — pi
+  "pi": {
+    "router_adapters": [
+      "anthropic-messages"
+    ],
+    "rest_adapters": [
+      "anthropic-messages"
+    ]
   },
-  "zcode":    { 
-    "router_adapters": ["openai-compatible"],          
-    "rest_adapters": ["openai-compatible"] 
+  // adapters — zcode
+  "zcode": {
+    "router_adapters": [
+      "anthropic"
+    ],
+    "rest_adapters": [
+      "anthropic"
+    ]
   },
-  "opencodex":{ 
-    "router_adapters": ["openai-chat"],                
-    "rest_adapters": ["openai-chat"] 
+  // adapters — opencodex
+  "opencodex": {
+    "router_adapters": [
+      "anthropic"
+    ],
+    "rest_adapters": [
+      "anthropic"
+    ]
   },
-
-  // dsh
+  // dsh — adapters and model inputs
   "dsh": {
-    "router_adapters": ["openai-completions"],
-    "rest_adapters": ["openai-completions"],
-    "model_inputs": "hardcode"
+    "router_adapters": [
+      "anthropic-messages"
+    ],
+    "rest_adapters": [
+      "anthropic-messages"
+    ]
   },
-
+  
   // cleanup providers
   "cleanup_providers": {
     "remove_if_false_provider": true,
