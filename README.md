@@ -203,7 +203,9 @@ Fields are the `models-filtered.csv` column names (`id`, `input_context`, `outpu
 
 Top/bottom-N directives truncate the **sorted** list — `top100` keeps the first 100, `bottom100` the last 100 — so they compose with the sort: `top100` + `"-input_context"` = the 100 largest-context models.
 
-- In `model_filters` (e.g. `"top100"`): applied at fetch time, baked into `models-filtered.csv`, affects every harness.
+A directive can carry its own sort chain, colon-separated, overriding `model_sort` for that directive only: `(top10:-input_context:-output_context)` ranks by `input_context` descending, breaks ties with `output_context` descending, then keeps the 10 from the top of that order. Fields use the same column names and `-` prefix as `model_sort`.
+
+- In `model_filters` (e.g. `"top100"` or `"top10:-input_context"`): applied at fetch time, baked into `models-filtered.csv`, affects every harness.
 - In `harness_filters` (e.g. `"(top100)"` or `"(top100)->t3,dsh"`): applied at sync time — a bare `(top100)` affects all harnesses, the `->` suffix targets specific ones. If multiple directives match a harness, the last one wins.
 - REST providers: the N applies to each provider's **own** models (after prefix-filtering from `models-filtered.csv`), not the global catalog — a provider with 30 models keeps all 30 under `top100`.
 - `custom_models[]` entries always survive and never consume N slots.
@@ -212,6 +214,7 @@ Top/bottom-N directives truncate the **sorted** list — `top100` keeps the firs
 "harness_filters": [
   "(top100)",            // every harness: first 100 of the sorted catalog
   "(top50)->t3,dsh",     // t3 and dsh instead get the first 50
+  "(top10:-output_context)->dsh",  // dsh: top 10 ranked by output context desc
 ],
 ```
 

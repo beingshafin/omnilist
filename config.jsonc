@@ -48,6 +48,9 @@
     (fields: $id, $input_context, $output_context, $vision, $reasoning, $tool)
     Also accepts top/bottom-N directives: "top100"/"bottom100" truncate the
     sorted catalog to the first/last N models (baked into models-filtered.csv).
+    Optional per-directive sort chain, colon-separated (overrides model_sort):
+    "top10:-input_context:-output_context" ranks by input_context desc, ties
+    broken by output_context desc, and keeps the 10 from the top of that order.
 
   MODEL SORT — "model_sort" orders the filtered pipeline (models-filtered.csv,
   previews, every harness config). Comma-separated CSV column names with a
@@ -61,6 +64,8 @@
     "(top100)"                   top/bottom-N directive for all harnesses
     "(top100)->t3,dsh"           top-N only for t3 and dsh (REST providers get
                                  the N applied to their own models, not global)
+    "(top10:-output_context)->t3" top 10 ranked by output_context desc, t3 only
+                                 (sort chain syntax same as model_sort fields)
   raw_catalog_harnesses OFF -> on top of models-filtered.csv (already model_filters + custom_models).
   raw_catalog_harnesses ON  -> reads models-all.csv (raw catalog); no live fetch needed.
   Harness ids (case-insensitive): opencode (oc/open code/open-code/open_code/opc),
@@ -156,7 +161,7 @@
   "raw_catalog_harnesses": [],
 
   // previews: per-harness model list CSVs (models-<harness>.csv)
-  "show_harness_model_list": "raw",
+  "show_harness_model_list": "configured",
 
   // custom models
   "custom_models": [],
@@ -242,13 +247,17 @@
     "remove_if_provider_doesnt_exist": true
   },
 
-  // custom commands — run AFTER all sync targets finish, detached in the
-  // background so the terminal session is not hijacked. Each string is
-  // launched as:  Start-Process cmd -ArgumentList "/c <command>" -WindowStyle Hidden -PassThru  (Windows)
-  // or detached spawn on other platforms. Example:  ["ocx sync", "ocx claude desktop apply"]
+  // custom commands — run AFTER all sync targets finish, sequentially: each
+  // command runs to completion (cmd.exe /c on Windows, sh -c elsewhere) before
+  // the next one starts. Two special entry forms: "sleep <seconds>" pauses the
+  // chain, and "bg:<command>" launches detached in the background (for servers
+  // like "ocx start" that never exit); the chain continues immediately.
+  // Foreground output is captured and shown only when a command exits non-zero;
+  // failures don't stop the chain but make the script exit 1.
+  // Example:  ["bg:ocx start", "ocx sync", "sleep 5", "ocx claude desktop apply"]
   "custom_commands": [
     "ocx sync",
-    "ocx start",
+    "bg:ocx start",
     "ocx claude dekstop apply"
   ]
 }

@@ -214,10 +214,13 @@ const DEFAULTS = {
     model_inputs: 'hardcode',   // 'hardcode' | 'vision' | ["text","image"]
   },
 
-  // Commands to run AFTER all sync targets finish — each is backgrounded so the
-  // terminal session is not hijacked. On Windows each command is launched as:
-  //   Start-Process cmd -ArgumentList "/c <command>" -WindowStyle Hidden -PassThru
-  // On non-Windows it is spawned detached. Example: ["ocx sync", "ocx claude desktop apply"]
+  // Commands to run AFTER all sync targets finish — sequentially: each command
+  // runs to completion (cmd.exe /c on Windows, sh -c elsewhere) before the next
+  // one starts. Two special entry forms: "sleep <seconds>" pauses the chain,
+  // and "bg:<command>" launches detached in the background for servers that
+  // never exit, e.g. ["bg:ocx start", "ocx sync", "sleep 5", "ocx claude desktop apply"].
+  // A foreground command's output is captured and shown only when it exits
+  // non-zero; failures don't stop the chain but make the script exit 1.
   custom_commands: [],
 };
 
@@ -337,14 +340,15 @@ function parseModelSort(spec) {
 }
 const MODEL_SORT = parseModelSort(cfg.model_sort);
 // Sort a model list per MODEL_SORT (default: id ascending — the pre-existing behavior).
-function sortModels(rows) {
+function sortModels(rows, sortSpec) {
+  const spec = sortSpec || MODEL_SORT;
   const list = rows.slice();
-  if (!MODEL_SORT) {
+  if (!spec) {
     list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return list;
   }
   const cmp = (a, b) => {
-    for (const { key, desc } of MODEL_SORT) {
+    for (const { key, desc } of spec) {
       const av = a[key]; const bv = b[key];
       if (av !== bv) {
         const lt = typeof av === 'string' ? av < bv : av < bv;
@@ -1010,15 +1014,21 @@ function getHarnessFilters(harnessId) {
 // ---------- top/bottom-N directives ----------
 // "top100" / "bottom100" / "(top100)" / "( bottom50 )" — parens optional. Usable in
 // model_filters (baked into models-filtered.csv) and harness_filters ("(top100)->t3,dsh"
-// targets specific harnesses). The N is taken from the SORTED list: top = first N,
-// bottom = last N. custom_models always survive and don't consume N slots.
+// targets specific harnesses). Optional per-directive sort chain:
+// "(top10:-input_context:-output_context)" — same field names/syntax as model_sort,
+// colon-separated, leading '-' = descending; the N is taken from THAT order
+// (first field is the primary key). Overrides model_sort for this directive only.
+// The N is taken from the SORTED list: top = first N, bottom = last N.
+// custom_models always survive and don't consume N slots.
 function parseTopNDirective(rule) {
   if (typeof rule !== 'string') return null;
-  const m = rule.trim().match(/^\(?top(\d+)\)?$/i);
-  if (m) return { dir: 'top', n: parseInt(m[1], 10) };
-  const b = rule.trim().match(/^\(?bottom(\d+)\)?$/i);
-  if (b) return { dir: 'bottom', n: parseInt(b[1], 10) };
-  return null;
+  const m = rule.trim().match(/^\(?(top|bottom)(\d+)((?::-[^)\s]+)*)\)?$/i);
+  if (!m) return null;
+  let sort = null;
+  if (m[3]) {
+    sort = parseModelSort(m[3].split(':').map((s) => s.trim()).filter(Boolean).join(','));
+  }
+  return { dir: m[1].toLowerCase(), n: parseInt(m[2], 10), sort };
 }
 // Last matching directive wins.
 function getHarnessTopN(harnessId) {
@@ -1033,14 +1043,16 @@ function getHarnessTopN(harnessId) {
   return result;
 }
 // Apply a top/bottom-N rule to a model list (no rule -> unchanged). custom_models
-// entries always survive and don't consume N slots; the result stays sorted.
+// entries always survive and don't consume N slots; the result stays sorted (by the
+// directive's own sort chain when present, else the global model_sort order).
 function applyTopNDirective(rows, directive) {
   if (!directive || !directive.n) return rows;
   const customs = CUSTOM_MODELS || [];
   const customsInRows = rows.filter((r) => customs.some((c) => c.id === r.id));
   const fetched = rows.filter((r) => !customs.some((c) => c.id === r.id));
-  const kept = directive.dir === 'top' ? fetched.slice(0, directive.n) : fetched.slice(-directive.n);
-  return sortModels([...kept, ...customsInRows]);
+  const ordered = sortModels(fetched, directive.sort);
+  const kept = directive.dir === 'top' ? ordered.slice(0, directive.n) : ordered.slice(-directive.n);
+  return sortModels([...kept, ...customsInRows], directive.sort);
 }
 const RAW_CATALOG = new Set((RAW_CATALOG_RAW || []).map((s) => normalizeHarnessId(s)).filter((s) => VALID_HARNESSES.has(s)));
 
@@ -3789,33 +3801,86 @@ function parseArgs() {
         console.error(`[${target}] Error: ${e.message}`);
       }
     }
-    // ----- custom_commands: fire-and-forget background tasks after the main run -----
+    // ----- custom_commands: sequential tasks after the main run -----
     // Skip when the only intent was to manage the install shim (not a sync run),
     // when help was the entry path (already exited), or when no main targets ran.
-    // Each string in cfg.custom_commands is launched as a hidden background
-    // process so the terminal session is not hijacked:
-    //   Windows:  Start-Process cmd -ArgumentList "/c <command>" -WindowStyle Hidden -PassThru
-    //   POSIX:    detached spawn via /bin/sh -c
+    // Each entry runs one at a time via the shell; the next command only starts
+    // after the previous one exits. Two special entry forms:
+    //   "sleep <seconds>"  — pause the chain for N seconds
+    //   "bg:<command>"     — launch detached in the background (for servers that
+    //                        never exit); the chain continues immediately
+    // Foreground output is captured and printed only when a command fails
+    // (non-zero exit); failures don't stop the chain but set the exit code to 1.
     const skipCommands = args.targets.has('install') || args.targets.has('uninstall');
     const list = !skipCommands && Array.isArray(cfg.custom_commands) ? cfg.custom_commands.filter((s) => typeof s === 'string' && s.trim()) : [];
-    for (const cmd of list) {
+    const sleepMatch = /^sleep\s+([0-9]+(?:\.[0-9]+)?)$/i;
+    const bgMatch = /^bg:\s*(.+)$/i;
+    for (const entry of list) {
       try {
-        if (process.platform === 'win32') {
-          const psCmd = `Start-Process cmd -ArgumentList "/c ${cmd.replace(/"/g, '""')}" -WindowStyle Hidden -PassThru | Out-Null`;
-          const encoded = Buffer.from(psCmd, 'utf16le').toString('base64');
-          const { spawn } = require('child_process');
-          const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
-            detached: true,
-            stdio: 'ignore',
-          });
-          child.unref();
-        } else {
-          const { spawn } = require('child_process');
-          const child = spawn('sh', ['-c', cmd], { detached: true, stdio: 'ignore' });
-          child.unref();
+        const m = sleepMatch.exec(entry);
+        if (m) {
+          const secs = parseFloat(m[1]);
+          console.log(`[custom_commands] Sleeping for ${secs}s...`);
+          await new Promise((r) => setTimeout(r, secs * 1000));
+          continue;
         }
-        console.log(`[custom_commands] Launched in background: ${cmd}`);
+        const bg = bgMatch.exec(entry);
+        const cmd = bg ? bg[1] : entry;
+        console.log(`[custom_commands] ${bg ? 'Launching in background' : 'Running'}: ${cmd}`);
+        const { spawn } = require('child_process');
+        if (bg) {
+          // Detached + unref so the script can exit without waiting on a server
+          // that never exits; its output is discarded.
+          if (process.platform === 'win32') {
+            // A direct detached spawn gets its own console window (visible
+            // flash). Start-Process -WindowStyle Hidden gives the child a
+            // hidden console instead, and its children inherit it. The
+            // ArgumentList is single-quoted with '' escaping so quotes inside
+            // `cmd` survive PowerShell parsing. The PowerShell wrapper is
+            // awaited (it returns as soon as Start-Process has spawned the
+            // hidden child) so the script cannot exit before the child exists;
+            // the child itself is fully detached and outlives the script.
+            const argList = `/c ${cmd}`.replace(/'/g, "''");
+            const psCmd = `Start-Process cmd -ArgumentList '${argList}' -WindowStyle Hidden`;
+            const encoded = Buffer.from(psCmd, 'utf16le').toString('base64');
+            const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+              stdio: 'ignore',
+              windowsHide: true,
+            });
+            await new Promise((resolve) => {
+              child.on('error', () => resolve());
+              child.on('close', () => resolve());
+            });
+          } else {
+            const child = spawn(cmd, { shell: true, detached: true, stdio: 'ignore' });
+            child.unref();
+          }
+          continue;
+        }
+        // shell:true runs the string through cmd /d /s /c (Windows) or sh -c
+        // (POSIX). Spawning the shell as an argv array instead would make Node
+        // backslash-escape any quotes inside `cmd` and break quoted arguments.
+        const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        const captured = { stdout: '', stderr: '' };
+        child.stdout.on('data', (d) => (captured.stdout += d));
+        child.stderr.on('data', (d) => (captured.stderr += d));
+        const code = await new Promise((resolve) => {
+          child.on('error', (err) => resolve({ err }));
+          child.on('close', (exitCode) => resolve({ exitCode }));
+        });
+        if (code.err) {
+          failed = true;
+          console.error(`[custom_commands] FAILED to start "${cmd}": ${code.err.message}`);
+        } else if (code.exitCode !== 0) {
+          failed = true;
+          console.error(`[custom_commands] FAILED (exit ${code.exitCode}): ${cmd}`);
+          const out = (captured.stdout + captured.stderr).trim();
+          if (out) console.error(`[custom_commands] Output of "${cmd}":\n${out}`);
+        } else {
+          console.log(`[custom_commands] OK (exit 0): ${cmd}`);
+        }
       } catch (e) {
+        failed = true;
         console.warn(`[custom_commands] Failed to launch "${cmd}": ${e.message}`);
       }
     }
