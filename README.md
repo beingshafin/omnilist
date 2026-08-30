@@ -77,6 +77,8 @@ Every key is optional — the script falls back to sensible defaults for anythin
 | `model_sort` | Sort order for the filtered model pipeline (`models-filtered.csv`, harness previews, every harness config). Comma-separated keys using the CSV column names — `id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool` — with a leading `-` for descending, e.g. `"-input_context"` = largest context first (ties always break by id). Default: id ascending. `models-all.csv` stays id-sorted regardless |
 | `harness_filters` | Second-stage filters on top of `models-filtered.csv`; suffix `->t3,dsh` targets only those harnesses, bare rule applies to all (`opencode` aliases `oc`/`open code`/`open-code`/`open_code`/`opc`, `kilo` aliases `kc`/`kilo code`/`kilocode`/`kilo-code`/`kilo_code`, `t3` aliases `t3code`/`t3-code`/`t3_code`/`t3 code`, `dsh` aliases `ds`/`deepseek`/`deepseek_harness`/`deepseek harness`/`deepseek-harness`, `pi` aliases `pi`/`pi-agent`/`pi_agent`/`pi agent`/`piagent`, `zcode` aliases `zcode`/`z-code`/`z_code`/`z code`/`zc`, `ocx` aliases `ox`/`opencodex`/`open codex`/`open-codex`/`open_codex`). Also accepts top/bottom-N directives: `(top100)` applies to every harness, `(top100)->t3,dsh` only to t3 and dsh |
 | `raw_catalog_harnesses` | Harnesses that bypass `models-filtered.csv` and read `models-all.csv` (raw catalog) instead (e.g. `["dsh"]` or `["open code","DS"]`) |
+| `invalid_value_overrides` | Sync-time field overrides, applied when each harness reads models (CSVs keep raw values). Directive `"(field:value)"` applies to all harnesses, `"(field:value)->t3,dsh"` only to the listed ones. Rewrites the field only when its current value is invalid (zero or negative, empty id). Fields: `id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool` |
+| `always_overrides` | Same directive syntax as `invalid_value_overrides`, but rewrites the field unconditionally |
 | `show_harness_model_list` | Per-harness model list CSVs: `"raw"` (default — only `raw_catalog_harnesses`), `"all"` (every synced harness), `"configured"` (only harnesses targeted by `harness_filters` `"<rule>->t3,dsh"`; a bare rule without `->` applies to all harnesses and doesn't count), `"none"` (never write, delete existing). Legacy name `harness_previews` still works |
 | `targets` | Which tools/blocks to sync (`opencode_router`, `t3_rest`, `dsh_router`, `pi_router`, `zcode_router`, `opencodex_router`, …) |
 | `t3` | T3 drivers, per-driver strategy, and `[1m]` handling |
@@ -110,7 +112,7 @@ omnilist fetch           # Refresh models-filtered.csv only
 omnilist opencode        # Sync Router models into OpenCode
 omnilist kilo            # Sync Router models into Kilo
 omnilist t3              # Sync Router models into T3
-omnilist t3providers     # Sync per-provider instances into T3
+omnilist t3rest     # Sync per-provider instances into T3
 omnilist dsh             # Sync Router models into DSH (settings.yaml)
 omnilist dshrest         # Sync per-provider instances into DSH
 omnilist pi              # Sync Router models into pi agent (models.json)
@@ -125,7 +127,7 @@ omnilist all             # Same as running with no arguments
 You can combine targets:
 
 ```powershell
-omnilist fetch t3 t3providers
+omnilist fetch t3 t3rest
 ```
 
 ### Filter the model list
@@ -189,6 +191,22 @@ Rules run top-down and the **last matching rule wins** — a later rule override
 ```
 
 The fetch step writes two CSVs: `models-all.csv` (raw dedup'd catalog, before `model_filters`) and `models-filtered.csv` (`model_filters` applied). Each sync also writes a per-harness preview CSV (`models-<harness>.csv` next to `models-filtered.csv` — e.g. `models-t3.csv`, `models-dsh.csv`) so you can see exactly which models each harness ends up with after `harness_filters`.
+
+### Field overrides (invalid values and always-override)
+
+Some harnesses refuse models with zero/missing context limits. `invalid_value_overrides` rewrites a field only when its current value is invalid (zero or negative — for capability flags that means `-1` no-data and `0` false both count); `always_overrides` rewrites it unconditionally. Both are sync-time: the CSV files keep the raw Router values, and entries without a `->` suffix apply to every harness.
+
+```jsonc
+"invalid_value_overrides": [
+  "(input_context:1000000)->t3,dsh",   // only t3 and dsh get a 1M fallback context
+  "(output_context:8192)",             // every harness: output_context fallback when <= 0
+],
+"always_overrides": [
+  "(vision:1)->opencode",              // opencode always sees vision=true
+],
+```
+
+Fields are the `models-filtered.csv` columns (`id`, `input_context`, `output_context`, `vision`, `reasoning`, `tool`); later directives win on collisions. Overrides run before the `-mi`/`-mo` min-context filters, so a model repaired by an override still passes them.
 
 ### Sorting and top/bottom-N
 
@@ -324,7 +342,7 @@ You never edit the tool config files directly. `omnilist` is the only thing that
 | "Multiple providers have description Router" | The script keeps the first and ignores the rest — delete the extra `Router` rows to silence it |
 | Model list missing capabilities | Your router doesn't report them, so they're stored as `-1`; edit `capabilities.n_a_defaults` in `config.jsonc` |
 | Fetch fails | Confirm the Router gateway is reachable and `base_url`/`api_key` in `providers.csv` are correct |
-| Models not showing up in a tool | Run with that tool's target explicitly, e.g. `omnilist t3providers` |
+| Models not showing up in a tool | Run with that tool's target explicitly, e.g. `omnilist t3rest` |
 | Config file errors | Check the file for trailing commas or manual edits; the script parses and rewrites these files |
 
 ## Uninstall

@@ -133,6 +133,17 @@ const DEFAULTS = {
   // Syntax: "<rule>" (all harnesses) or "<rule>->t3,dsh" (only listed harnesses).
   // Harness ids: opencode (alias oc), kilo, t3, dsh.
   harness_filters: [],
+  // Sync-time field overrides, applied when each harness reads models (the CSV
+  // files keep the raw router values). Directive syntax mirrors harness_filters:
+  //   "(field:value)"            -> all harnesses
+  //   "(field:value)->t3,dsh"    -> only the listed harnesses
+  // field = models-filtered.csv column: id, input_context, output_context,
+  // vision, reasoning, tool. invalid_value_overrides rewrite the field only when
+  // the current value is invalid (<= 0 for numeric fields, empty for id);
+  // always_overrides rewrite it unconditionally. Later directives win.
+  // e.g. [ "(input_context:1000000)->t3,dsh", "(output_context:8192)" ]
+  invalid_value_overrides: [],
+  always_overrides: [],
   // Which harnesses use the raw catalog (models-all.csv) instead of the filtered
   // models-filtered.csv. "Raw" means dedup-only, before model_filters — these harnesses
   // read models-all.csv and apply only their harness_filters + custom_models.
@@ -311,6 +322,8 @@ const FOLLOW_HARDCODED_MODEL_TEMPLATE = cfg.follow_hardcoded_model_template;
 
 const MODEL_FILTERS = cfg.model_filters;
 const HARNESS_FILTERS_RAW = cfg.harness_filters || [];
+const INVALID_OVERRIDES_RAW = cfg.invalid_value_overrides || [];
+const ALWAYS_OVERRIDES_RAW = cfg.always_overrides || [];
 const RAW_CATALOG_RAW = cfg.raw_catalog_harnesses || [];
 // Legacy name "harness_previews" is still accepted as a fallback.
 const _previewsPref = cfg.show_harness_model_list !== undefined ? cfg.show_harness_model_list : cfg.harness_previews;
@@ -1003,6 +1016,64 @@ function parseHarnessFilterEntry(entry) {
   if (!valid.length) return { rule: entry, targets: null };
   return { rule: rulePart, targets: new Set(valid) };
 }
+// ---------- sync-time field overrides ----------
+// Directive: "(field:value)" or "(field:value)->t3,dsh". field is a
+// models-filtered.csv column name; value is the replacement. Entries without
+// "->" apply to every harness. invalid_value_overrides only touch rows whose
+// current value is invalid (<= 0, or empty for id); always_overrides touch
+// every row. Later directives win on field collisions.
+const OVERRIDE_FIELDS = {
+  id: 'id',
+  input_context: 'in',
+  output_context: 'out',
+  vision: 'vision',
+  reasoning: 'reasoning',
+  tool: 'tool',
+};
+function parseOverrideEntry(entry) {
+  if (typeof entry !== 'string') return null;
+  const { rule, targets } = parseHarnessFilterEntry(entry);
+  const m = rule.trim().match(/^\(?([A-Za-z_]+)\s*:\s*([^)]+)\)?$/);
+  if (!m) return null;
+  const key = OVERRIDE_FIELDS[m[1].trim()];
+  if (!key) return null;
+  return { key, value: m[2].trim(), targets };
+}
+function getOverrideEntries(rawList, harnessId) {
+  const norm = normalizeHarnessId(harnessId);
+  return rawList
+    .map((e) => parseOverrideEntry(e))
+    .filter((e) => e && (!e.targets || e.targets.has(norm)));
+}
+function isInvalidFieldValue(key, value) {
+  if (key === 'id') return value === undefined || value === null || String(value).trim() === '';
+  return !(typeof value === 'number' && value > 0);
+}
+function coerceOverrideValue(key, raw) {
+  if (key === 'id') return raw;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? raw : n;
+}
+// Apply invalid_value_overrides + always_overrides for this harness to a model
+// list. Returns new row objects; the CSV on disk is never rewritten.
+function applyFieldOverrides(rows, harnessId) {
+  const invalid = getOverrideEntries(INVALID_OVERRIDES_RAW, harnessId);
+  const always = getOverrideEntries(ALWAYS_OVERRIDES_RAW, harnessId);
+  if (!invalid.length && !always.length) return rows;
+  return rows.map((r) => {
+    let row = r;
+    for (const e of invalid) {
+      if (!isInvalidFieldValue(e.key, row[e.key])) continue;
+      if (row === r) row = { ...r };
+      row[e.key] = coerceOverrideValue(e.key, e.value);
+    }
+    for (const e of always) {
+      if (row === r) row = { ...r };
+      row[e.key] = coerceOverrideValue(e.key, e.value);
+    }
+    return row;
+  });
+}
 function getHarnessFilters(harnessId) {
   const norm = normalizeHarnessId(harnessId);
   return HARNESS_FILTERS_RAW
@@ -1134,15 +1205,18 @@ async function getModelsForHarness(harnessId, minInput = 0, minOutput = 0, opts 
   let base;
   if (shouldFetchLive && fs.existsSync(ALL_MODELS_CSV)) {
     base = readModelsCsv(ALL_MODELS_CSV);
-    if (minInput > 0) base = base.filter((m) => m.in >= minInput);
-    if (minOutput > 0) base = base.filter((m) => m.out >= minOutput);
   } else if (shouldFetchLive) {
-    base = await fetchRawModels(minInput, minOutput);
+    base = await fetchRawModels(0, 0);
   } else {
     base = readModelsCsv();
-    if (minInput > 0) base = base.filter((m) => m.in >= minInput);
-    if (minOutput > 0) base = base.filter((m) => m.out >= minOutput);
   }
+  // Field overrides run before the min-context filters so a model whose invalid
+  // input/output context was overridden still passes -mi/-mo checks. (The live
+  // fetch branch also benefits: fetchRawModels(0,0) keeps rows a later -mi/-mo
+  // would have dropped before the override could repair them.)
+  base = applyFieldOverrides(base, harnessId);
+  if (minInput > 0) base = base.filter((m) => m.in >= minInput);
+  if (minOutput > 0) base = base.filter((m) => m.out >= minOutput);
   // custom_models always survive harness_filters (re-added last, override collisions)
   let filtered = mergeCustomModels(applyModelFilters(base, harnessFilters));
   filtered = sortModels(filtered);
@@ -3237,7 +3311,7 @@ async function syncT3Models(minInput = 0, minOutput = 0) {
 //   node omnilist.js -h / --help      -> same
 //
 // Legacy numeric steps still work as hidden aliases:
-//   1=fetch  2=opencode+kilo  3=t3  4=t3providers  (1-4)
+//   1=fetch  2=opencode+kilo  3=t3  4=t3rest  (1-4)
 
 // ---------- install as command ----------
 // INSTALL_AS_COMMAND = true auto-runs this; can also be triggered manually:
@@ -3382,7 +3456,7 @@ Targets (default if none given: fetch + enabled targets + cleanup):
   kilo            Sync router provider block into kilo.jsonc
   kilorest        Sync per-key c-* REST provider blocks into kilo.jsonc
   t3              Sync flat model list into T3 router.customModels
-  t3providers     Sync per-provider c-* instances in T3 settings.json
+  t3rest          Sync per-provider c-* instances in T3 settings.json
   dsh             Sync Router models into DSH (settings.yaml)
   dshrest         Sync per-provider instances into DSH
   pi              Sync Router models into pi agent (models.json)
@@ -3414,7 +3488,7 @@ Legacy aliases:
 Examples:
   node ${CLI_COMMAND_NAME}.js                  # default: fetch + enabled targets + cleanup
   node ${CLI_COMMAND_NAME}.js t3               # only T3 flat list
-  node ${CLI_COMMAND_NAME}.js t3providers      # only T3 per-provider instances
+  node ${CLI_COMMAND_NAME}.js t3rest         # only T3 per-provider instances
   node ${CLI_COMMAND_NAME}.js -mi 0 all        # fetch everything, no input filter
 `);
 }
@@ -3445,7 +3519,7 @@ function buildOrder() {
   }
   if (T3_REST) {
     const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 't3providers');
+    order.splice(idx, 0, 't3rest');
   }
   if (DSH_ROUTER) {
     const idx = order.indexOf('cleanup');
@@ -3492,7 +3566,7 @@ const WORD_MAP = {
   kilo: ['kilo'],
   kilorest: ['kilorest'],
   t3: ['t3models'],
-  t3providers: ['t3models', 't3providers'],
+  t3rest: ['t3models', 't3rest'],
   dsh: ['dsh'],
   dshrest: ['dshrest'],
   dshrouter: ['dsh'],
@@ -3516,7 +3590,7 @@ const WORD_MAP = {
     if (KILO_REST) t.push('kilorest');
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
     if (T3_ROUTER) t.push('t3models');
-    if (T3_REST) t.push('t3providers');
+    if (T3_REST) t.push('t3rest');
     if (DSH_ROUTER) t.push('dsh');
     if (DSH_REST) t.push('dshrest');
     if (PI_ROUTER) t.push('pi');
@@ -3536,7 +3610,7 @@ const WORD_MAP = {
     if (KILO_REST) t.push('kilorest');
     if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
     if (T3_ROUTER) t.push('t3models');
-    if (T3_REST) t.push('t3providers');
+    if (T3_REST) t.push('t3rest');
     if (DSH_ROUTER) t.push('dsh');
     if (DSH_REST) t.push('dshrest');
     if (PI_ROUTER) t.push('pi');
@@ -3555,7 +3629,7 @@ const NUM_MAP = {
   1: ['fetch'],
   2: ['opencode', 'kilo'],
   3: ['t3models'],
-  4: ['t3models', 't3providers'],
+  4: ['t3models', 't3rest'],
 };
 
 function parseArgs() {
@@ -3641,7 +3715,7 @@ function parseArgs() {
       continue;
     }
 
-    console.error(`Unknown argument: "${a}" (try: opencode, kilo, t3, t3providers, all, help)`);
+    console.error(`Unknown argument: "${a}" (try: opencode, kilo, t3, t3rest, all, help)`);
     console.error('Run "node ' + CLI_COMMAND_NAME + '.js help" for usage.');
     process.exit(1);
   }
@@ -3721,7 +3795,7 @@ function parseArgs() {
             console.log(`Synced flat customModels in ${T3_SETTINGS_FILE} (${n} entries)`);
             break;
           }
-          case 't3providers': {
+          case 't3rest': {
             const n = await syncT3Providers();
             console.log(`Synced per-provider claudeAgent instances in ${T3_SETTINGS_FILE} (${n} instances)`);
             break;

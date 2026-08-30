@@ -79,6 +79,20 @@
   raw_catalog_harnesses, "all" -> every synced harness, "configured" -> only harnesses
   targeted by harness_filters ("rule->t3,dsh"; rules without "->" don't count),
   "none" -> never/delete existing).
+
+  FIELD OVERRIDES — sync-time value overrides, applied when each harness reads
+  models (CSV files keep the raw router values). Directive syntax:
+    "(field:value)"              -> all harnesses
+    "(field:value)->t3,dsh"      -> only the listed harnesses
+  field is a models-filtered.csv column: id, input_context, output_context,
+  vision, reasoning, tool.
+    invalid_value_overrides  rewrite the field only when its current value is
+                             invalid: zero or negative (for capability flags:
+                             0 = false and -1 = no data are both overridden).
+    always_overrides         rewrite the field unconditionally.
+  Later directives win on field collisions. Overrides run before the -mi/-mo
+  min-context filters, so a model repaired by an override still passes them.
+    e.g. [ "(input_context:1000000)->t3,dsh", "(output_context:8192)" ]
 */
 
 {
@@ -156,6 +170,15 @@
 
   // harness filters
   "harness_filters": [],
+
+  // sync-time field overrides: "(field:value)" or "(field:value)->t3,dsh"
+  // invalid_value_overrides: rewrite only when current value <= 0 (or empty id)
+  "invalid_value_overrides": [
+    // "(input_context:1000000)->t3,dsh",
+    // "(output_context:8192)"
+  ],
+  // always_overrides: rewrite unconditionally
+  "always_overrides": [],
 
   // raw catalog
   "raw_catalog_harnesses": [],
