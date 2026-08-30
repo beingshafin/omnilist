@@ -3469,12 +3469,14 @@ Targets (default if none given: fetch + enabled targets + cleanup):
   ocxrest         Alias for opencodexrest
   cleanupproviders  Reconcile script-managed c-* providers (legacy c_ keys are removed as stale) (opt-in via flags)
   cleanup         Delete transient files (e.g. T3 logs dir)
+  gui             Start the web dashboard (config editor + runner) on http://127.0.0.1
   install         Register "${CLI_COMMAND_NAME}" as a command (shim + User PATH + npm shim)
   uninstall       Remove the registered command
 
 Options:
   -mi, --min-input-context N   Skip models with input context < N (default: 0 = none)
   -mo, --min-output-limit N    Skip models with output < N (default: 0 = none)
+  -p, --port N                 Port for the gui dashboard (default: 47613, auto-increments if busy)
   --clean / --noclean          Enable/disable cleanup step (default: --clean)
   -h, --help                   Print usage
 
@@ -3580,6 +3582,7 @@ const WORD_MAP = {
   ocxrest: ['opencodexrest'],
   cleanup: ['cleanup'],
   cleanupproviders: ['cleanupproviders'],
+  gui: ['gui'],
   install: ['install'],
   uninstall: ['uninstall'],
   all: (() => {
@@ -3638,6 +3641,7 @@ function parseArgs() {
     minInput: 0,
     minOutput: 0,
     cleanup: CLEANUP_DEFAULT,
+    port: 0,
   };
   const raw = process.argv.slice(2).filter((a) => a.length > 0);
 
@@ -3648,6 +3652,7 @@ function parseArgs() {
     let val = null;
     let isMinInput = false;
     let isMinOutput = false;
+    let isPort = false;
 
     if (a === '--min-input-context' || a === '-mi') {
       isMinInput = true;
@@ -3661,6 +3666,12 @@ function parseArgs() {
     } else if (a.startsWith('--min-output-limit=')) {
       isMinOutput = true;
       val = a.split('=')[1];
+    } else if (a === '--port' || a === '-p') {
+      isPort = true;
+      val = raw[++i];
+    } else if (a.startsWith('--port=')) {
+      isPort = true;
+      val = a.split('=')[1];
     }
 
     if (val !== null) {
@@ -3668,6 +3679,7 @@ function parseArgs() {
       if (!isNaN(n) && n >= 0) {
         if (isMinInput) args.minInput = n;
         if (isMinOutput) args.minOutput = n;
+        if (isPort) args.port = n;
       }
       continue;
     }
@@ -3701,6 +3713,12 @@ function parseArgs() {
       continue;
     }
 
+    // ----- "gui 8080": a bare number after gui sets the dashboard port -----
+    if (args.targets.has('gui') && /^\d+$/.test(a)) {
+      args.port = parseInt(a, 10);
+      continue;
+    }
+
     // ----- legacy numeric steps (single or range like 1-5) -----
     if (/^\d+-\d+$/.test(a)) {
       const [s, e] = a.split('-').map((n) => parseInt(n, 10));
@@ -3728,11 +3746,38 @@ function parseArgs() {
   return args;
 }
 
+// Re-exported for gui.js: the config schema, loader/merger, JSONC parser, and
+// filter-expression parsers (all pure/side-effect-free helpers). Assigned
+// before the CLI IIFE because gui.js requires this module back (circular), so
+// the exports must exist by the time the IIFE's require('./gui') runs.
+module.exports = {
+  DEFAULTS,
+  loadConfig,
+  deepMerge,
+  stripJsoncComments,
+  resolvePath,
+  parseModelSort,
+  parseRule,
+  parseHarnessFilterEntry,
+  parseOverrideEntry,
+  applyModelFilters,
+  parseTopNDirective,
+  sortModels,
+};
+
+// The CLI entry runs only when the script is invoked directly. gui.js requires
+// this module for DEFAULTS/loadConfig/parsers without triggering the sync.
+if (require.main === module)
 (async () => {
   const args = parseArgs();
   const has = (t) => args.targets.has(t);
   let failed = false;
   try {
+    if (has('gui')) {
+      // Hand off to the web dashboard; it owns the process until Ctrl-C.
+      await require('./gui').start({ port: args.port });
+      return;
+    }
     if (INSTALL_AS_COMMAND && !args.targets.has('uninstall') && !args.targets.has('install')) {
       installAsCommand(true);
     }

@@ -1,0 +1,2803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omnilist — dashboard</title>
+<script>
+  // Default to dark mode; remember the user's explicit choice.
+  (function () {
+    try {
+      var t = localStorage.getItem('omnilist-theme');
+      document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+<style>
+  :root, :root[data-theme="light"] {
+    --bg: #fafafa;
+    --panel: #ffffff;
+    --panel-2: #fafbfc;
+    --border: #e8e8e8;
+    --border-2: #ededed;
+    --text: #0a0a0a;
+    --text-2: #4b4b4b;
+    --text-3: #8b8b8b;
+    --accent: #0070f3;
+    --accent-weak: #e8f1fe;
+    --danger: #e5484d;
+    --danger-weak: #fdeaec;
+    --success: #30a46c;
+    --success-weak: #e9f7f0;
+    --warning: #f5a524;
+    --warning-weak: #fdf2e3;
+    --purple: #8a4baf;
+    --radius: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    --btn-primary-bg: #000;
+    --btn-primary-fg: #fff;
+    --btn-primary-hover: #1a1a1a;
+    --btn-hover-border: #d4d4d4;
+    --danger-border: #f1c0c2;
+    --ovr-badge-fg: #fff;
+    --toggle-off: #d0d0d0;
+    --toggle-on: #000;
+    --toggle-knob: #fff;
+    --toggle-knob-on: #fff;
+    --bar-bg: rgba(255,255,255,.92);
+    --logo-bg: #000;
+    --logo-fg: #fff;
+    --placeholder: #b5b5b5;
+    --focus-ring: rgba(0,112,243,.12);
+    --invalid-ring: rgba(229,72,77,.12);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0a0a;
+    --panel: #111111;
+    --panel-2: #1a1a1a;
+    --border: #262626;
+    --border-2: #1f1f1f;
+    --text: #f4f4f4;
+    --text-2: #c4c4c4;
+    --text-3: #8a8a8a;
+    --accent: #4d9fff;
+    --accent-weak: rgba(77,159,255,.16);
+    --danger: #ff6369;
+    --danger-weak: rgba(255,99,105,.14);
+    --success: #3fb68b;
+    --success-weak: rgba(63,182,139,.15);
+    --warning: #f5a524;
+    --warning-weak: rgba(245,165,36,.15);
+    --purple: #a78bfa;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.5);
+    --btn-primary-bg: #fff;
+    --btn-primary-fg: #0a0a0a;
+    --btn-primary-hover: #e6e6e6;
+    --btn-hover-border: #404040;
+    --danger-border: rgba(255,99,105,.45);
+    --ovr-badge-fg: #17102a;
+    --toggle-off: #3a3a3a;
+    --toggle-on: #fff;
+    --toggle-knob: #fff;
+    --toggle-knob-on: #0a0a0a;
+    --bar-bg: rgba(17,17,17,.92);
+    --logo-bg: #fff;
+    --logo-fg: #0a0a0a;
+    --placeholder: #5a5a5a;
+    --focus-ring: rgba(77,159,255,.25);
+    --invalid-ring: rgba(255,99,105,.25);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 var(--font);
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+  .muted { color: var(--text-3); }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    height: 52px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+  .logo {
+    width: 24px; height: 24px;
+    background: var(--logo-bg);
+    color: var(--logo-fg);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .wordmark { font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+  .wordmark .dim { color: var(--text-3); font-weight: 500; }
+  .tabs { display: flex; gap: 2px; margin-left: 8px; height: 100%; }
+  .tab {
+    border: none;
+    background: none;
+    color: var(--text-3);
+    font: 500 13.5px var(--font);
+    padding: 0 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    height: 100%;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+  .spacer { flex: 1; }
+  .save-target {
+    font-size: 12px;
+    color: var(--text-3);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .save-target b { color: var(--text-2); font-weight: 600; }
+  .btn {
+    font: 500 13px var(--font);
+    border-radius: var(--radius);
+    padding: 6px 14px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    transition: background .12s, border-color .12s;
+  }
+  .btn:hover { border-color: var(--btn-hover-border); background: var(--panel-2); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+  .btn.primary:hover { background: var(--btn-primary-hover); }
+  .btn.primary:disabled { background: var(--text-3); border-color: var(--text-3); color: var(--btn-primary-fg); }
+  .btn.danger { color: var(--danger); border-color: var(--danger-border); }
+  .btn.danger:hover { background: var(--danger-weak); }
+  .btn.small { padding: 3px 9px; font-size: 12px; }
+  .btn.ghost { border-color: transparent; background: none; color: var(--text-3); }
+  .btn.ghost:hover { color: var(--text); background: var(--panel-2); }
+  .btn .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); margin-right: 6px; vertical-align: 1px; }
+
+  /* ---------- layout ---------- */
+  main { flex: 1; display: flex; min-height: 0; }
+  .sidebar {
+    width: 232px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 14px 8px 40px;
+  }
+  .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); padding: 10px 12px 6px; font-weight: 600; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-2);
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font: 500 13.5px var(--font);
+  }
+  .nav-item .ico { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 13px; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-weak); color: var(--accent); }
+  .nav-item.active .ico { color: var(--accent); }
+  .content { flex: 1; overflow-y: auto; padding: 32px 44px 140px; }
+
+  /* raw expression editor (manual mode) */
+  .raw-expr {
+    width: 100%; min-height: 150px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    background: var(--panel-2); resize: vertical;
+  }
+
+  /* icon buttons */
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0; border-radius: var(--radius);
+    border: 1px solid transparent; background: transparent; color: var(--text-3);
+    cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+  .icon-btn svg { width: 14px; height: 14px; display: block; }
+  :root[data-theme="dark"] .icon-moon { display: none; }
+  :root[data-theme="light"] .icon-sun { display: none; }
+
+  /* section top-right actions */
+  .section-bar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+
+  /* ---------- rule builder ---------- */
+  .rule-row {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    cursor: grab;
+    transition: box-shadow .12s, border-color .12s;
+  }
+  .rule-row:hover { border-color: var(--text-3); }
+  .rule-row.dragging { opacity: .45; cursor: grabbing; }
+  .rule-row.drag-over { border-top: 2px solid var(--accent); }
+  .rule-main { display: flex; flex-direction: column; gap: 10px; }
+  .rule-main-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .rule-main-row select, .rule-main-row input[type="number"], .rule-main-row input[type="text"] { width: auto; }
+  .rule-conds { display: flex; flex-direction: column; gap: 8px; }
+  .rule-cond {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .rule-cond-head { display: flex; gap: 6px; align-items: center; }
+  .rule-join { font-size: 11px; color: var(--text-3); font-weight: 600; padding: 2px 0; letter-spacing: .04em; }
+  .rule-ops { display: flex; gap: 4px; }
+  .rule-ops button {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text-3);
+    border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 13px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .rule-ops button:hover { color: var(--text); border-color: var(--text-3); }
+  .rule-ops button.del:hover { color: var(--danger); border-color: var(--danger); }
+  .rule-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .rule-exc { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+  .rule-exc label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .rule-exc input[type="checkbox"] { accent-color: var(--toggle-on); }
+
+  /* chained-condition rule builder */
+  .rule-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rule-head select { width: auto; }
+  .drag-handle {
+    color: var(--text-3); font-size: 13px; letter-spacing: -2px; cursor: grab;
+    user-select: none; padding: 2px 2px; line-height: 1;
+  }
+  .drag-handle:hover { color: var(--text); }
+  .rule-excepts { border-left: 2px solid var(--danger); padding-left: 10px; }
+  .rule-subhead {
+    font-size: 10.5px; font-weight: 700; color: var(--text-3); letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .rule-addcond { display: flex; gap: 6px; align-items: center; }
+  .rule-addcond select { width: auto; font-size: 12px; }
+  .not-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; color: var(--danger);
+    border: 1px solid var(--danger); border-radius: 4px; padding: 1px 5px;
+  }
+  .cond-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cond-row select, .cond-row input[type="number"], .cond-row input[type="text"] { width: auto; }
+  .cond-tail { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+  .cond-kind { font-size: 11px; color: var(--text-3); }
+  .rule-cond .chip { cursor: pointer; }
+  .rule-cond .icon-btn { width: 24px; height: 24px; font-size: 12px; }
+
+  /* manual block editor */
+  .rule-num {
+    font-size: 11px; font-weight: 700; color: var(--text-3); min-width: 18px; text-align: center;
+    user-select: none;
+  }
+  /* manual-block header: one single row — handle, number, expression, ✕.
+     nowrap keeps the ✕ on the same line as the textarea however long the
+     expression is; the textarea is the only flexible child so it absorbs
+     all the leftover width. */
+  .manual-head { flex-wrap: nowrap; align-items: center; }
+  .manual-head > .drag-handle { padding-left: 0; flex: 0 0 auto; }
+  .manual-head > .rule-num { text-align: left; min-width: 0; flex: 0 0 auto; }
+  .manual-head > textarea.manual-expr { flex: 1 1 auto; width: auto; min-width: 0; }
+  /* the draggable .rule-row ancestor makes its whole subtree user-select:none,
+     which would block dragging out a text selection inside the expression */
+  .manual-head > textarea.manual-expr { user-select: text; -webkit-user-select: text; }
+  .manual-head > .rule-ops { flex: 0 0 auto; margin-left: 0; }
+  /* adapter rows: select + optional custom string + ✕ all on ONE row, the ✕ pushed
+     right by the existing `.rule-head .rule-ops { margin-left: auto }`. adapterList()
+     used to set .rule-main, which is a COLUMN flex container — that is why every ✕
+     stacked onto its own line below the select. min-width:0 on both flexible children
+     is load-bearing: without it a long custom string pushes the ✕ out of the row. */
+  .adapter-wrap { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  /* the trailing "+ add adapter" is a flex item here too — keep it at its natural
+     width instead of letting align-items:stretch blow it out to the full row */
+  .adapter-wrap > .table-add { align-self: flex-start; margin-top: 0; }
+  .adapter-row { flex-wrap: nowrap; }
+  .adapter-row > select { flex: 0 1 auto; min-width: 0; }
+  .adapter-row > input[type="text"] { flex: 1 1 auto; width: auto; min-width: 0; }
+  .adapter-row > .rule-ops { flex: 0 0 auto; }
+  /* one line tall by default, matching a single-line text input (31px), with the
+     text vertically centred by the symmetric 7px padding. resize:vertical still
+     lets a long expression be dragged open. */
+  textarea.manual-expr {
+    width: 100%; margin: 0; resize: vertical;
+    height: 31px; min-height: 31px;
+    line-height: 15px;
+    overflow-y: hidden;
+  }
+  textarea.manual-expr:focus { overflow-y: auto; }
+
+  .expr-err { color: var(--danger); font-size: 11px; margin-top: 4px; min-height: 0; }
+
+  /* field-override rows */
+  .inline-lab {
+    font-size: 11px; color: var(--text-3); font-weight: 600; letter-spacing: .03em;
+    text-transform: uppercase; user-select: none; white-space: nowrap;
+  }
+  /* needs .rule-head to outrank the generic `input[type="text"] { width:100% }`
+     rule below, which otherwise ties on specificity and wins by source order */
+  .rule-head input.ovr-value {
+    width: 140px; flex: 0 0 auto; min-width: 90px;
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  /* push the delete button to the far right of the row header */
+  .rule-head .rule-ops { margin-left: auto; }
+  .ovr-targets { row-gap: 6px; }
+  .ovr-h { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--text-2); }
+  .ovr-h input[type="checkbox"] { accent-color: var(--toggle-on); margin: 0; width: auto; }
+
+  .list-empty { color: var(--text-3); font-size: 12.5px; padding: 8px 2px; }
+  .add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .add-row select { flex: 1; min-width: 160px; }
+  .add-row .btn { white-space: nowrap; }
+  /* inside a chip list the add-row always breaks onto its own line, so the
+     "existing values" block reads separately from the "add one" control
+     instead of trailing inline off whichever row happens to have room */
+  .chips-wrap .add-row { flex: 0 0 100%; margin-top: 2px; }
+  .chips-wrap .add-row input[type="text"] { width: 150px; flex: 0 1 150px; min-width: 110px; }
+
+  /* ---------- page sections ---------- */
+  .section { display: none; }
+  .section.active { display: block; }
+  .page-head h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; letter-spacing: -.01em; }
+  .page-head p { color: var(--text-2); font-size: 13.5px; margin: 0 0 28px; max-width: 640px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+  }
+  .card > h3 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .card > .card-desc { color: var(--text-3); font-size: 12.5px; margin: 0 0 16px; }
+
+  .field { display: grid; grid-template-columns: 220px 1fr; gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--border-2); }
+  .field:first-of-type { border-top: none; }
+  .field-label { font-size: 13px; font-weight: 550; color: var(--text); padding-top: 7px; line-height: 18px; }
+  .field-label .hint { display: block; color: var(--text-3); font-weight: 400; font-size: 12px; margin-top: 3px; line-height: 16px; }
+  .field-ctl { min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* when the control is a tall block (chip list, rule list) the trailing
+     local/reset affordances should sit at the top, not float at mid-height */
+  .field-ctl:has(> div > .chips-wrap),
+  .field-ctl:has(> .adapter-wrap) { align-items: flex-start; }
+  .field-ctl:has(> div > .chips-wrap) > .ovr-badge,
+  .field-ctl:has(> div > .chips-wrap) > .reset-link,
+  .field-ctl:has(> .adapter-wrap) > .ovr-badge,
+  .field-ctl:has(> .adapter-wrap) > .reset-link { margin-top: 6px; }
+  .field-ctl .grow { flex: 1; min-width: 180px; }
+
+  input[type="text"], input[type="number"], select, textarea {
+    font: 400 13.5px var(--font);
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+  select { width: auto; min-width: 120px; cursor: pointer; }
+  input::placeholder, textarea::placeholder { color: var(--placeholder); }
+  input.invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--invalid-ring); }
+
+  .toggle { position: relative; width: 40px; height: 22px; background: var(--toggle-off); border-radius: 22px; cursor: pointer; flex-shrink: 0; transition: background .15s; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--toggle-knob); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s, background .15s; }
+  .toggle.on { background: var(--toggle-on); }
+  .toggle.on::after { transform: translateX(18px); background: var(--toggle-knob-on); }
+
+  .ovr-badge { font-size: 10.5px; padding: 1px 8px; border-radius: 12px; background: var(--purple); color: var(--ovr-badge-fg); white-space: nowrap; }
+  .reset-link { background: none; border: none; color: var(--text-3); font-size: 11.5px; padding: 0; cursor: pointer; text-decoration: underline; }
+  .reset-link:hover { color: var(--accent); }
+
+  /* ---------- target grid ---------- */
+  .target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .target-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color .12s, background .12s;
+  }
+  .target-item:hover { border-color: var(--text-3); }
+  .target-item.on { background: var(--panel); }
+  .target-item .name { flex: 1; font-size: 13px; font-weight: 500; }
+  .target-item .name small { display: block; color: var(--text-3); font-weight: 400; font-size: 11px; }
+
+  /* ---------- chips ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* listEditor() emits .chips-wrap, which had no rule at all — it fell back to
+     display:block, so chips got no gap in either axis and the add-row's
+     width:100% input pushed the Add button onto its own line. */
+  .chips-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chips-wrap .list-empty { padding: 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 11px;
+    font-size: 12.5px;
+    line-height: 16px;
+    color: var(--text-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--text-3); }
+  .chip.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 550; }
+  .chip .x { color: var(--text-3); font-size: 12px; line-height: 1; padding: 1px 0 1px 1px; border-radius: 50%; }
+  .chip .x:hover { color: var(--danger); }
+  .chip.on .x { color: var(--accent); }
+
+  /* ---------- expression preview ---------- */
+  .expr-preview {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #0a0a0a;
+    color: #d4e4ff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    word-break: break-all;
+    max-width: 100%;
+  }  .expr-preview .pfx { color: #ff8ba7; }
+  .expr-preview .field { color: #8bd3ff; }
+  .expr-preview .str { color: #a8f0c8; }
+  .expr-preview .arrow { color: #ffd479; }
+  .match-count { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .match-count b { color: var(--text-2); }
+
+  /* ---------- mini tables ---------- */
+  table.mini { border-collapse: collapse; width: 100%; }
+  table.mini th { text-align: left; font-size: 11px; color: var(--text-3); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  table.mini td { padding: 4px 8px; }
+  table.mini input, table.mini select { padding: 4px 8px; font-size: 12.5px; }
+  table.mini .del { border: none; background: none; color: var(--text-3); cursor: pointer; font-size: 15px; }
+  table.mini .del:hover { color: var(--danger); }
+  .table-add { margin-top: 6px; }
+
+  /* ---------- file browser modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center; z-index: 60;
+  }
+  .modal {
+    background: var(--panel); border-radius: 12px; box-shadow: var(--shadow-md);
+    width: 560px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
+  }
+  .modal-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .modal-head .path { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-head .close { border: none; background: none; color: var(--text-3); font-size: 18px; cursor: pointer; }
+  .modal-body { overflow-y: auto; padding: 8px; min-height: 220px; }
+  .modal-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .modal-row:hover { background: var(--panel-2); }
+  .modal-row .ic { color: var(--text-3); width: 18px; text-align: center; }
+  .modal-row.dir .ic { color: var(--accent); }
+  .modal-row.file .ic { color: var(--text-3); }
+  .modal-row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-foot { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
+  .modal-foot input { flex: 1; }
+  .modal-error { color: var(--danger); font-size: 12px; padding: 8px 12px; }
+
+  /* ---------- run ---------- */
+  .run-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .run-actions .sep { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
+  .run-actions label { font-size: 12px; color: var(--text-3); }
+  .run-actions input[type="number"] { width: 100px; }
+  .run-status { padding: 10px 14px; border-radius: var(--radius); margin: 14px 0; font-size: 13px; display: none; }
+  .run-status.running { display: block; background: var(--accent-weak); border: 1px solid var(--accent); color: var(--accent); }
+  .run-status.ok { display: block; background: var(--success-weak); border: 1px solid var(--success); color: var(--success); }
+  .run-status.fail { display: block; background: var(--danger-weak); border: 1px solid var(--danger); color: var(--danger); }
+  #console {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font: 12.5px/1.6 var(--mono);
+    overflow-y: auto;
+    height: calc(100vh - 320px);
+    min-height: 220px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #console .ln { display: block; }
+  #console .err { color: var(--danger); }
+  #console .meta { color: var(--text-3); }
+
+  /* ---------- models ---------- */
+  .models-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .models-toolbar input[type="text"] { max-width: 260px; }
+  .models-toolbar .count { color: var(--text-3); font-size: 12px; }
+  table.models { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table.models th {
+    text-align: left; padding: 10px 12px; font-size: 11px; color: var(--text-3);
+    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; font-weight: 600;
+    background: var(--panel-2);
+  }
+  table.models th:hover { color: var(--text); }
+  table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 12.5px; }
+  table.models td.num { font-family: var(--mono); text-align: right; font-size: 12px; }
+  table.models tr:hover td { background: var(--panel-2); }
+  .cap { font-size: 10px; padding: 1px 7px; border-radius: 10px; }
+  .cap.y { background: var(--success-weak); color: var(--success); }
+  .cap.n { background: var(--border-2); color: var(--text-3); }
+  .cap.na { background: var(--warning-weak); color: var(--warning); }
+  .missing-note { color: var(--text-2); font-size: 13px; padding: 24px 0; }
+  .providers { margin-top: 8px; }
+  .router-tag { font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--accent-weak); color: var(--accent); }
+
+  /* ---------- sticky save bar ---------- */
+  #save-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bar-bg);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex; align-items: center; gap: 12px;
+    transform: translateY(100%);
+    transition: transform .2s;
+    z-index: 50;
+  }
+  #save-bar.show { transform: translateY(0); }
+  #save-bar .msg { flex: 1; font-size: 13px; color: var(--text-2); }
+  #save-bar .msg b { color: var(--text); }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; box-shadow: var(--shadow-md); transition: transform .2s, opacity .2s;
+    opacity: 0; pointer-events: none; z-index: 70; max-width: 80vw;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast .sub { color: var(--text-3); font-size: 11px; display: block; }
+  #toast.error { background: var(--danger); color: #fff; }
+
+  .loading { color: var(--text-3); padding: 60px; text-align: center; font-size: 14px; }
+
+  /* reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+  @media (max-width: 760px) {
+    .sidebar { display: none; }
+    .content { padding: 20px 18px 120px; }
+    .field { grid-template-columns: 1fr; gap: 6px; }
+    .field-label { padding-top: 0; }
+    header { padding: 0 12px; }
+    .save-target { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">◈</span>
+  <span class="wordmark">omnilist<span class="dim">/dashboard</span></span>
+  <nav class="tabs">
+    <button class="tab active" data-tab="config">Config</button>
+    <button class="tab" data-tab="run">Run</button>
+    <button class="tab" data-tab="models">Models</button>
+  </nav>
+  <div class="spacer"></div>
+  <span class="save-target" id="write-target">saving to <b>…</b></span>
+  <button class="icon-btn" id="reset-all-btn" title="Reset every setting back to its default" aria-label="Reset all">↺</button>
+  <button class="btn small ghost" id="reload-btn">Reload</button>
+  <button class="btn small icon-btn" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+  <button class="btn small danger" id="shutdown-btn" title="Stop the omnilist GUI server" aria-label="Shut down server">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;display:block"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>
+  </button>
+</header>
+
+<main>
+  <aside class="sidebar" id="config-nav">
+    <div class="nav-label">Configuration</div>
+    <button class="nav-item active" data-sec="general"><span class="ico">◆</span>General</button>
+    <button class="nav-item" data-sec="paths"><span class="ico">🗀</span>Paths</button>
+    <button class="nav-item" data-sec="targets"><span class="ico">⇄</span>Sync targets</button>
+    <button class="nav-item" data-sec="filters"><span class="ico">◫</span>Catalog &amp; filters</button>
+    <button class="nav-item" data-sec="harness-filters"><span class="ico">⊞</span>Harness filters</button>
+    <button class="nav-item" data-sec="overrides"><span class="ico">✎</span>Field overrides</button>
+    <button class="nav-item" data-sec="capabilities"><span class="ico">◎</span>Capabilities</button>
+    <button class="nav-item" data-sec="adapters"><span class="ico">⛓</span>Adapters</button>
+    <button class="nav-item" data-sec="t3"><span class="ico">↯</span>T3 drivers</button>
+    <button class="nav-item" data-sec="custom-models"><span class="ico">＋</span>Custom models</button>
+    <button class="nav-item" data-sec="commands"><span class="ico">⚙</span>Commands &amp; advanced</button>
+  </aside>
+
+  <div class="content" id="config-content">
+    <div class="loading" id="config-loading">Loading configuration…</div>
+    <div id="config-root" style="display:none"></div>
+  </div>
+
+  <div class="content" id="tab-run" style="display:none">
+    <div class="page-head">
+      <h1>Run the pipeline</h1>
+      <p>Runs <code>omnilist.js</code> in a fresh process, so save your changes first — runs use the config on disk.</p>
+    </div>
+    <div class="run-actions">
+      <button class="btn primary" id="run-all-btn">Run everything</button>
+      <div class="sep"></div>
+      <button class="btn" data-run="fetch">Fetch</button>
+      <button class="btn" data-run="opencode">OpenCode</button>
+      <button class="btn" data-run="kilo">Kilo</button>
+      <button class="btn" data-run="t3 t3rest">T3</button>
+      <button class="btn" data-run="dsh">DSH</button>
+      <button class="btn" data-run="pi">pi</button>
+      <button class="btn" data-run="zcode">zcode</button>
+      <button class="btn" data-run="opencodex">ocx</button>
+      <div class="sep"></div>
+      <button class="btn" data-run="cleanup">Cleanup</button>
+      <div class="sep"></div>
+      <label>min input</label>
+      <input type="number" id="run-mi" min="0" step="1000" placeholder="0">
+      <label>min output</label>
+      <input type="number" id="run-mo" min="0" step="1000" placeholder="0">
+      <div class="sep"></div>
+      <button class="btn danger" id="stop-btn" disabled>Stop</button>
+    </div>
+    <div class="run-status" id="run-status"></div>
+    <div id="console"></div>
+  </div>
+
+  <div class="content" id="tab-models" style="display:none">
+    <div class="page-head">
+      <h1>Model catalog</h1>
+      <p id="models-path"></p>
+    </div>
+    <div class="models-toolbar">
+      <select id="models-which">
+        <option value="filtered">models-filtered.csv</option>
+        <option value="all">models-all.csv (raw)</option>
+      </select>
+      <input type="text" id="models-search" placeholder="Search model id…">
+      <span class="count" id="models-count"></span>
+      <button class="btn small" id="models-refresh">Refresh</button>
+    </div>
+    <div id="models-table-wrap"></div>
+    <div class="card" style="margin-top:22px">
+      <h3>Providers</h3>
+      <p class="card-desc" id="providers-path"></p>
+      <div id="providers-table-wrap"></div>
+    </div>
+  </div>
+</main>
+
+<div id="save-bar">
+  <span class="msg">You have <b>unsaved changes</b>.</span>
+  <button class="btn" id="discard-btn">Discard</button>
+  <button class="btn primary" id="save-btn">Save changes</button>
+</div>
+
+<div id="toast"></div>
+<div id="modal-root"></div>
+
+<script>
+'use strict';
+
+// ===========================================================================
+// state
+// ===========================================================================
+const S = {
+  defaults: null,
+  base: null,
+  local: null,
+  effective: null,
+  saved: null,
+  writeTarget: '',
+  localExists: false,
+  meta: null,
+  modelsSort: { key: 'id', dir: 1 },
+};
+let dirty = false;
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const deepClone = (o) => o == null ? o : JSON.parse(JSON.stringify(o));
+
+function toast(msg, sub, isError) {
+  const t = $('#toast');
+  t.innerHTML = '';
+  t.textContent = msg;
+  if (sub) { const s = document.createElement('span'); s.className = 'sub'; s.textContent = sub; t.appendChild(s); }
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), isError ? 5000 : 3200);
+}
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// ===========================================================================
+// provenance + helpers
+// ===========================================================================
+function localHas(pathArr) {
+  let node = S.local;
+  for (const p of pathArr) {
+    if (node == null || typeof node !== 'object' || !(p in node)) return false;
+    node = node[p];
+  }
+  return true;
+}
+function getAt(obj, pathArr) {
+  let node = obj;
+  for (const p of pathArr) {
+    if (node == null || typeof node !== 'object') return undefined;
+    node = node[p];
+  }
+  return node;
+}
+function setAt(pathArr, value) {
+  if (!pathArr.length) { S.effective = value; return; }
+  let node = S.effective;
+  for (let i = 0; i < pathArr.length - 1; i++) {
+    if (node[pathArr[i]] == null || typeof node[pathArr[i]] !== 'object') node[pathArr[i]] = {};
+    node = node[pathArr[i]];
+  }
+  node[pathArr[pathArr.length - 1]] = value;
+}
+function setDirty(v) {
+  dirty = v;
+  $('#save-bar').classList.toggle('show', v);
+  $('#save-btn').disabled = !v;
+}
+function fieldLabel(key) {
+  return key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ===========================================================================
+// generic control builders
+// ===========================================================================
+function fieldRow(labelText, hint, controlEl, pathArr) {
+  const row = document.createElement('div');
+  row.className = 'field';
+  const label = document.createElement('div');
+  label.className = 'field-label';
+  label.innerHTML = esc(labelText) + (hint ? '<span class="hint"></span>' : '');
+  if (hint) label.querySelector('.hint').textContent = hint;
+  row.appendChild(label);
+  const ctl = document.createElement('div');
+  ctl.className = 'field-ctl';
+  ctl.appendChild(controlEl);
+  row.appendChild(ctl);
+  if (pathArr && localHas(pathArr)) {
+    const b = document.createElement('span');
+    b.className = 'ovr-badge';
+    b.title = 'Overridden in config.local.jsonc';
+    b.textContent = 'local';
+    ctl.appendChild(b);
+    const reset = document.createElement('button');
+    reset.className = 'reset-link';
+    reset.textContent = 'reset';
+    reset.addEventListener('click', () => {
+      setAt(pathArr, deepClone(getAt(S.defaults, pathArr)));
+      setDirty(true);
+      rebuildConfig();
+      showSection(currentSection());
+    });
+    ctl.appendChild(reset);
+  }
+  return row;
+}
+
+function textField(pathArr, placeholder) {
+  const val = getAt(S.effective, pathArr);
+  const def = getAt(S.defaults, pathArr);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = val == null ? '' : String(val);
+  input.placeholder = placeholder !== undefined ? placeholder : (def == null ? '' : String(def));
+  input.addEventListener('input', () => { setAt(pathArr, input.value); setDirty(true); });
+  return input;
+}
+function numberField(pathArr, step) {
+  const val = getAt(S.effective, pathArr);
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = step || '1000';
+  input.min = '0';
+  input.value = val == null ? 0 : val;
+  input.addEventListener('input', () => { setAt(pathArr, input.value === '' ? 0 : parseInt(input.value, 10)); setDirty(true); });
+  return input;
+}
+function toggle(pathArr) {
+  const t = document.createElement('div');
+  t.className = 'toggle' + (getAt(S.effective, pathArr) ? ' on' : '');
+  t.tabIndex = 0;
+  t.setAttribute('role', 'switch');
+  t.setAttribute('aria-checked', String(getAt(S.effective, pathArr)));
+  const update = (v) => { setAt(pathArr, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); setDirty(true); };
+  t.addEventListener('click', () => update(!getAt(S.effective, pathArr)));
+  t.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); t.click(); } });
+  return t;
+}
+function select(options, current, onchange) {
+  const sel = document.createElement('select');
+  for (const [val, text] of options) {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = text;
+    sel.appendChild(o);
+  }
+  sel.value = String(current);
+  sel.addEventListener('change', () => onchange(sel.value));
+  return sel;
+}
+
+function card(title, desc) {
+  const c = document.createElement('div');
+  c.className = 'card';
+  if (title) { const h = document.createElement('h3'); h.textContent = title; c.appendChild(h); }
+  if (desc) { const p = document.createElement('p'); p.className = 'card-desc'; p.textContent = desc; c.appendChild(p); }
+  return c;
+}
+
+// ===========================================================================
+// generic list editor (string arrays)
+// ===========================================================================
+function listEditor(pathArr, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const box = document.createElement('div');
+  box.className = 'chips-wrap';
+  wrap.appendChild(box);
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+  function render() {
+    box.innerHTML = '';
+    const arr = get();
+    if (!arr.length) {
+      const e = document.createElement('div');
+      e.className = 'list-empty';
+      e.textContent = opts.emptyText || '(empty)';
+      box.appendChild(e);
+    }
+    arr.forEach((item, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = item;
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = '✕';
+      x.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
+      chip.appendChild(x);
+      box.appendChild(chip);
+    });
+    const add = document.createElement('div');
+    add.className = 'add-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = opts.placeholder || 'add…';
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        set(get().concat([input.value.trim()])); input.value = ''; render();
+      }
+    });
+    const btn = document.createElement('button');
+    btn.className = 'btn small';
+    btn.textContent = 'Add';
+    btn.addEventListener('click', () => {
+      if (input.value.trim()) { set(get().concat([input.value.trim()])); input.value = ''; render(); }
+    });
+    add.appendChild(input);
+    add.appendChild(btn);
+    box.appendChild(add);
+    if (opts.note) { const n = document.createElement('div'); n.className = 'field-note'; n.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px'; n.textContent = opts.note; box.appendChild(n); }
+  }
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// sort builder
+// ===========================================================================
+function parseSortToPairs(spec) {
+  const keys = String(spec || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return keys.map((k) => (k.startsWith('-') ? { field: k.slice(1), desc: true } : { field: k, desc: false }));
+}
+function pairsToSort(pairs) {
+  return pairs.map((p) => (p.desc ? '-' + p.field : p.field)).join(',');
+}
+function sortBuilder(pathArr) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const fields = ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'];
+  function render() {
+    wrap.innerHTML = '';
+    const pairs = parseSortToPairs(getAt(S.effective, pathArr));
+    if (!pairs.length) pairs.push({ field: 'id', desc: false });
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    pairs.forEach((p, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip on';
+      chip.style.cssText = 'cursor:pointer';
+      const label = document.createElement('span');
+      label.textContent = (p.desc ? '▼ ' : '▲ ') + p.field;
+      label.addEventListener('click', () => {
+        pairs[i].desc = !pairs[i].desc;
+        setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
+      });
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = '✕';
+      x.addEventListener('click', () => {
+        pairs.splice(i, 1);
+        setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
+      });
+      chip.appendChild(label); chip.appendChild(x);
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+    const add = document.createElement('div');
+    add.className = 'add-row';
+    add.style.marginTop = '8px';
+    const sel = document.createElement('select');
+    for (const f of fields) { const o = document.createElement('option'); o.value = f; o.textContent = f; sel.appendChild(o); }
+    const btn = document.createElement('button');
+    btn.className = 'btn small';
+    btn.textContent = '+ sort key';
+    btn.addEventListener('click', () => {
+      pairs.push({ field: sel.value, desc: true });
+      setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
+    });
+    add.appendChild(sel); add.appendChild(btn);
+    wrap.appendChild(add);
+    const note = document.createElement('div');
+    note.className = 'field-note';
+    note.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px';
+    note.textContent = 'Primary sort key first; ties break by the next key, then by id. Click a chip to flip ascending/descending.';
+    wrap.appendChild(note);
+  }
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// filter rule builder (model_filters + harness_filters)
+// ===========================================================================
+
+// A rule row is represented as:
+// { action, kind, provider, family, prop, op, value, except, n, dir, sort, text, harnesses }
+// Generate the canonical expression.
+// A condition is one matchable unit; a rule is action + joiner + conditions
+// (+ excepts, which are just conditions rendered with a NOT badge).
+function freshCond(kind) {
+  const c = { kind: kind || 'provider', negate: false, provider: (S.meta && S.meta.providers && S.meta.providers[0] && S.meta.providers[0].value) || 'gemini', glob: true, family: (S.meta && S.meta.families && S.meta.families[0] && S.meta.families[0].value) || 'gpt', prop: 'input_context', op: '<', value: '200000', n: 100, dir: 'top', sort: '', text: '' };
+  if (kind === 'property') { c.op = '>='; }
+  return c;
+}
+function condOf(c) {
+  let out;
+  if (c.kind === 'provider') out = c.provider + (c.glob ? '/*' : '');
+  else if (c.kind === 'family') out = '*' + c.family + '*';
+  else if (c.kind === 'property') out = '$' + c.prop + (c.op && c.op !== '=' ? c.op : '') + (c.value === '' ? '' : c.value);
+  else if (c.kind === 'topN') out = c.dir + c.n + (c.sort ? ':' + c.sort : '');
+  else out = c.text || '';
+  if (c.negate) out = '!' + out;
+  if (c.paren) out = '(' + out + ')';
+  return out;
+}
+// True when s is one balanced parenthesized group: "(...)".
+function isWrapped(s) {
+  if (!s.startsWith('(') || !s.endsWith(')')) return false;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') { depth--; if (depth === 0 && i < s.length - 1) return false; }
+  }
+  return depth === 0;
+}
+function exprOf(r) {
+  if (typeof r === 'string' || r == null) return r == null ? '' : r;
+  if (r.kind === 'topN') {
+    let out = '(' + r.dir + r.n + (r.sort ? ':' + r.sort : '') + ')';
+    if (r.harnesses && r.harnesses.length) out += '->' + r.harnesses.join(',');
+    return out;
+  }
+  // topN-directive row: single topN condition, no action prefix
+  const firstCond = (r.conditions || [])[0];
+  if (firstCond && firstCond.kind === 'topN' && (r.conditions || []).length === 1 && r.action === 'allow' && !(r.excepts || []).length) {
+    let out = '(' + condOf(firstCond) + ')';
+    if (r.harnesses && r.harnesses.length) out += '->' + r.harnesses.join(',');
+    return out;
+  }
+  const parts = (r.conditions || []).map(condOf).filter(Boolean);
+  let body = parts.join(r.joiner === 'or' ? ' || ' : ' && ');
+  if (!body) return '';
+  if ((r.excepts || []).length) {
+    body = '(' + body + (r.excepts || []).map((c) => ' && !' + condOf(c)).join('') + ')';
+  }
+  // Re-group: when the original was parenthesized, or when an action prefix
+  // applies to a multi-part chain (!/== bind the WHOLE body in omnilist).
+  if (!isWrapped(body) && parts.length > 1 && (r.paren || r.action !== 'allow')) body = '(' + body + ')';
+  else if (!isWrapped(body) && r.paren && parts.length === 1) body = '(' + body + ')';
+  let out;
+  if (r.action === 'block') out = '!' + body;
+  else if (r.action === 'only') out = '==' + body;
+  else out = body;
+  if (r.harnesses && r.harnesses.length) out += '->' + r.harnesses.join(',');
+  return out;
+}
+
+// Best-effort parse of an existing expression back into structured row fields.
+function parseExprToRow(expr, isHarness) {
+  const r = { action: 'allow', joiner: 'and', paren: false, conditions: [], excepts: [], harnesses: null, raw: String(expr == null ? '' : expr).trim() };
+  let s = String(expr || '').trim();
+  // harness targets
+  if (isHarness) {
+    const arrow = s.lastIndexOf('->');
+    if (arrow !== -1) {
+      r.harnesses = s.slice(arrow + 2).split(',').map((x) => x.trim()).filter(Boolean);
+      s = s.slice(0, arrow).trim();
+    }
+  }
+  // top/bottom directive (sort segments normally carry '-', accept bare too)
+  let m = s.match(/^\(?(top|bottom)(\d+)((?::[^)\s]+)*)\)?$/i);
+  if (m) {
+    r.conditions.push({ kind: 'topN', negate: false, paren: false, dir: m[1].toLowerCase(), n: parseInt(m[2], 10), sort: (m[3] || '').replace(/^:/, ''), text: '', provider: '', family: '', prop: 'input_context', op: '>=', value: '', glob: true });
+    return r;
+  }
+  // action prefix
+  if (s.startsWith('==')) { r.action = 'only'; s = s.slice(2); }
+  else if (s.startsWith('=')) { s = s.slice(1); }
+  else if (s.startsWith('!')) { r.action = 'block'; s = s.slice(1); }
+  s = s.trim();
+  // unwrap one outer parenthesization, remembering it for round-trip
+  if (isWrapped(s)) { r.paren = true; s = s.slice(1, -1).trim(); }
+  const orSegs = splitTop(s, '||');
+  if (orSegs.length > 1) {
+    // or-chain: each segment is a condition (nested groups stay raw text)
+    r.joiner = 'or';
+    r.conditions = orSegs.map(parseSingleCond);
+    return r;
+  }
+  // and-chain: trailing "&& !x" segments become EXCEPTS (only when the body
+  // was parenthesized — that's how compound-exception rules are written)
+  const andSegs = splitTop(s, '&&');
+  if (andSegs.length > 1 && r.paren) {
+    let cut = andSegs.length;
+    while (cut > 1) {
+      const seg = andSegs[cut - 1].trim();
+      if (seg.startsWith('!') && !isWrapped(seg)) cut--;
+      else break;
+    }
+    if (cut < andSegs.length) {
+      r.conditions = andSegs.slice(0, cut).map(parseSingleCond);
+      r.excepts = andSegs.slice(cut).map((seg) => {
+        const inner = seg.trim().slice(1).trim(); // drop the '!'
+        const c = parseSingleCond(inner);
+        c.negate = false; // excepts are structurally NOT-ed
+        return c;
+      });
+      return r;
+    }
+  }
+  r.conditions = andSegs.map(parseSingleCond);
+  return r;
+}
+function parseSingleCond(p) {
+  p = p.trim();
+  if (!p) return { kind: 'text', negate: false, paren: false, text: '', provider: '', family: '', glob: true, prop: 'input_context', op: '>=', value: '', n: 100, dir: 'top', sort: '' };
+  const wrapped = isWrapped(p);
+  const inner = wrapped ? p.slice(1, -1).trim() : p;
+  // a parenthesized sub-expression with its own && / || stays as raw text so
+  // the round-trip emits it verbatim
+  if (wrapped && (splitTop(inner, '&&').length > 1 || splitTop(inner, '||').length > 1)) {
+    return { kind: 'text', negate: false, paren: false, text: p, provider: '', family: '', glob: true, prop: 'input_context', op: '>=', value: '', n: 100, dir: 'top', sort: '' };
+  }
+  let q = inner;
+  let negate = false;
+  while (q.startsWith('!')) { negate = !negate; q = q.slice(1).trim(); }
+  let m = q.match(/^\$([A-Za-z_]+)\s*(<=|>=|!=|==|<|>|=)\s*([^\s]+)$/);
+  if (m) return { kind: 'property', negate, paren: wrapped, prop: m[1], op: m[2], value: m[3], provider: '', family: '', glob: true, n: 100, dir: 'top', sort: '', text: '' };
+  m = q.match(/^(top|bottom)(\d+)((?::[^)\s]+)*)$/i);
+  if (m) return { kind: 'topN', negate, paren: wrapped, dir: m[1].toLowerCase(), n: parseInt(m[2], 10), sort: (m[3] || '').replace(/^:/, ''), provider: '', family: '', prop: 'input_context', op: '>=', value: '', glob: true, text: '' };
+  if (q.endsWith('/*')) return { kind: 'provider', negate, paren: wrapped, provider: q.slice(0, -2), glob: true, family: '', prop: 'input_context', op: '>=', value: '', n: 100, dir: 'top', sort: '', text: '' };
+  if (q.startsWith('*') && q.endsWith('*') && q.length > 1) return { kind: 'family', negate, paren: wrapped, family: q.slice(1, -1), glob: true, provider: '', prop: 'input_context', op: '>=', value: '', n: 100, dir: 'top', sort: '', text: '' };
+  return { kind: 'text', negate, paren: wrapped, text: q, provider: '', family: '', glob: true, prop: 'input_context', op: '>=', value: '', n: 100, dir: 'top', sort: '' };
+}
+// Split on top-level (paren-depth-0) "&&" or "||" separators.
+function splitTop(s, opStr) {
+  const out = [];
+  let depth = 0, cur = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (depth === 0 && ch === opStr[0] && s[i + 1] === opStr[1]) { out.push(cur); cur = ''; i++; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.filter((x) => x.trim());
+}
+
+// Manual-only block editor: one textarea per expression, drag blocks to
+// reorder. No dropdowns — expressions are written by hand, validated against
+// the real parser, with a live match-count preview for model filters.
+function manualBlockBuilder(pathArr, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const isHarness = !!opts.isHarness;
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+
+  function iconBtn(sym, title, fn) {
+    const b = document.createElement('button');
+    b.className = 'icon-btn';
+    b.innerHTML = sym;
+    b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  let previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async () => {
+      if (isHarness) return;
+      const countEl = wrap.querySelector('#preview-count');
+      if (!countEl) return;
+      const exprs = get().map((e) => String(e)).filter(Boolean);
+      try {
+        const r = await api('POST', '/api/preview-filters', { filters: exprs, sort: getAt(S.effective, ['model_sort']) || 'id' });
+        if (r.available) countEl.innerHTML = '<b>' + r.kept.toLocaleString() + '</b> of ' + r.total.toLocaleString() + ' models match';
+        else countEl.textContent = r.reason || '';
+      } catch (e) { /* ignore */ }
+    }, 350);
+  }
+
+  // validate one expression against the real parser; always returns a Promise
+  // (an empty block is "not yet an error", never a bare null — returning null
+  // here used to throw inside render() and blank the whole section)
+  function validateExpr(text) {
+    const t = String(text == null ? '' : text).trim();
+    if (!t) return Promise.resolve(null);
+    return api('POST', '/api/validate', { kind: isHarness ? 'harness_filter' : 'model_filter', expr: t })
+      .then((r) => (r.ok ? null : (r.error || 'invalid')))
+      .catch(() => null);
+  }
+
+  function initDragDrop(box, rows) {
+    let fromIdx = null;
+    const myGen = gen;
+    box.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      fromIdx = parseInt(row.dataset.idx, 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) { /* IE */ }
+    });
+    box.addEventListener('dragend', () => {
+      const row = box.querySelector('.rule-row.dragging');
+      if (row) row.classList.remove('dragging');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      fromIdx = null;
+    });
+    box.addEventListener('dragover', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.rule-row');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      if (row && parseInt(row.dataset.idx, 10) !== fromIdx) row.classList.add('drag-over');
+    });
+    box.addEventListener('drop', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const toIdx = parseInt(row.dataset.idx, 10);
+      if (toIdx === fromIdx || isNaN(toIdx)) return;
+      if (myGen !== gen) return; // stale container from a previous render
+      const moved = rows.splice(fromIdx, 1)[0];
+      rows.splice(toIdx, 0, moved);
+      set(rows.map((r) => r.text));
+      render();
+    });
+  }
+
+  // Generation counter: every render() bumps it, which invalidates any debounced
+  // commit still pending from the previous render. Without this, a timer captured
+  // by the old row objects fires after a re-render and writes the stale list back
+  // over whatever was just added / removed / reordered.
+  let gen = 0;
+  const pendingTimers = new Set();
+  function cancelPending() {
+    pendingTimers.forEach((t) => clearTimeout(t));
+    pendingTimers.clear();
+  }
+
+  function render() {
+    gen++;
+    cancelPending();
+    wrap.innerHTML = '';
+    // live row model: one { text } per expression — edits write through without re-render
+    const rows = get().map((e) => ({ text: String(e == null ? '' : e) }));
+
+    const hint = document.createElement('div');
+    hint.className = 'field-note';
+    hint.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:8px';
+    hint.textContent = opts.hint || 'Written by hand, one expression per block — drag a block to reorder. "!" blocks, "==xxx" keeps-only, bare allows; $field comparisons, (topN:sort) directives' + (isHarness ? ' and "->t3,dsh" targeting' : '') + ' all work.';
+    wrap.appendChild(hint);
+
+    const box = document.createElement('div');
+    box.style.flex = '1';
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'list-empty';
+      e.textContent = opts.emptyText || '(no rules)';
+      box.appendChild(e);
+    }
+    rows.forEach((row, i) => box.appendChild(renderBlock(row, i, rows)));
+    wrap.appendChild(box);
+    initDragDrop(box, rows);
+
+    // live preview line
+    if (!isHarness) {
+      const prev = document.createElement('div');
+      prev.className = 'field-note';
+      prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:11.5px';
+      prev.innerHTML = 'Live preview: <span id="preview-count">…</span>';
+      wrap.appendChild(prev);
+    }
+
+    const addBar = document.createElement('div');
+    addBar.className = 'add-row';
+    addBar.style.marginTop = '8px';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn small';
+    addBtn.textContent = '+ add rule';
+    // read from the live row objects, not the last-committed array, so text
+    // typed but not yet debounce-committed isn't lost when adding a block
+    const addGen = gen;
+    addBtn.addEventListener('click', () => {
+      if (addGen !== gen) return; // detached handler from a previous render
+      set(rows.map((x) => x.text).concat(['']));
+      render();
+    });
+    addBar.appendChild(addBtn);
+    wrap.appendChild(addBar);
+    schedulePreview();
+  }
+
+  function renderBlock(r, i, allRows) {
+    const box = document.createElement('div');
+    box.className = 'rule-row';
+    box.draggable = true;
+    box.dataset.idx = i;
+    // render generation this block belongs to — handlers left on detached nodes
+    // must not write their stale row array back over a newer render
+    const myGen = gen;
+
+    const head = document.createElement('div');
+    head.className = 'rule-head manual-head';
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.title = 'Drag to reorder';
+    handle.textContent = '⋮⋮';
+    head.appendChild(handle);
+    const num = document.createElement('span');
+    num.className = 'rule-num';
+    num.textContent = String(i + 1);
+    head.appendChild(num);
+
+    const ta = document.createElement('textarea');
+    ta.className = 'raw-expr manual-expr';
+    ta.spellcheck = false;
+    ta.rows = 1;
+    ta.value = r.text;
+    ta.placeholder = opts.placeholder || 'e.g. !(kc/* && !*free)';
+    // the expression sits inline between the number and the ✕, so all four
+    // controls share one row
+    head.appendChild(ta);
+
+    // ✕ goes in a .rule-ops wrapper so the existing
+    // `.rule-head .rule-ops { margin-left: auto }` pushes it to the far right,
+    // leaving the handle + number left-aligned on the same row
+    const ops = document.createElement('div');
+    ops.className = 'rule-ops';
+    ops.appendChild(iconBtn('✕', 'Remove this rule', () => {
+      if (myGen !== gen) return; // detached handler from a previous render
+      const a = allRows.map((x) => x.text);
+      a.splice(i, 1);
+      set(a);
+      render();
+    }));
+    head.appendChild(ops);
+
+    box.appendChild(head);
+
+    const err = document.createElement('div');
+    err.className = 'expr-err';
+    // commit-on-type: write the text into the array WITHOUT re-rendering, so
+    // focus and caret position survive
+    let vTimer = null;
+    ta.addEventListener('input', () => {
+      r.text = ta.value;
+      clearTimeout(vTimer);
+      pendingTimers.delete(vTimer);
+      vTimer = setTimeout(() => {
+        pendingTimers.delete(vTimer);
+        // a re-render happened after this timer was scheduled — the row objects
+        // this closure holds are stale, so writing them back would clobber it
+        if (myGen !== gen) return;
+        const a = allRows.map((x) => x.text);
+        set(a);
+        schedulePreview();
+        validateExpr(ta.value).then((msg) => { err.textContent = msg || ''; });
+      }, 300);
+      pendingTimers.add(vTimer);
+    });
+    // validate whatever exists right now
+    validateExpr(r.text).then((msg) => { if (msg) err.textContent = msg; });
+
+    box.appendChild(err);
+    return box;
+  }
+
+  render();
+  return wrap;
+}
+
+function ruleBuilder(pathArr, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const isHarness = !!opts.isHarness;
+  const providers = (S.meta && S.meta.providers || []).map((p) => p.value);
+  const families = (S.meta && S.meta.families || []).map((f) => f.value);
+  const HARNESSES = S.meta ? S.meta.harnessIds : ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'];
+  wrap.dataset.mode = 'gui';
+
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+
+  // small icon-only button helper
+  function iconBtn(sym, title, fn, extra) {
+    const b = document.createElement('button');
+    b.className = 'icon-btn' + (extra || '');
+    b.innerHTML = sym;
+    b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  let previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async () => {
+      if (opts.isHarness) return;
+      const countEl = wrap.querySelector('#preview-count');
+      if (!countEl) return;
+      const exprs = get().map((e) => String(e)).filter(Boolean);
+      try {
+        const r = await api('POST', '/api/preview-filters', { filters: exprs, sort: getAt(S.effective, ['model_sort']) || 'id' });
+        if (r.available) countEl.innerHTML = '<b>' + r.kept.toLocaleString() + '</b> of ' + r.total.toLocaleString() + ' models match';
+        else countEl.textContent = r.reason || '';
+      } catch (e) { /* ignore */ }
+    }, 350);
+  }
+
+  // commit(i, rows): write rows[i]'s expression into the array WITHOUT
+  // re-rendering — the row objects are the single source of truth while the
+  // builder is open, so controls keep their state and focus.
+  function commit(i, rows) {
+    const arr = get().slice();
+    arr[i] = exprOf(rows[i]);
+    set(arr);
+    const foot = wrap.querySelectorAll('.rule-foot .expr-preview')[i];
+    if (foot) foot.textContent = arr[i] || '(empty)';
+    schedulePreview();
+  }
+
+  // HTML5 drag & drop reordering on the rule container
+  function initDragDrop(box, rows) {
+    let fromIdx = null;
+    box.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      fromIdx = parseInt(row.dataset.idx, 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) { /* IE */ }
+    });
+    box.addEventListener('dragend', () => {
+      const row = box.querySelector('.rule-row.dragging');
+      if (row) row.classList.remove('dragging');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      fromIdx = null;
+    });
+    box.addEventListener('dragover', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.rule-row');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      if (row && parseInt(row.dataset.idx, 10) !== fromIdx) row.classList.add('drag-over');
+    });
+    box.addEventListener('drop', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const toIdx = parseInt(row.dataset.idx, 10);
+      if (toIdx === fromIdx || isNaN(toIdx)) return;
+      const moved = rows.splice(fromIdx, 1)[0];
+      rows.splice(toIdx, 0, moved);
+      set(rows.map(exprOf));
+      render();
+    });
+  }
+
+  function render() {
+    wrap.innerHTML = '';
+    const rows = get().map((e) => parseExprToRow(e, isHarness));
+    if ((wrap.dataset.mode || 'gui') === 'raw') return renderRaw(rows);
+
+    const box = document.createElement('div');
+    box.style.flex = '1';
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'list-empty';
+      e.textContent = opts.emptyText || '(no rules — everything passes through)';
+      box.appendChild(e);
+    }
+    rows.forEach((row, i) => box.appendChild(renderRule(row, i, rows)));
+    wrap.appendChild(box);
+    initDragDrop(box, rows);
+
+    // live preview line
+    const prev = document.createElement('div');
+    prev.className = 'field-note';
+    prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:11.5px';
+    prev.innerHTML = 'Live preview: <span id="preview-count">…</span>';
+    wrap.appendChild(prev);
+
+    // add controls + mode switch
+    const addBar = document.createElement('div');
+    addBar.className = 'add-row';
+    addBar.style.marginTop = '8px';
+    const kindSel = document.createElement('select');
+    const kinds = [['provider', 'provider (e.g. gemini)'], ['family', 'model family (e.g. gpt)'], ['property', 'property comparison'], ['topN', 'top / bottom N']];
+    for (const [v, t] of kinds) { const o = document.createElement('option'); o.value = v; o.textContent = t; kindSel.appendChild(o); }
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn small';
+    addBtn.textContent = '+ add rule';
+    addBtn.addEventListener('click', () => {
+      const nr = { action: 'block', joiner: 'and', conditions: [freshCond(kindSel.value)], excepts: [], harnesses: null };
+      if (kindSel.value === 'topN') { nr.action = 'allow'; }
+      set(get().concat([exprOf(nr)]));
+      render();
+    });
+    addBar.appendChild(kindSel);
+    addBar.appendChild(addBtn);
+    const rawBtn = iconBtn('✎', 'Manual mode — type filter expressions by hand', () => { wrap.dataset.mode = 'raw'; render(); });
+    addBar.appendChild(rawBtn);
+    wrap.appendChild(addBar);
+    schedulePreview();
+  }
+
+  // Manual mode: one expression per line, validated per-line against the real parser.
+  function renderRaw(rows) {
+    const label = document.createElement('div');
+    label.className = 'field-note';
+    label.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:4px';
+    label.textContent = opts.rawNote || 'One expression per line. "!" blocks, "==xxx" keeps-only, bare allows; $field comparisons, (topN:sort) directives and "->t3,dsh" harness targeting all work.';
+    wrap.appendChild(label);
+    const ta = document.createElement('textarea');
+    ta.className = 'raw-expr';
+    ta.spellcheck = false;
+    ta.value = rows.map((r) => r.raw).join('\n');
+    const err = document.createElement('div');
+    err.style.cssText = 'color:var(--danger);font-size:11px;margin-top:4px;min-height:14px';
+    const guiBtn = iconBtn('☰', 'Back to dropdown mode', () => {
+      // keep whatever is typed when switching back
+      apply(ta.value);
+      wrap.dataset.mode = 'gui';
+      render();
+    });
+    guiBtn.style.marginTop = '4px';
+    function apply(text) {
+      const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+      set(lines);
+      schedulePreview();
+    }
+    ta.addEventListener('input', () => {
+      apply(ta.value);
+      const lines = ta.value.split('\n');
+      const bad = [];
+      lines.forEach((l, idx) => {
+        if (!l.trim()) return;
+        const kind = isHarness ? 'harness_filter' : 'model_filter';
+        api('POST', '/api/validate', { kind, expr: l })
+          .then((r) => { if (!r.ok) bad[idx] = r.error; else delete bad[idx]; })
+          .catch(() => {});
+      });
+      err.textContent = '';
+    });
+    wrap.appendChild(ta);
+    wrap.appendChild(err);
+    wrap.appendChild(guiBtn);
+    schedulePreview();
+  }
+
+  function renderRule(r, i, allRows) {
+    const box = document.createElement('div');
+    box.className = 'rule-row';
+    box.draggable = true;
+    box.dataset.idx = i;
+
+    // ── header line: drag handle, action, joiner, ops ──
+    const head = document.createElement('div');
+    head.className = 'rule-head';
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.title = 'Drag to reorder';
+    handle.textContent = '⋮⋮';
+    head.appendChild(handle);
+    const actSel = select([['block', 'Block'], ['allow', 'Allow'], ['only', 'Keep only']], r.action, (v) => { r.action = v; commit(i, allRows); });
+    head.appendChild(actSel);
+    if ((r.conditions || []).length > 1) {
+      head.appendChild(select([['and', 'match ALL (and)'], ['or', 'match ANY (or)']], r.joiner || 'and', (v) => { r.joiner = v; commit(i, allRows); }));
+    }
+    const ops = document.createElement('div');
+    ops.className = 'rule-ops';
+    ops.appendChild(iconBtn('✕', 'Remove this rule', () => { const a = allRows.map(exprOf); a.splice(i, 1); set(a); render(); }));
+    head.appendChild(ops);
+    box.appendChild(head);
+
+    const main = document.createElement('div');
+    main.className = 'rule-main';
+
+    // ── conditions list ──
+    const condsBox = document.createElement('div');
+    condsBox.className = 'rule-conds';
+    (r.conditions || []).forEach((c, ci) => {
+      if (ci > 0) {
+        const j = document.createElement('div');
+        j.className = 'rule-join';
+        j.textContent = (r.joiner || 'and') === 'or' ? 'OR' : 'AND';
+        condsBox.appendChild(j);
+      }
+      condsBox.appendChild(renderCond(c, ci, r.conditions, { parentRule: r, ruleIdx: i, allRows }));
+    });
+    const addCondBar = document.createElement('div');
+    addCondBar.className = 'rule-addcond';
+    const condKind = document.createElement('select');
+    for (const [v, t] of [['provider', 'provider'], ['family', 'family'], ['property', 'property'], ['text', 'expression']]) {
+      const o = document.createElement('option'); o.value = v; o.textContent = '+ ' + t; condKind.appendChild(o);
+    }
+    addCondBar.appendChild(condKind);
+    addCondBar.appendChild(iconBtn('+', 'Add another condition to this rule (chained with the joiner above)', () => {
+      r.conditions.push(freshCond(condKind.value === 'text' ? 'text' : condKind.value));
+      commit(i, allRows);
+      render();
+    }));
+    condsBox.appendChild(addCondBar);
+    main.appendChild(condsBox);
+
+    // ── excepts list ──
+    const excBox = document.createElement('div');
+    excBox.className = 'rule-conds rule-excepts';
+    const excTitle = document.createElement('div');
+    excTitle.className = 'rule-subhead';
+    excTitle.textContent = 'EXCEPT (never match these)';
+    excBox.appendChild(excTitle);
+    (r.excepts || []).forEach((c, ei) => {
+      excBox.appendChild(renderCond(c, ei, r.excepts, { parentRule: r, ruleIdx: i, allRows, isExcept: true }));
+    });
+    const excKind = document.createElement('select');
+    for (const [v, t] of [['family', 'family'], ['provider', 'provider'], ['property', 'property'], ['text', 'expression']]) {
+      const o = document.createElement('option'); o.value = v; o.textContent = '+ except ' + t; excKind.appendChild(o);
+    }
+    const addExcBar = document.createElement('div');
+    addExcBar.className = 'rule-addcond';
+    addExcBar.appendChild(excKind);
+    addExcBar.appendChild(iconBtn('⊟', 'Add an exception — this rule will not match models matching the exception', () => {
+      r.excepts.push(freshCond(excKind.value === 'text' ? 'text' : excKind.value));
+      commit(i, allRows);
+      render();
+    }));
+    excBox.appendChild(addExcBar);
+    if (!(r.excepts || []).length) {
+      const hint = document.createElement('div');
+      hint.className = 'field-note';
+      hint.style.cssText = 'font-size:11px;color:var(--text-3)';
+      hint.textContent = 'No exceptions — add one to carve models out of this rule.';
+      excBox.appendChild(hint);
+    }
+    main.appendChild(excBox);
+
+    // ── harness targeting (harness_filters) ──
+    if (opts.allowHarnessTarget) {
+      const target = document.createElement('div');
+      target.className = 'rule-conds';
+      const tTitle = document.createElement('div');
+      tTitle.className = 'rule-subhead';
+      tTitle.textContent = 'APPLIES TO';
+      target.appendChild(tTitle);
+      const tRow = document.createElement('div');
+      tRow.className = 'rule-cond';
+      HARNESSES.forEach((h) => {
+        const ck = document.createElement('label');
+        ck.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!(r.harnesses && r.harnesses.includes(h));
+        cb.addEventListener('change', () => {
+          r.harnesses = r.harnesses || [];
+          if (cb.checked) { if (!r.harnesses.includes(h)) r.harnesses.push(h); }
+          else r.harnesses = r.harnesses.filter((x) => x !== h);
+          commit(i, allRows);
+        });
+        ck.appendChild(cb); ck.appendChild(document.createTextNode(h));
+        tRow.appendChild(ck);
+      });
+      target.appendChild(tRow);
+      main.appendChild(target);
+    }
+
+    box.appendChild(main);
+
+    // expression preview
+    const foot = document.createElement('div');
+    foot.className = 'rule-foot';
+    const pv = document.createElement('div');
+    pv.className = 'expr-preview';
+    pv.textContent = exprOf(r) || '(empty)';
+    foot.appendChild(pv);
+    box.appendChild(foot);
+    return box;
+  }
+
+  function renderCond(c, ci, list, ctx) {
+    const cond = document.createElement('div');
+    cond.className = 'rule-cond';
+    const r = ctx.parentRule;
+    const commitFn = () => commit(ctx.ruleIdx, ctx.allRows);
+
+    // negate badge for excepts (display-only: excepts are structurally NOT-ed)
+    if (ctx.isExcept) {
+      const nb = document.createElement('span');
+      nb.className = 'not-badge';
+      nb.textContent = 'NOT';
+      cond.appendChild(nb);
+    }
+
+    // kind-specific controls
+    const row = document.createElement('div');
+    row.className = 'cond-row';
+    if (c.kind === 'provider') {
+      row.appendChild(select([...providers.map((p) => [p, p]), ['__custom', 'custom…']], c.provider, (v) => { if (v !== '__custom') { c.provider = v; commitFn(); } }));
+      const globChip = document.createElement('span');
+      globChip.className = 'chip' + (c.glob ? ' on' : '');
+      globChip.textContent = c.glob ? 'everything under' : 'exact';
+      globChip.title = 'Toggle: provider/* vs provider exactly';
+      globChip.style.cursor = 'pointer';
+      globChip.addEventListener('click', () => { c.glob = !c.glob; commitFn(); render(); });
+      row.appendChild(globChip);
+    } else if (c.kind === 'family') {
+      row.appendChild(select([...families.map((f) => [f, f]), ['__custom', 'custom…']], c.family, (v) => { if (v !== '__custom') { c.family = v; commitFn(); } }));
+    } else if (c.kind === 'property') {
+      row.appendChild(select(S.meta.sortFields.map((f) => [f, '$' + f]), c.prop, (v) => { c.prop = v; commitFn(); }));
+      row.appendChild(select([['<', '<'], ['<=', '≤'], ['>', '>'], ['>=', '≥'], ['=', '='], ['!=', '≠']], c.op, (v) => { c.op = v; commitFn(); }));
+      const vin = document.createElement('input');
+      vin.type = 'number';
+      vin.style.width = '110px';
+      vin.value = c.value;
+      vin.addEventListener('input', () => { c.value = vin.value; commitFn(); });
+      row.appendChild(vin);
+    } else if (c.kind === 'topN') {
+      row.appendChild(select([['top', 'Top'], ['bottom', 'Bottom']], c.dir, (v) => { c.dir = v; commitFn(); }));
+      const nin = document.createElement('input');
+      nin.type = 'number';
+      nin.style.width = '80px';
+      nin.value = c.n;
+      nin.addEventListener('input', () => { c.n = Math.max(0, parseInt(nin.value, 10) || 0); commitFn(); });
+      row.appendChild(nin);
+      const ssel = document.createElement('select');
+      ssel.innerHTML = '<option value="">keep catalog order</option>';
+      for (const f of S.meta.sortFields) ssel.innerHTML += '<option value="-' + f + '">by ' + f + ' (desc)</option>';
+      ssel.value = c.sort;
+      ssel.addEventListener('change', () => { c.sort = ssel.value; commitFn(); });
+      row.appendChild(ssel);
+    } else {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.style.flex = '1';
+      inp.value = c.text;
+      inp.placeholder = 'advanced expression (e.g. $input_context<200000)';
+      inp.addEventListener('input', () => { c.text = inp.value; commitFn(); });
+      row.appendChild(inp);
+    }
+
+    // condition-level controls: NOT toggle + kind switch + remove
+    const tail = document.createElement('div');
+    tail.className = 'cond-tail';
+    if (!ctx.isExcept) {
+      const notChip = document.createElement('span');
+      notChip.className = 'chip' + (c.negate ? ' on' : '');
+      notChip.textContent = 'NOT';
+      notChip.title = 'Negate this condition';
+      notChip.style.cursor = 'pointer';
+      notChip.addEventListener('click', () => { c.negate = !c.negate; commitFn(); render(); });
+      tail.appendChild(notChip);
+    }
+    const kindSel = document.createElement('select');
+    kindSel.className = 'cond-kind';
+    kindSel.title = 'Change what this condition matches on';
+    for (const [v, t] of [['provider', 'provider'], ['family', 'family'], ['property', 'property'], ['text', 'expr']]) {
+      const o = document.createElement('option'); o.value = v; o.textContent = t;
+      if (v === c.kind) o.selected = true;
+      kindSel.appendChild(o);
+    }
+    kindSel.addEventListener('change', () => {
+      const nc = freshCond(kindSel.value);
+      nc.negate = c.negate;
+      list[ci] = nc;
+      commitFn();
+      render();
+    });
+    tail.appendChild(kindSel);
+    tail.appendChild(iconBtn('✕', 'Remove this condition', () => { list.splice(ci, 1); commitFn(); render(); }));
+    row.appendChild(tail);
+    cond.appendChild(row);
+    return cond;
+  }
+
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// override builder
+// ===========================================================================
+function overrideBuilder(pathArr, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const HARNESSES = S.meta ? S.meta.harnessIds : ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'];
+  const FIELDS = S.meta ? S.meta.overrideFields : ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'];
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+  wrap.dataset.mode = 'gui';
+
+  function parse(s) {
+    const raw = String(s == null ? '' : s).trim();
+    const arrow = raw.lastIndexOf('->');
+    let targets = null;
+    let body = raw;
+    if (arrow !== -1) { targets = raw.slice(arrow + 2).split(',').map((x) => x.trim()).filter(Boolean); body = raw.slice(0, arrow).trim(); }
+    const m = body.match(/^\(?([A-Za-z_]+)\s*:\s*([^)]+)\)?$/);
+    if (!m) return { field: 'input_context', value: '1000000', targets, raw };
+    return { field: m[1].trim(), value: m[2].trim(), targets, raw };
+  }
+  function build(o) {
+    let out = '(' + o.field + ':' + o.value + ')';
+    if (o.targets && o.targets.length) out += '->' + o.targets.join(',');
+    return out;
+  }
+  // write rows[i] back without re-rendering, so open dropdowns/inputs keep state
+  function commit(i, rows) {
+    const a = get().slice();
+    a[i] = build(rows[i]);
+    set(a);
+    const foot = wrap.querySelectorAll('.rule-foot .expr-preview')[i];
+    if (foot) foot.textContent = a[i];
+  }
+  // HTML5 drag & drop reordering
+  function initDragDrop(box, rows) {
+    let fromIdx = null;
+    box.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      fromIdx = parseInt(row.dataset.idx, 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) { /* IE */ }
+    });
+    box.addEventListener('dragend', () => {
+      const row = box.querySelector('.rule-row.dragging');
+      if (row) row.classList.remove('dragging');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      fromIdx = null;
+    });
+    box.addEventListener('dragover', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.rule-row');
+      box.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      if (row && parseInt(row.dataset.idx, 10) !== fromIdx) row.classList.add('drag-over');
+    });
+    box.addEventListener('drop', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const toIdx = parseInt(row.dataset.idx, 10);
+      if (toIdx === fromIdx || isNaN(toIdx)) return;
+      const moved = rows.splice(fromIdx, 1)[0];
+      rows.splice(toIdx, 0, moved);
+      set(rows.map(build));
+      render();
+    });
+  }
+  function render() {
+    wrap.innerHTML = '';
+    const rows = get().map(parse);
+    if ((wrap.dataset.mode || 'gui') === 'raw') return renderRaw(rows);
+
+    const box = document.createElement('div');
+    box.style.flex = '1';
+    wrap.appendChild(box);
+    if (!rows.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = opts.emptyText || '(no overrides)'; box.appendChild(e); }
+    rows.forEach((row, i) => {
+      const rbox = document.createElement('div');
+      rbox.className = 'rule-row';
+      rbox.draggable = true;
+      rbox.dataset.idx = i;
+      const main = document.createElement('div');
+      main.className = 'rule-main';
+      const head = document.createElement('div');
+      head.className = 'rule-head';
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.title = 'Drag to reorder';
+      handle.textContent = '⋮⋮';
+      head.appendChild(handle);
+      const fLab = document.createElement('span');
+      fLab.className = 'inline-lab';
+      fLab.textContent = 'set';
+      head.appendChild(fLab);
+      const fsel = select(FIELDS.map((f) => [f, f]), row.field, (v) => { row.field = v; commit(i, rows); });
+      head.appendChild(fsel);
+      const vLab = document.createElement('span');
+      vLab.className = 'inline-lab';
+      vLab.textContent = 'to';
+      head.appendChild(vLab);
+      const vin = document.createElement('input');
+      vin.type = 'text';
+      vin.className = 'ovr-value';
+      vin.placeholder = 'value';
+      vin.value = row.value;
+      vin.addEventListener('input', () => { row.value = vin.value; commit(i, rows); });
+      head.appendChild(vin);
+      const ops = document.createElement('div');
+      ops.className = 'rule-ops';
+      const del = document.createElement('button');
+      del.className = 'icon-btn';
+      del.innerHTML = '✕';
+      del.title = 'Remove this override';
+      del.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
+      ops.appendChild(del);
+      head.appendChild(ops);
+      main.appendChild(head);
+      // target harnesses
+      const target = document.createElement('div');
+      target.className = 'rule-cond ovr-targets';
+      const tLab = document.createElement('span');
+      tLab.className = 'inline-lab';
+      tLab.textContent = 'applies to';
+      tLab.title = 'Leave all unchecked to apply to every harness';
+      target.appendChild(tLab);
+      HARNESSES.forEach((h) => {
+        const ck = document.createElement('label');
+        ck.className = 'ovr-h';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!(row.targets && row.targets.includes(h));
+        cb.addEventListener('change', () => {
+          row.targets = row.targets || [];
+          if (cb.checked) { if (!row.targets.includes(h)) row.targets.push(h); }
+          else row.targets = row.targets.filter((x) => x !== h);
+          commit(i, rows);
+        });
+        ck.appendChild(cb); ck.appendChild(document.createTextNode(h));
+        target.appendChild(ck);
+      });
+      main.appendChild(target);
+      rbox.appendChild(main);
+      const foot = document.createElement('div');
+      foot.className = 'rule-foot';
+      const pv = document.createElement('div');
+      pv.className = 'expr-preview';
+      pv.textContent = build(row);
+      foot.appendChild(pv);
+      rbox.appendChild(foot);
+      box.appendChild(rbox);
+    });
+    initDragDrop(box, rows);
+    const add = document.createElement('div');
+    add.className = 'add-row';
+    add.style.marginTop = '8px';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn small';
+    addBtn.textContent = '+ add override';
+    addBtn.addEventListener('click', () => {
+      set(get().concat([build({ field: 'input_context', value: '1000000', targets: null })]));
+      render();
+    });
+    add.appendChild(addBtn);
+    const rawBtn = document.createElement('button');
+    rawBtn.className = 'icon-btn';
+    rawBtn.innerHTML = '✎';
+    rawBtn.title = 'Manual mode — type override directives by hand';
+    rawBtn.addEventListener('click', () => { wrap.dataset.mode = 'raw'; render(); });
+    add.appendChild(rawBtn);
+    wrap.appendChild(add);
+    const note = document.createElement('div');
+    note.className = 'field-note';
+    note.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px';
+    note.textContent = opts.note || '';
+    wrap.appendChild(note);
+  }
+  function renderRaw(rows) {
+    const label = document.createElement('div');
+    label.className = 'field-note';
+    label.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:4px';
+    label.textContent = 'One directive per line: (field:value) or (field:value)->t3,dsh — e.g. (input_context:1000000)->t3,dsh';
+    wrap.appendChild(label);
+    const ta = document.createElement('textarea');
+    ta.className = 'raw-expr';
+    ta.spellcheck = false;
+    ta.value = rows.map((r) => r.raw).join('\n');
+    const guiBtn = document.createElement('button');
+    guiBtn.className = 'icon-btn';
+    guiBtn.style.marginTop = '4px';
+    guiBtn.innerHTML = '☰';
+    guiBtn.title = 'Back to dropdown mode';
+    guiBtn.addEventListener('click', () => {
+      set(ta.value.split('\n').map((l) => l.trim()).filter(Boolean));
+      wrap.dataset.mode = 'gui';
+      render();
+    });
+    ta.addEventListener('input', () => {
+      set(ta.value.split('\n').map((l) => l.trim()).filter(Boolean));
+    });
+    wrap.appendChild(ta);
+    wrap.appendChild(guiBtn);
+  }
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// custom models table
+// ===========================================================================
+function customModelsTable() {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  function render() {
+    wrap.innerHTML = '';
+    const arr = S.effective.custom_models || [];
+    const table = document.createElement('table');
+    table.className = 'mini';
+    table.innerHTML = '<thead><tr><th>id</th><th>input ctx</th><th>output ctx</th><th>vision</th><th>reasoning</th><th>tool</th><th></th></tr></thead>';
+    const tbody = table.createTBody();
+    arr.forEach((m, i) => {
+      const tr = tbody.insertRow();
+      const tdId = tr.insertCell();
+      const idIn = document.createElement('input');
+      idIn.type = 'text';
+      idIn.value = m.id || '';
+      idIn.placeholder = 'provider/model';
+      idIn.style.width = '220px';
+      idIn.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], id: idIn.value }; S.effective.custom_models = a; setDirty(true); });
+      tdId.appendChild(idIn);
+      for (const col of ['in', 'out']) {
+        const td = tr.insertCell();
+        const n = document.createElement('input');
+        n.type = 'number';
+        n.value = m[col] == null ? '' : m[col];
+        n.style.width = '90px';
+        n.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: n.value === '' ? 0 : parseInt(n.value, 10) }; S.effective.custom_models = a; setDirty(true); });
+        td.appendChild(n);
+      }
+      for (const col of ['vision', 'reasoning', 'tool']) {
+        const td = tr.insertCell();
+        const sel = document.createElement('select');
+        sel.innerHTML = '<option value="1">1 — yes</option><option value="0">0 — no</option><option value="-1">-1 — unknown</option>';
+        sel.value = String(m[col] == null ? 1 : m[col]);
+        sel.addEventListener('change', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: parseInt(sel.value, 10) }; S.effective.custom_models = a; setDirty(true); });
+        td.appendChild(sel);
+      }
+      const tdDel = tr.insertCell();
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.addEventListener('click', () => { S.effective.custom_models = S.effective.custom_models.filter((_, j) => j !== i); setDirty(true); render(); });
+      tdDel.appendChild(del);
+    });
+    wrap.appendChild(table);
+    const add = document.createElement('button');
+    add.className = 'btn small table-add';
+    add.textContent = '+ add custom model';
+    add.addEventListener('click', () => {
+      S.effective.custom_models = (S.effective.custom_models || []).concat([{ id: '', in: 200000, out: 8192, vision: 1, reasoning: 1, tool: 1 }]);
+      setDirty(true); render();
+    });
+    wrap.appendChild(add);
+  }
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// t3 drivers table
+// ===========================================================================
+function driverTable(pathArr, title) {
+  const wrap = document.createElement('div');
+  wrap.style.marginBottom = '14px';
+  const lab = document.createElement('div');
+  lab.style.cssText = 'color:var(--text-3);font-size:12px;margin-bottom:6px';
+  lab.textContent = title;
+  wrap.appendChild(lab);
+  const render = () => {
+    wrap.querySelector('table')?.remove();
+    const arr = getAt(S.effective, pathArr) || [];
+    const table = document.createElement('table');
+    table.className = 'mini';
+    table.innerHTML = '<thead><tr><th>driver</th><th>[1m]</th><th></th></tr></thead>';
+    const tbody = table.createTBody();
+    arr.forEach((item, i) => {
+      const tr = tbody.insertRow();
+      const tdD = tr.insertCell();
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = item.driver || '';
+      input.placeholder = 'driver';
+      input.style.width = '200px';
+      input.addEventListener('input', () => { const a = getAt(S.effective, pathArr).slice(); a[i] = { ...a[i], driver: input.value }; setAt(pathArr, a); setDirty(true); });
+      tdD.appendChild(input);
+      const tdM = tr.insertCell();
+      const t = toggle([...pathArr, i, '1m']);
+      tdM.appendChild(t);
+      const tdX = tr.insertCell();
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.addEventListener('click', () => { const a = getAt(S.effective, pathArr).slice(); a.splice(i, 1); setAt(pathArr, a); setDirty(true); render(); });
+      tdX.appendChild(del);
+    });
+    wrap.appendChild(table);
+    const add = document.createElement('button');
+    add.className = 'btn small table-add';
+    add.textContent = '+ add driver';
+    add.addEventListener('click', () => { const a = (getAt(S.effective, pathArr) || []).concat([{ driver: '', '1m': false }]); setAt(pathArr, a); setDirty(true); render(); });
+    wrap.appendChild(add);
+  };
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// adapter select (dropdown of known adapters + custom)
+// ===========================================================================
+const KNOWN_ADAPTERS = ['@ai-sdk/openai-compatible', 'openai-completions', 'openai-compatible', 'openai-chat', 'anthropic-messages', 'openai-responses'];
+function adapterList(pathArr) {
+  const wrap = document.createElement('div');
+  wrap.className = 'adapter-wrap';
+  wrap.style.flex = '1';
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+  function render() {
+    wrap.innerHTML = '';
+    const arr = get();
+    if (!arr.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = '(none)'; wrap.appendChild(e); }
+    arr.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'rule-head adapter-row';
+      const sel = document.createElement('select');
+      sel.innerHTML = KNOWN_ADAPTERS.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('') + '<option value="__custom">custom…</option>';
+      if (KNOWN_ADAPTERS.includes(item)) sel.value = item;
+      else sel.value = '__custom';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = KNOWN_ADAPTERS.includes(item) ? '' : item;
+      inp.placeholder = 'adapter string';
+      inp.style.display = KNOWN_ADAPTERS.includes(item) ? 'none' : '';
+      inp.addEventListener('input', () => { const a = get().slice(); a[i] = inp.value; set(a); });
+      // one handler: the __custom branch must NOT re-render, or it would destroy the
+      // node whose input we just revealed
+      sel.addEventListener('change', () => {
+        const custom = sel.value === '__custom';
+        inp.style.display = custom ? '' : 'none';
+        if (custom) { inp.focus(); return; }
+        const a = get().slice(); a[i] = sel.value; set(a); render();
+      });
+      const del = document.createElement('button');
+      del.className = 'btn small ghost'; del.textContent = '✕';
+      del.title = 'Remove this adapter';
+      del.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
+      // .rule-ops so the existing `.rule-head .rule-ops { margin-left: auto }` pushes
+      // the ✕ to the far right of the same row
+      const ops = document.createElement('div');
+      ops.className = 'rule-ops';
+      ops.appendChild(del);
+      row.appendChild(sel); row.appendChild(inp); row.appendChild(ops);
+      wrap.appendChild(row);
+    });
+    const add = document.createElement('button');
+    add.className = 'btn small table-add';
+    add.textContent = '+ add adapter';
+    add.addEventListener('click', () => { set(get().concat([KNOWN_ADAPTERS[0]])); render(); });
+    wrap.appendChild(add);
+  }
+  render();
+  return wrap;
+}
+
+// ===========================================================================
+// path field with file browser
+// ===========================================================================
+function pathField(pathArr) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  wrap.style.display = 'flex';
+  wrap.style.gap = '8px';
+  const input = textField(pathArr);
+  input.classList.add('grow');
+  input.dataset.pathArr = JSON.stringify(pathArr);
+  wrap.appendChild(input);
+  const browse = document.createElement('button');
+  browse.className = 'btn small';
+  browse.textContent = 'Browse…';
+  browse.addEventListener('click', () => openFileBrowser(input, pathArr));
+  wrap.appendChild(browse);
+  return wrap;
+}
+
+function openFileBrowser(input, pathArr) {
+  let cur = '~';
+  const root = $('#modal-root');
+  root.innerHTML = '';
+  const back = document.createElement('div');
+  back.className = 'modal-backdrop';
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  const pathEl = document.createElement('span');
+  pathEl.className = 'path';
+  const close = document.createElement('button');
+  close.className = 'close'; close.textContent = '✕';
+  close.addEventListener('click', () => root.innerHTML = '');
+  head.appendChild(pathEl); head.appendChild(close);
+  const body = document.createElement('div');
+  body.className = 'modal-body';
+  const foot = document.createElement('div');
+  foot.className = 'modal-foot';
+  const val = document.createElement('input');
+  val.type = 'text';
+  foot.appendChild(val);
+  const useBtn = document.createElement('button');
+  useBtn.className = 'btn primary small';
+  useBtn.textContent = 'Use this path';
+  useBtn.addEventListener('click', () => {
+    input.value = val.value;
+    setAt(pathArr, val.value);
+    setDirty(true);
+    root.innerHTML = '';
+  });
+  foot.appendChild(useBtn);
+  modal.appendChild(head); modal.appendChild(body); modal.appendChild(foot);
+  back.appendChild(modal);
+  root.appendChild(back);
+
+  async function load(dir) {
+    cur = dir;
+    pathEl.textContent = dir;
+    val.value = dir;
+    body.innerHTML = '';
+    try {
+      const r = await api('GET', '/api/browse?dir=' + encodeURIComponent(dir));
+      pathEl.textContent = r.dir;
+      val.value = r.dir;
+      if (r.parent) {
+        const up = document.createElement('div');
+        up.className = 'modal-row dir';
+        up.innerHTML = '<span class="ic">↰</span><span class="nm">.. (up)</span>';
+        up.addEventListener('click', () => load(r.parent));
+        body.appendChild(up);
+      }
+      for (const d of r.dirs) {
+        const row = document.createElement('div');
+        row.className = 'modal-row dir';
+        row.innerHTML = '<span class="ic">▸</span><span class="nm"></span>';
+        row.querySelector('.nm').textContent = d;
+        row.addEventListener('click', () => load(r.dir + '/' + d));
+        body.appendChild(row);
+      }
+      for (const f of r.files) {
+        const row = document.createElement('div');
+        row.className = 'modal-row file';
+        row.innerHTML = '<span class="ic">·</span><span class="nm"></span>';
+        row.querySelector('.nm').textContent = f;
+        row.addEventListener('click', () => { val.value = r.dir + '/' + f; });
+        body.appendChild(row);
+      }
+      if (!r.dirs.length && !r.files.length && !r.parent) {
+        const e = document.createElement('div');
+        e.className = 'modal-error';
+        e.textContent = r.error || 'Folder is empty';
+        body.appendChild(e);
+      }
+    } catch (e) {
+      const err = document.createElement('div');
+      err.className = 'modal-error';
+      err.textContent = e.message;
+      body.appendChild(err);
+    }
+  }
+  load(cur);
+}
+
+// ===========================================================================
+// config UI assembly
+// ===========================================================================
+// Which config paths each sidebar section owns — used by the per-section
+// "reset to defaults" button.
+const SECTION_KEYS = {
+  general: [['cli'], ['fetch'], ['follow_hardcoded_model_template'], ['cleanup_default'], ['cleanup_providers']],
+  paths: [['paths']],
+  targets: [['targets']],
+  filters: [['model_sort'], ['model_filters']],
+  'harness-filters': [['harness_filters'], ['raw_catalog_harnesses'], ['show_harness_model_list']],
+  overrides: [['invalid_value_overrides'], ['always_overrides']],
+  capabilities: [['capabilities']],
+  adapters: [['opencode'], ['kilo'], ['pi'], ['zcode'], ['opencodex'], ['dsh']],
+  t3: [['t3']],
+  'custom-models': [['custom_models']],
+  commands: [['custom_commands']],
+};
+
+function resetSection(name) {
+  const keys = SECTION_KEYS[name];
+  if (!keys) return;
+  keys.forEach((pathArr) => setAt(pathArr, deepClone(getAt(S.defaults, pathArr))));
+  setDirty(true);
+  rebuildConfig();
+  showSection(name);
+  toast('Section reset to defaults', 'Save changes to write it to disk');
+}
+
+function buildConfigUI() {
+  const root = $('#config-root');
+  root.innerHTML = '';
+  const secs = {
+    general: buildGeneral,
+    paths: buildPaths,
+    targets: buildTargets,
+    filters: buildFilters,
+    'harness-filters': buildHarnessFilters,
+    overrides: buildOverrides,
+    capabilities: buildCapabilities,
+    adapters: buildAdapters,
+    t3: buildT3,
+    'custom-models': buildCustomModels,
+    commands: buildCommands,
+  };
+  for (const [name, fn] of Object.entries(secs)) {
+    const div = document.createElement('div');
+    div.className = 'section';
+    div.id = 'sec-' + name;
+    const bar = document.createElement('div');
+    bar.className = 'section-bar';
+    const rst = document.createElement('button');
+    rst.className = 'icon-btn';
+    rst.innerHTML = '↺';
+    rst.title = 'Reset this section to defaults';
+    rst.addEventListener('click', () => resetSection(name));
+    bar.appendChild(rst);
+    div.appendChild(bar);
+    div.appendChild(fn());
+    root.appendChild(div);
+  }
+  $('#config-loading').style.display = 'none';
+  $('#config-root').style.display = '';
+}
+
+function currentSection() {
+  return $('#config-nav .nav-item.active')?.dataset.sec || 'general';
+}
+function showSection(name) {
+  $$('#config-root .section').forEach((s) => s.classList.remove('active'));
+  const el = $('#sec-' + name);
+  if (el) el.classList.add('active');
+  $$('#config-nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.sec === name));
+}
+
+function buildGeneral() {
+  const c = card('General', 'Command registration, model endpoint, cleanup, and template behavior.');
+  c.appendChild(fieldRow('Install as command', 'Auto-register a global command on every run', toggle(['cli', 'install_as_command']), ['cli', 'install_as_command']));
+  c.appendChild(fieldRow('Command name', '', textField(['cli', 'command_name']), ['cli', 'command_name']));
+  c.appendChild(fieldRow('Models endpoint', 'Full URL for the model list; leave empty to use {base_url}/models from the Router row', textField(['fetch', 'models_endpoint'], '') , ['fetch', 'models_endpoint']));
+  c.appendChild(fieldRow('Hardcoded model template', 'Emit the full hardcoded model template into OpenCode/Kilo blocks', toggle(['follow_hardcoded_model_template']), ['follow_hardcoded_model_template']));
+  c.appendChild(fieldRow('Cleanup by default', 'Default for the cleanup step (CLI --clean/--noclean)', toggle(['cleanup_default']), ['cleanup_default']));
+  c.appendChild(fieldRow('Remove if provider disabled', 'Prune c-* keys whose provider is disabled in providers.csv', toggle(['cleanup_providers', 'remove_if_false_provider']), ['cleanup_providers', 'remove_if_false_provider']));
+  c.appendChild(fieldRow('Remove if provider missing', 'Prune c-* keys whose provider no longer exists', toggle(['cleanup_providers', 'remove_if_provider_doesnt_exist']), ['cleanup_providers', 'remove_if_provider_doesnt_exist']));
+  return c;
+}
+
+function buildPaths() {
+  const c = card('Paths', 'Where catalog files and each harness’s config live. Relative paths resolve next to the script; ~ means your home directory.');
+  for (const key of ['models_csv', 'providers_csv', 'all_models_csv', 'harness_models_file', 'opencode_file', 'kilo_file', 't3_data_dir', 't3_settings_file', 't3_logs_dir', 'dsh_settings_file', 'dsh_credentials_file', 'pi_file', 'zcode_file', 'opencodex_file']) {
+    c.appendChild(fieldRow(fieldLabel(key), '', pathField(['paths', key]), ['paths', key]));
+  }
+  return c;
+}
+
+function buildTargets() {
+  const c = card('Sync targets', 'Which config blocks omnilist writes on each run. Router = the gateway provider block; REST = per-provider c-* blocks.');
+  const grid = document.createElement('div');
+  grid.className = 'target-grid';
+  const keys = S.defaults.targets ? Object.keys(S.defaults.targets) : Object.keys(S.effective.targets || {});
+  for (const key of keys) {
+    const item = document.createElement('div');
+    item.className = 'target-item' + (getAt(S.effective, ['targets', key]) ? ' on' : '');
+    const harness = key.replace(/_(router|rest)$/, '').replace(/_/g, ' ');
+    const kind = key.endsWith('_router') ? 'Router block' : key === 'kilo_copy_opencode_full_provider_block' ? 'Copy from OpenCode' : 'REST providers';
+    item.innerHTML = '<span class="name">' + esc(harness) + '<small>' + esc(kind) + '</small></span>';
+    const t = toggle(['targets', key]);
+    item.addEventListener('click', (e) => { if (!e.target.closest('.toggle')) t.click(); });
+    item.appendChild(t);
+    grid.appendChild(item);
+  }
+  c.appendChild(grid);
+  return c;
+}
+
+function buildFilters() {
+  const c = card('Catalog & filters', 'The order of the filtered pipeline, and the fetch-time model rules. Rules run top to bottom — the last matching rule wins.');
+  c.appendChild(fieldRow('Model sort', 'Primary sort order for models-filtered.csv and every harness config', sortBuilder(['model_sort']), ['model_sort']));
+  const fg = document.createElement('div');
+  fg.className = 'card';
+  fg.style.cssText = 'border:none;padding:0;margin-top:6px';
+  const h = document.createElement('h3');
+  h.textContent = 'Model filters';
+  const d = document.createElement('p');
+  d.className = 'card-desc';
+  d.textContent = 'Rules are written by hand, one expression per block — drag blocks to reorder. Rules run top to bottom; the last matching rule wins.';
+  fg.appendChild(h); fg.appendChild(d);
+  fg.appendChild(manualBlockBuilder(['model_filters'], { isHarness: false, emptyText: 'No rules — every model passes through.', placeholder: 'e.g. !(kc/* && !*free), *glm*, !$input_context<200000' }));
+  c.appendChild(fg);
+  return c;
+}
+
+function buildHarnessFilters() {
+  const c = card('Harness filters', 'Second-stage filters applied at sync time on top of models-filtered.csv. Written by hand, one expression per block — drag blocks to reorder. Suffix "->t3,dsh" targets only those harnesses; a bare rule applies to all.');
+  c.appendChild(manualBlockBuilder(['harness_filters'], { isHarness: true, emptyText: 'No harness filters.', placeholder: 'e.g. !(kc/* && !*free)->t3,dsh or (top100:-input_context)->dsh' }));
+  c.appendChild(fieldRow('Raw catalog harnesses', 'These harnesses read models-all.csv (raw, unfiltered) instead of models-filtered.csv', harnessChips(['raw_catalog_harnesses']), ['raw_catalog_harnesses']));
+  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'raw — only raw_catalog_harnesses'], ['all', 'all — every synced harness'], ['configured', 'configured — only harness_filters targets'], ['none', 'none — never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
+  return c;
+}
+
+function harnessChips(pathArr) {
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+  const HARNESSES = S.meta ? S.meta.harnessIds : ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'];
+  const render = () => {
+    wrap.innerHTML = '';
+    const arr = getAt(S.effective, pathArr) || [];
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    HARNESSES.forEach((h) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip' + (arr.includes(h) ? ' on' : '');
+      chip.textContent = h;
+      chip.addEventListener('click', () => {
+        const a = getAt(S.effective, pathArr) || [];
+        const n = a.includes(h) ? a.filter((x) => x !== h) : a.concat([h]);
+        setAt(pathArr, n); setDirty(true); render();
+      });
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+  };
+  render();
+  return wrap;
+}
+
+function buildOverrides() {
+  const c = card('Field overrides', 'Rewrite model fields at sync time (CSV files keep the raw router values). Later directives win.');
+  const g1 = card('Invalid-value overrides', 'Rewrite only when the current value is invalid (zero/negative, or empty id).');
+  g1.appendChild(overrideBuilder(['invalid_value_overrides'], { emptyText: 'No invalid-value overrides.' }));
+  c.appendChild(g1);
+  const g2 = card('Always overrides', 'Rewrite the field unconditionally.');
+  g2.appendChild(overrideBuilder(['always_overrides'], { emptyText: 'No always-overrides.' }));
+  c.appendChild(g2);
+  return c;
+}
+
+function buildCapabilities() {
+  const c = card('Capabilities', 'Which router model fields are checked for each capability, and what to assume when a router reports no data.');
+  for (const cap of ['vision', 'reasoning', 'tool']) {
+    c.appendChild(fieldRow(cap, 'Fields probed on each router model', listEditor(['capabilities', 'fields', cap], { placeholder: 'field name', emptyText: '(no fields probed)' }), ['capabilities', 'fields', cap]));
+  }
+  for (const cap of ['vision', 'reasoning', 'tool']) {
+    c.appendChild(fieldRow('Assume ' + cap + ' when unknown', 'Used when the router reports no data for this capability', toggle(['capabilities', 'n_a_defaults', cap]), ['capabilities', 'n_a_defaults', cap]));
+  }
+  return c;
+}
+
+function buildAdapters() {
+  const c = card('Adapters', 'The adapter each harness uses for the Router block and per-provider REST blocks.');
+  for (const h of ['opencode', 'kilo', 'pi', 'zcode', 'opencodex', 'dsh']) {
+    const sub = card(h.toUpperCase(), '');
+    sub.appendChild(fieldRow('Router adapters', '', adapterList([h, 'router_adapters']), [h, 'router_adapters']));
+    sub.appendChild(fieldRow('REST adapters', '', adapterList([h, 'rest_adapters']), [h, 'rest_adapters']));
+    if (h === 'dsh') {
+      sub.appendChild(fieldRow('Model inputs', 'How DSH lists model inputs', select([['hardcode', 'hardcode'], ['vision', 'vision'], ['custom', 'custom array…']], getAt(S.effective, ['dsh', 'model_inputs']), (v) => { setAt(['dsh', 'model_inputs'], v); setDirty(true); }), ['dsh', 'model_inputs']));
+    }
+    c.appendChild(sub);
+  }
+  return c;
+}
+
+function buildT3() {
+  const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider instances, plus how each driver is launched.');
+  c.appendChild(driverTable(['t3', 'router_drivers'], 'Router drivers'));
+  c.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
+  c.appendChild(fieldRow('Driver strategy', 'How each driver receives its key/URL', rawJson(['t3', 'driver_strategy'], 'driver_strategy'), ['t3', 'driver_strategy']));
+  return c;
+}
+
+function buildCustomModels() {
+  const c = card('Custom models', 'Models injected into the pipeline that are never filtered out. in/out are context sizes; capabilities: 1 = yes, 0 = no, -1 = unknown.');
+  c.appendChild(customModelsTable());
+  return c;
+}
+
+function buildCommands() {
+  const c = card('Commands & advanced', 'Post-sync commands, plus the raw JSON escape hatch for the entire config.');
+  c.appendChild(fieldRow('Custom commands', 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.', listEditor(['custom_commands'], { placeholder: 'e.g. ocx sync', emptyText: 'No custom commands.' }), ['custom_commands']));
+  c.appendChild(fieldRow('Entire config (raw JSON)', 'Anything the forms don’t cover can be edited here as JSON', rawJson([], 'entire config'), null));
+  return c;
+}
+
+function rawJson(pathArr, title) {
+  const wrap = document.createElement('details');
+  wrap.style.flex = '1';
+  wrap.style.cssText = 'width:100%';
+  const summary = document.createElement('summary');
+  summary.textContent = title;
+  summary.style.cssText = 'cursor:pointer;color:var(--text-3);font-size:12px';
+  wrap.appendChild(summary);
+  const ta = document.createElement('textarea');
+  ta.value = JSON.stringify(getAt(S.effective, pathArr), null, 2);
+  ta.spellcheck = false;
+  ta.style.cssText = 'width:100%;min-height:180px;margin-top:8px;font-family:var(--mono);font-size:12px;background:var(--panel-2)';
+  const err = document.createElement('div');
+  err.style.cssText = 'color:var(--danger);font-size:11px;margin-top:4px';
+  wrap.appendChild(ta);
+  wrap.appendChild(err);
+  ta.addEventListener('input', () => {
+    try {
+      const v = JSON.parse(ta.value);
+      setAt(pathArr, v);
+      err.textContent = '';
+      setDirty(true);
+    } catch (e) { err.textContent = e.message; }
+  });
+  return wrap;
+}
+
+// ===========================================================================
+// rebuild + tabs
+// ===========================================================================
+function rebuildConfig() {
+  buildConfigUI();
+  showSection(currentSection());
+}
+
+function showTab(name) {
+  $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  $('#config-nav').style.display = name === 'config' ? '' : 'none';
+  $('#config-content').style.display = name === 'config' ? '' : 'none';
+  $('#tab-run').style.display = name === 'run' ? '' : 'none';
+  $('#tab-models').style.display = name === 'models' ? '' : 'none';
+  if (name === 'models') loadModels();
+}
+
+// ===========================================================================
+// run console (SSE)
+// ===========================================================================
+function setRunStatus(state, text) {
+  const el = $('#run-status');
+  el.className = 'run-status ' + state;
+  el.textContent = text;
+}
+function appendLine(line) {
+  const c = $('#console');
+  const span = document.createElement('span');
+  span.className = 'ln ' + (line.stream === 'err' ? 'err' : line.stream === 'meta' ? 'meta' : '');
+  span.textContent = line.text;
+  c.appendChild(span);
+  c.scrollTop = c.scrollHeight;
+}
+function connectSSE() {
+  const es = new EventSource('/api/run/stream');
+  es.addEventListener('log', (e) => appendLine(JSON.parse(e.data)));
+  es.addEventListener('done', (e) => {
+    const { code } = JSON.parse(e.data);
+    setRunButtons(false);
+    setRunStatus(code === 0 ? 'ok' : 'fail', code === 0 ? '✓ Finished — exit 0' : '✗ Finished — exit ' + code);
+    appendLine({ stream: 'meta', text: '— exit ' + code + ' —' });
+  });
+  api('GET', '/api/run/status').then((st) => {
+    if (!st.hasRun) return;
+    setRunButtons(st.active);
+    setRunStatus(st.active ? 'running' : st.exitCode === 0 ? 'ok' : 'fail', st.active ? '▶ ' + st.cmdline + ' (in progress)' : (st.exitCode === 0 ? '✓ Finished — exit 0' : '✗ Finished — exit ' + st.exitCode));
+  }).catch(() => {});
+}
+function setRunButtons(active) {
+  $('#stop-btn').disabled = !active;
+  $$('#tab-run .run-actions button:not(#stop-btn)').forEach((b) => (b.disabled = active));
+}
+async function startRun(targets) {
+  if (dirty) { toast('You have unsaved changes', 'Save first — runs use the config on disk.', true); return; }
+  try {
+    const r = await api('POST', '/api/run', { targets, minInput: $('#run-mi').value, minOutput: $('#run-mo').value });
+    setRunButtons(true);
+    $('#console').innerHTML = '';
+    setRunStatus('running', '▶ ' + r.cmdline);
+    appendLine({ stream: 'meta', text: '$ ' + r.cmdline });
+  } catch (e) { toast('Run failed', e.message, true); }
+}
+
+// ===========================================================================
+// models tab
+// ===========================================================================
+function formatNum(n) {
+  const v = parseFloat(n);
+  if (isNaN(v)) return n;
+  return v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'k' : String(v);
+}
+let modelsCache = null;
+async function loadModels() {
+  const which = $('#models-which').value;
+  try {
+    const r = await api('GET', '/api/models?file=' + which);
+    const wrap = $('#models-table-wrap');
+    wrap.innerHTML = '';
+    $('#models-path').textContent = r.path ? 'Source: ' + r.path : '';
+    if (!r.exists) {
+      const p = document.createElement('p');
+      p.className = 'missing-note';
+      p.textContent = 'File not found yet — run "Fetch" in the Run tab first.';
+      wrap.appendChild(p);
+      $('#models-count').textContent = '';
+      loadProviders();
+      return;
+    }
+    modelsCache = r.rows;
+    renderModelsTable(r.rows);
+    $('#models-count').textContent = r.rows.length + ' models';
+  } catch (e) { toast('Failed to load models', e.message, true); }
+  loadProviders();
+}
+function renderModelsTable(rows) {
+  const wrap = $('#models-table-wrap');
+  wrap.innerHTML = '';
+  const search = $('#models-search').value.trim().toLowerCase();
+  let data = search ? rows.filter((r) => (r.id || '').toLowerCase().includes(search)) : rows.slice();
+  const { key, dir } = S.modelsSort;
+  data.sort((a, b) => {
+    const av = parseFloat(a[key]), bv = parseFloat(b[key]);
+    if (!isNaN(av) && !isNaN(bv)) return (av - bv) * dir;
+    return String(a[key]).localeCompare(String(b[key])) * dir;
+  });
+  const table = document.createElement('table');
+  table.className = 'models';
+  const thead = table.createTHead();
+  const hr = thead.insertRow();
+  for (const col of ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool']) {
+    const th = document.createElement('th');
+    th.textContent = col + (col === key ? (dir === 1 ? ' ▲' : ' ▼') : '');
+    th.addEventListener('click', () => {
+      if (S.modelsSort.key === col) S.modelsSort.dir *= -1;
+      else S.modelsSort = { key: col, dir: col === 'id' ? 1 : -1 };
+      renderModelsTable(rows);
+    });
+    hr.appendChild(th);
+  }
+  const tbody = table.createTBody();
+  const frag = document.createDocumentFragment();
+  for (const m of data) {
+    const tr = document.createElement('tr');
+    const tdId = document.createElement('td');
+    tdId.textContent = m.id;
+    tr.appendChild(tdId);
+    for (const col of ['input_context', 'output_context']) {
+      const td = document.createElement('td');
+      td.className = 'num';
+      td.textContent = formatNum(m[col]);
+      tr.appendChild(td);
+    }
+    for (const col of ['vision', 'reasoning', 'tool']) {
+      const td = document.createElement('td');
+      const v = String(m[col]);
+      td.innerHTML = v === '1' ? '<span class="cap y">yes</span>' : v === '0' ? '<span class="cap n">no</span>' : '<span class="cap na">n/a</span>';
+      tr.appendChild(td);
+    }
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+  wrap.appendChild(table);
+}
+async function loadProviders() {
+  try {
+    const r = await api('GET', '/api/providers');
+    const wrap = $('#providers-table-wrap');
+    wrap.innerHTML = '';
+    $('#providers-path').textContent = r.path ? 'Source: ' + r.path : '';
+    if (!r.exists) {
+      wrap.innerHTML = '<p class="missing-note">providers.csv not found — the first terminal run will prompt for the Router URL + key.</p>';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'mini providers';
+    table.innerHTML = '<thead><tr><th>Provider</th><th>Base URL</th><th>API key</th><th></th></tr></thead>';
+    const tbody = table.createTBody();
+    for (const p of r.rows) {
+      const tr = tbody.insertRow();
+      tr.insertCell().textContent = p.provider;
+      tr.insertCell().textContent = p.base_url;
+      tr.insertCell().textContent = p.api_key;
+      const td = tr.insertCell();
+      if (p.isRouter) td.innerHTML = '<span class="router-tag">Router</span>';
+    }
+    wrap.appendChild(table);
+  } catch (e) { /* optional */ }
+}
+
+// ===========================================================================
+// init
+// ===========================================================================
+async function init() {
+  try {
+    const [cfg, meta] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/meta')]);
+    S.defaults = cfg.defaults;
+    S.base = cfg.base;
+    S.local = cfg.local || {};
+    S.effective = cfg.effective;
+    S.saved = deepClone(cfg.effective);
+    S.writeTarget = cfg.writeTarget;
+    S.localExists = cfg.localExists;
+    S.meta = meta;
+    $('#write-target').innerHTML = 'saving to <b>' + esc(cfg.writeTarget.split(/[\\/]/).pop()) + '</b>';
+    buildConfigUI();
+    showSection('general');
+  } catch (e) {
+    const el = $('#config-loading');
+    el.textContent = 'Could not reach the omnilist server: ' + e.message;
+    el.style.cssText = 'color:var(--danger);padding:60px;text-align:center';
+    const hint = document.createElement('div');
+    hint.style.cssText = 'color:var(--text-3);font-size:13px;margin-top:12px';
+    hint.innerHTML = 'Open this page through the server, e.g. <code>http://127.0.0.1:47613/</code> — run <code>omnilist gui</code> in a terminal to start it.';
+    el.appendChild(hint);
+    return;
+  }
+  connectSSE();
+}
+
+$$('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+$('#config-nav').addEventListener('click', (e) => {
+  const btn = e.target.closest('.nav-item');
+  if (btn) showSection(btn.dataset.sec);
+});
+$('#run-all-btn').addEventListener('click', () => startRun(['all']));
+$$('#tab-run [data-run]').forEach((b) => b.addEventListener('click', () => startRun(b.dataset.run.split(' '))));
+$('#stop-btn').addEventListener('click', async () => { try { await api('POST', '/api/run/stop'); } catch (e) { toast('Stop failed', e.message, true); } });
+$('#models-which').addEventListener('change', loadModels);
+$('#models-search').addEventListener('input', () => { if (modelsCache) renderModelsTable(modelsCache); });
+$('#models-refresh').addEventListener('click', loadModels);
+
+$('#save-btn').addEventListener('click', async () => {
+  try {
+    const r = await api('POST', '/api/config', { config: S.effective });
+    setDirty(false);
+    S.saved = deepClone(S.effective);
+    const [cfg, meta] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/meta')]);
+    Object.assign(S, { defaults: cfg.defaults, base: cfg.base, local: cfg.local || {}, effective: cfg.effective, saved: deepClone(cfg.effective), writeTarget: cfg.writeTarget, localExists: cfg.localExists, meta });
+    $('#write-target').innerHTML = 'saving to <b>' + esc(cfg.writeTarget.split(/[\\/]/).pop()) + '</b>';
+    rebuildConfig();
+    showSection(currentSection());
+    toast('Saved to ' + r.written.split(/[\\/]/).pop(), r.mode === 'diff' ? Object.keys(r.keys || {}).length + ' override key(s)' : 'full config written');
+  } catch (e) { toast('Save failed', e.message, true); }
+});
+$('#discard-btn').addEventListener('click', () => {
+  S.effective = deepClone(S.saved);
+  setDirty(false);
+  rebuildConfig();
+  showSection(currentSection());
+  toast('Changes discarded');
+});
+$('#reload-btn').addEventListener('click', () => {
+  if (dirty && !confirm('Discard unsaved changes and reload from disk?')) return;
+  init();
+});
+// Theme toggle — dark by default; persists the explicit choice.
+$('#theme-toggle').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('omnilist-theme', next); } catch (e) { /* private mode */ }
+});
+// Reset every setting to built-in defaults (still needs an explicit Save).
+$('#reset-all-btn').addEventListener('click', () => {
+  if (!confirm('Reset ALL settings back to their defaults? (Nothing is written to disk until you Save.)')) return;
+  S.effective = deepClone(S.defaults);
+  setDirty(true);
+  rebuildConfig();
+  showSection(currentSection());
+  toast('Everything reset to defaults', 'Save changes to write it to disk');
+});
+// Shut the GUI server down — the terminal that ran `omnilist gui` exits.
+$('#shutdown-btn').addEventListener('click', async () => {
+  if (!confirm('Shut down the omnilist GUI server? The page will stop responding.')) return;
+  try {
+    await api('POST', '/api/shutdown');
+  } catch (e) { /* connection drops when the server dies — expected */ }
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-2);font-family:var(--font)">Server shut down. Run <code style="margin:0 4px">omnilist gui</code> in a terminal to start it again.</div>';
+});
+window.addEventListener('beforeunload', (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+init();
+</script>
+</body>
+</html>

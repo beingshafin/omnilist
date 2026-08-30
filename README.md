@@ -95,6 +95,23 @@ Paths may be absolute, relative (to the script dir), or use `~` for your home di
 }
 ```
 
+## GUI dashboard
+
+Skip editing `config.jsonc` by hand — run the web dashboard instead:
+
+```powershell
+omnilist gui          # default port 47613 (auto-increments if busy)
+omnilist gui 8080     # or pick a port: bare number, --port N, or -p N
+```
+
+It prints a clickable `http://127.0.0.1:47613` link in the terminal and opens a dashboard with three tabs (served from `gui.js` + `dashboard.html`, zero dependencies, bound to localhost only):
+
+- **Config** — every `config.jsonc` option as a guided control: no config syntax to memorize. Filters are built with dropdowns (block/allow/keep-only × provider/name/context/capability) that generate the expression for you and show a live match count; sort order is a field dropdown plus direction chips; overrides pick a field, a value, and target harnesses from checkboxes; paths have a built-in file browser; adapters and enum settings are select menus. Fields overridden by `config.local.jsonc` are badged, with one-click reset to default.
+- **Run** — run the full pipeline or individual targets (`fetch`, `opencode`, `t3`, …) with `-mi`/`-mo` filters, with live streaming output in an in-page console. Runs spawn a fresh `node omnilist.js` process, so save before running.
+- **Models** — browse `models-filtered.csv` / `models-all.csv` with search and sortable columns, plus a read-only view of `providers.csv` (API keys masked).
+
+**Where saves go:** if `config.local.jsonc` exists, the GUI writes there — only the keys that differ from the built-in defaults, keeping the file lean. Otherwise it writes `config.jsonc` directly, preserving its documentation header and regenerating the per-section comments. Every save first drops a one-generation backup (`config.local.jsonc.bak` / `config.jsonc.bak`) next to the target.
+
 ## How to use it
 
 ### Run everything
