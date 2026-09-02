@@ -3433,6 +3433,289 @@ function uninstallAsCommand() {
   console.log('  - removed ' + scriptDir + ' from User PATH');
 }
 
+// ---------- model clearing & custom commands ----------
+function clearModelBlock(targetFile) {
+  if (!fs.existsSync(targetFile)) return 0;
+  const lines = fs.readFileSync(targetFile, 'utf8').split('\n');
+  const out = [];
+  let inModels = false;
+  let inBlock = false;
+  let i = 0;
+  let cleared = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (!inModels && /"models"\s*:\s*\{/.test(line)) {
+      inModels = true;
+      out.push(line);
+      i++;
+      continue;
+    }
+
+    if (inModels && !inBlock) {
+      if (/\/\/\s*start-here/.test(line)) {
+        inBlock = true;
+        out.push(line);
+        i++;
+        while (i < lines.length) {
+          const ll = lines[i];
+          if (/\/\/\s*end-here/.test(ll)) {
+            out.push(ll);
+            inBlock = false;
+            i++;
+            break;
+          }
+          cleared++;
+          i++;
+        }
+        continue;
+      }
+      out.push(line);
+      i++;
+      continue;
+    }
+
+    if (inModels && inBlock) {
+      if (/\/\/\s*end-here/.test(line)) {
+        out.push(line);
+        inBlock = false;
+      }
+      i++;
+      continue;
+    }
+
+    out.push(line);
+    i++;
+  }
+
+  const text = out.join('\n');
+  const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+  fs.writeFileSync(targetFile, clean, 'utf8');
+  return cleared;
+}
+
+async function cleanAllModels() {
+  console.log('--- Cleaning all models added by omnilist across harnesses ---');
+
+  // 1. OpenCode
+  if (OPENCODE_FILE && fs.existsSync(OPENCODE_FILE)) {
+    const n = clearModelBlock(OPENCODE_FILE);
+    console.log(`[OpenCode] Cleared models between markers in ${OPENCODE_FILE} (${n} lines removed)`);
+  }
+
+  // 2. Kilo
+  if (KILO_FILE && fs.existsSync(KILO_FILE)) {
+    const n = clearModelBlock(KILO_FILE);
+    console.log(`[Kilo] Cleared models between markers in ${KILO_FILE} (${n} lines removed)`);
+  }
+
+  // 3. T3
+  if (T3_SETTINGS_FILE && fs.existsSync(T3_SETTINGS_FILE)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(T3_SETTINGS_FILE, 'utf8'));
+      if (settings.providerInstances) {
+        const rows = fs.existsSync(PROVIDERS_CSV) ? readProvidersCsv() : [];
+        const routerName = routerNameOf(rows);
+        const routerBase = routerName ? routerKeyBase(routerName) : null;
+        for (const [key, inst] of Object.entries(settings.providerInstances)) {
+          if (routerBase && key.startsWith(routerBase + '-') && inst.config) {
+            inst.config.customModels = [];
+          }
+        }
+        fs.writeFileSync(T3_SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+        console.log(`[T3] Cleared customModels on router instances in ${T3_SETTINGS_FILE}`);
+      }
+    } catch (e) {
+      console.warn(`[T3] Failed to clear models: ${e.message}`);
+    }
+  }
+
+  // 4. DSH
+  if (DSH_SETTINGS_FILE && fs.existsSync(DSH_SETTINGS_FILE)) {
+    try {
+      const settings = readYamlFile(DSH_SETTINGS_FILE);
+      if (settings['llm-pi-ai'] && settings['llm-pi-ai'].providers) {
+        const rows = fs.existsSync(PROVIDERS_CSV) ? readProvidersCsv() : [];
+        const routerName = routerNameOf(rows);
+        const routerSimp = routerName ? simplifyName(routerName) : null;
+        if (routerSimp && settings['llm-pi-ai'].providers[routerSimp]) {
+          settings['llm-pi-ai'].providers[routerSimp].models = [];
+          writeYamlFile(DSH_SETTINGS_FILE, settings);
+          console.log(`[DSH] Cleared router models in ${DSH_SETTINGS_FILE}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[DSH] Failed to clear models: ${e.message}`);
+    }
+  }
+
+  // 5. pi
+  if (PI_FILE && fs.existsSync(PI_FILE)) {
+    try {
+      const doc = readJsonSafe(PI_FILE, {});
+      if (doc.providers) {
+        const rows = fs.existsSync(PROVIDERS_CSV) ? readProvidersCsv() : [];
+        const routerName = routerNameOf(rows);
+        if (routerName && doc.providers[routerName]) {
+          doc.providers[routerName].models = [];
+          writeJsonFile(PI_FILE, doc);
+          console.log(`[pi] Cleared router models in ${PI_FILE}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[pi] Failed to clear models: ${e.message}`);
+    }
+  }
+
+  // 6. zcode
+  if (ZCODE_FILE && fs.existsSync(ZCODE_FILE)) {
+    try {
+      const doc = readJsonSafe(ZCODE_FILE, {});
+      if (doc.provider) {
+        const rows = fs.existsSync(PROVIDERS_CSV) ? readProvidersCsv() : [];
+        const routerName = routerNameOf(rows);
+        if (routerName && doc.provider[routerName]) {
+          doc.provider[routerName].models = [];
+          writeJsonFile(ZCODE_FILE, doc);
+          console.log(`[zcode] Cleared router models in ${ZCODE_FILE}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[zcode] Failed to clear models: ${e.message}`);
+    }
+  }
+
+  // 7. ocx
+  if (OPENCODEX_FILE && fs.existsSync(OPENCODEX_FILE)) {
+    try {
+      const doc = readJsonSafe(OPENCODEX_FILE, {});
+      let changed = false;
+      if (Array.isArray(doc.customModels) && doc.customModels.length > 0) {
+        doc.customModels = [];
+        changed = true;
+      }
+      const rows = fs.existsSync(PROVIDERS_CSV) ? readProvidersCsv() : [];
+      const routerName = routerNameOf(rows);
+      if (routerName && doc.providers && doc.providers[routerName]) {
+        doc.providers[routerName].models = [];
+        changed = true;
+      }
+      if (changed) {
+        writeJsonFile(OPENCODEX_FILE, doc);
+        console.log(`[ocx] Cleared router models and customModels in ${OPENCODEX_FILE}`);
+      }
+    } catch (e) {
+      console.warn(`[ocx] Failed to clear models: ${e.message}`);
+    }
+  }
+
+  // 8. Reconcile script-managed c-* REST providers
+  if (fs.existsSync(PROVIDERS_CSV)) {
+    try {
+      const n = cleanupProviders();
+      console.log(`Reconciled script-managed providers (${n} removed)`);
+    } catch (e) {
+      console.warn(`[cleanupProviders] Warning: ${e.message}`);
+    }
+  }
+
+  // 9. Remove previews and filtered CSV
+  cleanupHarnessPreviews();
+  if (fs.existsSync(MODELS_CSV)) {
+    try {
+      fs.unlinkSync(MODELS_CSV);
+      console.log(`Removed filtered catalog CSV: ${MODELS_CSV}`);
+    } catch (_) {}
+  }
+
+  console.log('Finished cleaning all script-added models across harnesses.');
+}
+
+async function runCustomCommands() {
+  const list = Array.isArray(cfg.custom_commands) ? cfg.custom_commands.filter((s) => typeof s === 'string' && s.trim()) : [];
+  if (list.length === 0) {
+    console.log('[custom_commands] No custom commands configured.');
+    return false;
+  }
+  console.log(`--- Running ${list.length} custom command(s) ---`);
+  let hasFailed = false;
+  const sleepMatch = /^sleep\s+([0-9]+(?:\.[0-9]+)?)$/i;
+  const bgMatch = /^bg:\s*(.+)$/i;
+  for (const entry of list) {
+    try {
+      const m = sleepMatch.exec(entry);
+      if (m) {
+        const secs = parseFloat(m[1]);
+        console.log(`[custom_commands] Sleeping for ${secs}s...`);
+        await new Promise((r) => setTimeout(r, secs * 1000));
+        continue;
+      }
+      const bg = bgMatch.exec(entry);
+      const cmd = bg ? bg[1] : entry;
+      console.log(`[custom_commands] ${bg ? 'Launching in background' : 'Running'}: ${cmd}`);
+      const { spawn } = require('child_process');
+      if (bg) {
+        if (process.platform === 'win32') {
+          const workingDir = process.cwd();
+          const escapedBackticks = cmd.replace(/`/g, '``');
+          const inner = `cmd.exe /c "${escapedBackticks}"`;
+          const psCmd = `Start-Process cmd -ArgumentList '${inner}' -WindowStyle Hidden -WorkingDirectory '${workingDir}'`;
+          const encoded = Buffer.from(psCmd, 'utf16le').toString('base64');
+          let psStderr = '';
+          const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+          });
+          child.stderr.on('data', (d) => (psStderr += d));
+          const bgExitCode = await new Promise((resolve) => {
+            child.on('error', (err) => resolve({ err }));
+            child.on('close', (exitCode) => resolve({ exitCode }));
+          });
+          if (bgExitCode.err) {
+            console.error(`[custom_commands] FAILED to start background "${cmd}": ${bgExitCode.err.message}`);
+            hasFailed = true;
+          } else if (bgExitCode.exitCode !== 0) {
+            console.error(`[custom_commands] Background launch wrapper FAILED (exit ${bgExitCode.exitCode}): ${cmd}`);
+            if (psStderr.trim()) console.error(`[custom_commands] Wrapper output:\n${psStderr.trim()}`);
+            hasFailed = true;
+          } else {
+            console.log(`[custom_commands] Background launched: ${cmd}`);
+          }
+          continue;
+        } else {
+          const child = spawn(cmd, { shell: true, detached: true, stdio: 'ignore' });
+          child.unref();
+          console.log(`[custom_commands] Background launched: ${cmd}`);
+          continue;
+        }
+      }
+      const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      const captured = { stdout: '', stderr: '' };
+      child.stdout.on('data', (d) => (captured.stdout += d));
+      child.stderr.on('data', (d) => (captured.stderr += d));
+      const code = await new Promise((resolve) => {
+        child.on('error', (err) => resolve({ err }));
+        child.on('close', (exitCode) => resolve({ exitCode }));
+      });
+      if (code.err) {
+        hasFailed = true;
+        console.error(`[custom_commands] FAILED to start "${cmd}": ${code.err.message}`);
+      } else if (code.exitCode !== 0) {
+        hasFailed = true;
+        console.error(`[custom_commands] FAILED (exit ${code.exitCode}): ${cmd}`);
+        const out = (captured.stdout + captured.stderr).trim();
+        if (out) console.error(`[custom_commands] Output of "${cmd}":\n${out}`);
+      } else {
+        console.log(`[custom_commands] OK (exit 0): ${cmd}`);
+      }
+    } catch (e) {
+      hasFailed = true;
+      console.warn(`[custom_commands] Failed to launch "${cmd}": ${e.message}`);
+    }
+  }
+  return hasFailed;
+}
+
 // ---------- usage ----------
 function printUsage() {
   console.log(`
@@ -3557,6 +3840,7 @@ function buildOrder() {
   }
   const cleanupIdx = order.indexOf('cleanup');
   order.splice(cleanupIdx, 0, 'cleanupproviders');
+  order.push('commands');
   return order;
 }
 
@@ -3582,6 +3866,10 @@ const WORD_MAP = {
   ocxrest: ['opencodexrest'],
   cleanup: ['cleanup'],
   cleanupproviders: ['cleanupproviders'],
+  cleanmodels: ['cleanmodels'],
+  removemodels: ['cleanmodels'],
+  commands: ['commands'],
+  custom_commands: ['commands'],
   gui: ['gui'],
   install: ['install'],
   uninstall: ['uninstall'],
@@ -3603,6 +3891,7 @@ const WORD_MAP = {
     if (OPENCODEX_ROUTER) t.push('opencodex');
     if (OPENCODEX_REST) t.push('opencodexrest');
     t.push('cleanupproviders');
+    t.push('commands');
     return t;
   })(),
   allpro: (() => {
@@ -3623,6 +3912,7 @@ const WORD_MAP = {
     if (OPENCODEX_ROUTER) t.push('opencodex');
     if (OPENCODEX_REST) t.push('opencodexrest');
     t.push('cleanupproviders');
+    t.push('commands');
     return t;
   })(),
 };
@@ -3799,7 +4089,14 @@ if (require.main === module)
     // show_harness_model_list mode before any sync re-writes the ones that do.
     cleanupHarnessPreviews();
 
-    for (const target of buildOrder()) {
+    const executionOrder = [
+      'cleanmodels', 'fetch', 'opencode', 'opencoderest', 'kilo', 'kilorest',
+      'kilopro', 't3models', 't3rest', 'dsh', 'dshrest', 'pi', 'pirest',
+      'zcode', 'zcoderest', 'opencodex', 'opencodexrest', 'cleanupproviders',
+      'cleanup', 'commands',
+    ];
+
+    for (const target of executionOrder) {
       if (!has(target)) continue;
       try {
         switch (target) {
@@ -3914,112 +4211,19 @@ if (require.main === module)
             cleanupStep(args.cleanup);
             break;
           }
+          case 'cleanmodels': {
+            await cleanAllModels();
+            break;
+          }
+          case 'commands': {
+            const hasErr = await runCustomCommands();
+            if (hasErr) failed = true;
+            break;
+          }
         }
       } catch (e) {
         failed = true;
         console.error(`[${target}] Error: ${e.message}`);
-      }
-    }
-    // ----- custom_commands: sequential tasks after the main run -----
-    // Skip when the only intent was to manage the install shim (not a sync run),
-    // when help was the entry path (already exited), or when no main targets ran.
-    // Each entry runs one at a time via the shell; the next command only starts
-    // after the previous one exits. Two special entry forms:
-    //   "sleep <seconds>"  — pause the chain for N seconds
-    //   "bg:<command>"     — launch detached in the background (for servers that
-    //                        never exit); the chain continues immediately
-    // Foreground output is captured and printed only when a command fails
-    // (non-zero exit); failures don't stop the chain but set the exit code to 1.
-    const skipCommands = args.targets.has('install') || args.targets.has('uninstall');
-    const list = !skipCommands && Array.isArray(cfg.custom_commands) ? cfg.custom_commands.filter((s) => typeof s === 'string' && s.trim()) : [];
-    const sleepMatch = /^sleep\s+([0-9]+(?:\.[0-9]+)?)$/i;
-    const bgMatch = /^bg:\s*(.+)$/i;
-    for (const entry of list) {
-      try {
-        const m = sleepMatch.exec(entry);
-        if (m) {
-          const secs = parseFloat(m[1]);
-          console.log(`[custom_commands] Sleeping for ${secs}s...`);
-          await new Promise((r) => setTimeout(r, secs * 1000));
-          continue;
-        }
-        const bg = bgMatch.exec(entry);
-        const cmd = bg ? bg[1] : entry;
-        console.log(`[custom_commands] ${bg ? 'Launching in background' : 'Running'}: ${cmd}`);
-        const { spawn } = require('child_process');
-        if (bg) {
-          // Detached + unref so the script can exit without waiting on a server
-          // that never exits; its output is discarded.
-          if (process.platform === 'win32') {
-            // A direct detached spawn gets its own console window (visible
-            // flash). Start-Process -WindowStyle Hidden gives the child a
-            // hidden console instead, and its children inherit it.
-            // -WorkingDirectory ensures the child runs from the script's cwd
-            // rather than C:\Windows\System32 (which breaks commands that rely
-            // on relative paths or cwd-relative config).
-            // Quotes: single quotes survive cmd /c; backticks are escaped as
-            // `` ` `` so the PowerShell argument string stays intact; the full
-            // command is wrapped in outer double quotes so the entire string is
-            // passed as one argument to cmd.exe /c.
-            const workingDir = process.cwd();
-            const escapedBackticks = cmd.replace(/`/g, '``');
-            const inner = `cmd.exe /c "${escapedBackticks}"`;
-            const psCmd = `Start-Process cmd -ArgumentList '${inner}' -WindowStyle Hidden -WorkingDirectory '${workingDir}'`;
-            const encoded = Buffer.from(psCmd, 'utf16le').toString('base64');
-            const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
-              stdio: 'pipe',
-              windowsHide: true,
-            });
-            let psStderr = '';
-            child.stderr.on('data', (d) => { psStderr += d; });
-            const bgExitCode = await new Promise((resolve) => {
-              child.on('error', (err) => resolve({ err }));
-              child.on('close', (exitCode) => resolve({ exitCode }));
-            });
-            if (bgExitCode.err) {
-              console.error(`[custom_commands] FAILED to start background "${cmd}": ${bgExitCode.err.message}`);
-              failed = true;
-            } else if (bgExitCode.exitCode !== 0) {
-              // PowerShell wrapper itself failed — child may or may not have started.
-              console.error(`[custom_commands] Background launch wrapper FAILED (exit ${bgExitCode.exitCode}): ${cmd}`);
-              if (psStderr.trim()) console.error(`[custom_commands] Wrapper output:\n${psStderr.trim()}`);
-              failed = true;
-            } else {
-              console.log(`[custom_commands] Background launched: ${cmd}`);
-            }
-            continue;
-          } else {
-            const child = spawn(cmd, { shell: true, detached: true, stdio: 'ignore' });
-            child.unref();
-            console.log(`[custom_commands] Background launched: ${cmd}`);
-            continue;
-          }
-        }
-        // shell:true runs the string through cmd /d /s /c (Windows) or sh -c
-        // (POSIX). Spawning the shell as an argv array instead would make Node
-        // backslash-escape any quotes inside `cmd` and break quoted arguments.
-        const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
-        const captured = { stdout: '', stderr: '' };
-        child.stdout.on('data', (d) => (captured.stdout += d));
-        child.stderr.on('data', (d) => (captured.stderr += d));
-        const code = await new Promise((resolve) => {
-          child.on('error', (err) => resolve({ err }));
-          child.on('close', (exitCode) => resolve({ exitCode }));
-        });
-        if (code.err) {
-          failed = true;
-          console.error(`[custom_commands] FAILED to start "${cmd}": ${code.err.message}`);
-        } else if (code.exitCode !== 0) {
-          failed = true;
-          console.error(`[custom_commands] FAILED (exit ${code.exitCode}): ${cmd}`);
-          const out = (captured.stdout + captured.stderr).trim();
-          if (out) console.error(`[custom_commands] Output of "${cmd}":\n${out}`);
-        } else {
-          console.log(`[custom_commands] OK (exit 0): ${cmd}`);
-        }
-      } catch (e) {
-        failed = true;
-        console.warn(`[custom_commands] Failed to launch "${cmd}": ${e.message}`);
       }
     }
   } catch (e) {

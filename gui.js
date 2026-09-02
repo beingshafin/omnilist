@@ -195,7 +195,8 @@ function diffConfig(eff, def) {
 const RUN_WORDS = new Set([
   'fetch', 'opencode', 'opencoderest', 'kilo', 'kilorest', 't3', 't3rest',
   'dsh', 'dshrest', 'pi', 'pirest', 'zcode', 'zcoderest', 'opencodex',
-  'opencodexrest', 'ocx', 'ocxrest', 'cleanup', 'cleanupproviders', 'all', 'allpro',
+  'opencodexrest', 'ocx', 'ocxrest', 'cleanup', 'cleanupproviders', 'cleanmodels',
+  'removemodels', 'commands', 'all', 'allpro',
 ]);
 
 let run = null; // { child, lines: [{stream, text}], done, exitCode, startedAt, cmdline }
@@ -477,7 +478,10 @@ function handleApi(req, res, url) {
       // one-generation backup so a bad save is always recoverable
       if (fs.existsSync(target)) fs.copyFileSync(target, target + '.bak');
       if (target.endsWith('config.local.jsonc')) {
-        const diff = diffConfig(cfg, DEFAULTS);
+        const { primary } = configFilePaths();
+        const base = parseJsoncFile(primary);
+        const baseMerged = deepMerge(JSON.parse(JSON.stringify(DEFAULTS)), base.ok && base.data ? base.data : {});
+        const diff = diffConfig(cfg, baseMerged);
         header = LOCAL_HEADER;
         fs.writeFileSync(target, header + toJsoncBody(diff), 'utf8');
         return sendJson(res, 200, { written: target, mode: 'diff', keys: Object.keys(diff) });
@@ -634,6 +638,10 @@ function createServer() {
   return http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
     if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+      return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%230070f3"/><path d="M8 10h16M8 16h16M8 22h10" stroke="%23ffffff" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="22" r="2.5" fill="%23ffffff"/></svg>');
+    }
     if (req.method !== 'GET' || (url.pathname !== '/' && url.pathname !== '/index.html')) {
       return sendJson(res, 404, { error: 'not found' });
     }

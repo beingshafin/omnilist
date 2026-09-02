@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>omnilist — dashboard</title>
+<title>OmniList — Model Catalog & Harness Sync</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230070f3'/%3E%3Cpath d='M8 10h16M8 16h16M8 22h10' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='22' r='2.5' fill='%23ffffff'/%3E%3C/svg%3E">
 <script>
   // Default to dark mode; remember the user's explicit choice.
   (function () {
@@ -34,9 +35,22 @@
     --warning: #f5a524;
     --warning-weak: #fdf2e3;
     --purple: #8a4baf;
-    --radius: 6px;
+    /* one radius scale: 4/6/8/10/12/20px chaos collapses onto these four */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-pill: 999px;
+    --radius: var(--r-sm);    /* kept: existing rules reference --radius */
+    /* one spacing rhythm, 4px base */
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 24px; --s-6: 32px; --s-7: 48px;
+    /* measure caps */
+    --measure: 68ch;
+    --measure-page: 1080px;
+    /* one elevation scale */
     --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
     --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+    --shadow-lg: 0 18px 48px rgba(0,0,0,.14);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
     --btn-primary-bg: #000;
@@ -44,17 +58,21 @@
     --btn-primary-hover: #1a1a1a;
     --btn-hover-border: #d4d4d4;
     --danger-border: #f1c0c2;
-    --ovr-badge-fg: #fff;
     --toggle-off: #d0d0d0;
     --toggle-on: #000;
     --toggle-knob: #fff;
     --toggle-knob-on: #fff;
     --bar-bg: rgba(255,255,255,.92);
-    --logo-bg: #000;
-    --logo-fg: #fff;
     --placeholder: #b5b5b5;
     --focus-ring: rgba(0,112,243,.12);
     --invalid-ring: rgba(229,72,77,.12);
+    /* theme-aware syntax colours for .expr-preview (was hardcoded dark) */
+    --expr-bg: #f5f5f5;
+    --expr-fg: #2a2a2a;
+    --expr-pfx: #9c2b4e;
+    --expr-field: #1a5f8a;
+    --expr-str: #1d6b3d;
+    --expr-arrow: #8a5a10;
   }
   :root[data-theme="dark"] {
     --bg: #0a0a0a;
@@ -76,31 +94,34 @@
     --purple: #a78bfa;
     --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
     --shadow-md: 0 4px 16px rgba(0,0,0,.5);
+    --shadow-lg: 0 18px 48px rgba(0,0,0,.6);
     --btn-primary-bg: #fff;
     --btn-primary-fg: #0a0a0a;
     --btn-primary-hover: #e6e6e6;
     --btn-hover-border: #404040;
     --danger-border: rgba(255,99,105,.45);
-    --ovr-badge-fg: #17102a;
     --toggle-off: #3a3a3a;
     --toggle-on: #fff;
     --toggle-knob: #fff;
     --toggle-knob-on: #0a0a0a;
     --bar-bg: rgba(17,17,17,.92);
-    --logo-bg: #fff;
-    --logo-fg: #0a0a0a;
     --placeholder: #5a5a5a;
     --focus-ring: rgba(77,159,255,.25);
     --invalid-ring: rgba(255,99,105,.25);
+    --expr-bg: #0e0e0e;
+    --expr-fg: #d4e4ff;
+    --expr-pfx: #ff8ba7;
+    --expr-field: #8bd3ff;
+    --expr-str: #a8f0c8;
+    --expr-arrow: #ffd479;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; }
   body {
     background: var(--bg);
     color: var(--text);
-    font: 14px/1.5 var(--font);
-    display: flex;
-    flex-direction: column;
+    font: 16px/1.5 var(--font);
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }
   a { color: var(--accent); text-decoration: none; }
@@ -108,67 +129,25 @@
   code, .mono { font-family: var(--mono); font-size: .92em; }
   .muted { color: var(--text-3); }
 
-  /* ---------- header ---------- */
-  header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 0 20px;
-    height: 52px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 40;
+  /* Opt out of every translucent surface when the OS asks for it. */
+  @media (prefers-reduced-transparency: reduce) {
+    #save-bar { background: var(--panel); backdrop-filter: none; }
+    .modal-backdrop { background: rgba(0,0,0,.88); backdrop-filter: none; }
   }
-  .logo {
-    width: 24px; height: 24px;
-    background: var(--logo-bg);
-    color: var(--logo-fg);
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .wordmark { font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
-  .wordmark .dim { color: var(--text-3); font-weight: 500; }
-  .tabs { display: flex; gap: 2px; margin-left: 8px; height: 100%; }
-  .tab {
-    border: none;
-    background: none;
-    color: var(--text-3);
-    font: 500 13.5px var(--font);
-    padding: 0 12px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    height: 100%;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--text); border-bottom-color: var(--text); }
-  .spacer { flex: 1; }
-  .save-target {
-    font-size: 12px;
-    color: var(--text-3);
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    padding: 4px 10px;
-    border-radius: 20px;
-    white-space: nowrap;
-  }
-  .save-target b { color: var(--text-2); font-weight: 600; }
   .btn {
-    font: 500 13px var(--font);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font: 500 14px var(--font);
     border-radius: var(--radius);
     padding: 6px 14px;
+    height: 32px;
     cursor: pointer;
     border: 1px solid var(--border);
     background: var(--panel);
     color: var(--text);
     transition: background .12s, border-color .12s;
   }
+  /* leading glyph in a labelled button: optically balance the tighter left edge */
+  .btn > .ic:first-child { width: 14px; height: 14px; flex-shrink: 0; margin-left: -2px; }
   .btn:hover { border-color: var(--btn-hover-border); background: var(--panel-2); }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
   .btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: var(--btn-primary-fg); }
@@ -176,22 +155,25 @@
   .btn.primary:disabled { background: var(--text-3); border-color: var(--text-3); color: var(--btn-primary-fg); }
   .btn.danger { color: var(--danger); border-color: var(--danger-border); }
   .btn.danger:hover { background: var(--danger-weak); }
-  .btn.small { padding: 3px 9px; font-size: 12px; }
+  .btn.small { padding: 3px 9px; font-size: 13px; height: 32px; }
   .btn.ghost { border-color: transparent; background: none; color: var(--text-3); }
   .btn.ghost:hover { color: var(--text); background: var(--panel-2); }
   .btn .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); margin-right: 6px; vertical-align: 1px; }
 
   /* ---------- layout ---------- */
-  main { flex: 1; display: flex; min-height: 0; }
+  main { flex: 1; display: flex; min-height: 0; height: 100vh; }
   .sidebar {
     width: 232px;
     flex-shrink: 0;
     background: var(--panel);
     border-right: 1px solid var(--border);
     overflow-y: auto;
-    padding: 14px 8px 40px;
+    padding: 14px 8px 12px;
+    display: flex;
+    flex-direction: column;
   }
-  .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); padding: 10px 12px 6px; font-weight: 600; }
+  .sidebar-scroll { flex: 1; min-height: 0; padding-top: 4px; }
+  .sidebar-title { padding: 14px 14px 16px; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.02em; margin: 0; }
   .nav-item {
     display: flex;
     align-items: center;
@@ -204,41 +186,115 @@
     padding: 7px 12px;
     border-radius: var(--radius);
     cursor: pointer;
-    font: 500 13.5px var(--font);
+    font: 500 14.5px var(--font);
   }
-  .nav-item .ico { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 13px; }
+  .nav-item .ico { width: 16px; height: 16px; display: block; color: var(--text-3); flex-shrink: 0; }
   .nav-item:hover { background: var(--panel-2); color: var(--text); }
   .nav-item.active { background: var(--accent-weak); color: var(--accent); }
   .nav-item.active .ico { color: var(--accent); }
+  /* the four utility actions (reset, reload, theme, shutdown) anchored to the
+     sidebar's bottom edge; auto layout so the four share the full row width */
+  .sidebar-tools {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    padding: 10px 6px 2px;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-2);
+  }
+  .sidebar-tools .icon-btn { flex: 1 1 0; }
+  .sidebar-tools #shutdown-btn:hover { color: var(--danger); background: var(--danger-weak); }
   .content { flex: 1; overflow-y: auto; padding: 32px 44px 140px; }
+  /* Cap the reading measure. Without this, description copy ran ~99 chars per
+     line even at a modest window width. The inner wrapper keeps the scroll
+     container full-bleed while the content column stays readable. */
+  .content > #config-root,
+  .content > .loading,
+  #tab-run > *,
+  #tab-models > * { max-width: var(--measure-page); margin-inline: auto; }
+  .card-desc, .page-head p { max-width: var(--measure); }
+  /* the drawer hamburger only exists below the drawer breakpoint; it is a
+     floating button since there is no header to hold it. Needs the element+class
+     specificity to beat .icon-btn's display:inline-flex. */
+  button.nav-toggle {
+    display: none;
+    position: fixed; top: 10px; left: 10px; z-index: 62;
+    background: var(--bar-bg);
+    border: 1px solid var(--border);
+    width: 34px; height: 34px;
+  }
+  .drawer-scrim {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(0, 0, 0, .55);
+    opacity: 0; pointer-events: none;
+    transition: opacity .18s ease;
+  }
+  .drawer-scrim.show { opacity: 1; pointer-events: auto; }
 
   /* raw expression editor (manual mode) */
   .raw-expr {
     width: 100%; min-height: 150px;
-    font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    font-family: var(--mono); font-size: 13px; line-height: 1.7;
     background: var(--panel-2); resize: vertical;
   }
 
   /* icon buttons */
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; padding: 0; border-radius: var(--radius);
+    width: 32px; height: 32px; padding: 0; border-radius: var(--radius);
     border: 1px solid transparent; background: transparent; color: var(--text-3);
     cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+    /* a square hit area is the whole point — without this, an overflowing flex
+       row (the header at 375px) crushes a 30px button down to 17px */
+    flex-shrink: 0;
   }
   .icon-btn:hover { background: var(--panel-2); color: var(--text); border-color: var(--border); }
   .icon-btn svg { width: 14px; height: 14px; display: block; }
   :root[data-theme="dark"] .icon-moon { display: none; }
   :root[data-theme="light"] .icon-sun { display: none; }
 
-  /* section top-right actions */
-  .section-bar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+  /* ---------- icon sprite sizing ----------
+     One family via <use href="#i-*">. Sized in em so an icon always tracks the
+     text it sits beside; stroke weight is baked into the symbols. */
+  .ic { width: 1em; height: 1em; display: block; flex-shrink: 0; }
+  .icon-btn .ic { width: 15px; height: 15px; }
+  .nav-item .ico { width: 16px; height: 16px; flex-shrink: 0; }
+  .field-ico { width: 15px; height: 15px; color: var(--text-3); flex-shrink: 0; margin-top: 1px; }
+  .del .ic, .btn.icon-only .ic { width: 13px; height: 13px; margin-left: 0; }
+  .btn.icon-only { padding: 0 7px; }
+  /* visible to screen readers only: used for column headers that are visually
+     blank (the actions column) so the table still announces a header per cell */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  /* sub-group heading inside a card (T3 driver groups, adapter groups) */
+  .sub-title {
+    margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .01em;
+    color: var(--text-2);
+  }
+  /* ---------- focus visibility ----------
+     Previously ONLY input/select/textarea had any focus styling, so buttons,
+     tabs, nav items, chips and target cards were focusable but invisible. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+  .nav-item:focus-visible, .chip:focus-visible,
+  .target-item:focus-visible, .icon-btn:focus-visible, .btn:focus-visible,
+  .toggle:focus-visible, .modal-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* keep the richer ring on text controls, but make it AA-visible too */
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }
 
   /* ---------- rule builder ---------- */
   .rule-row {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     padding: 14px 16px;
     margin-bottom: 10px;
     cursor: grab;
@@ -253,52 +309,54 @@
   .rule-conds { display: flex; flex-direction: column; gap: 8px; }
   .rule-cond {
     display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-    padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm);
   }
   .rule-cond-head { display: flex; gap: 6px; align-items: center; }
-  .rule-join { font-size: 11px; color: var(--text-3); font-weight: 600; padding: 2px 0; letter-spacing: .04em; }
+  .rule-join { font-size: 12px; color: var(--text-3); font-weight: 600; padding: 2px 0; letter-spacing: .04em; }
   .rule-ops { display: flex; gap: 4px; }
   .rule-ops button {
     border: 1px solid var(--border); background: var(--panel); color: var(--text-3);
-    border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 13px; line-height: 1;
+    border-radius: var(--r-sm); width: 32px; height: 32px; cursor: pointer; font-size: 14px; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
   }
   .rule-ops button:hover { color: var(--text); border-color: var(--text-3); }
   .rule-ops button.del:hover { color: var(--danger); border-color: var(--danger); }
   .rule-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-  .rule-exc { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+  .rule-exc { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-2); flex-wrap: wrap; }
   .rule-exc label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   .rule-exc input[type="checkbox"] { accent-color: var(--toggle-on); }
 
   /* chained-condition rule builder */
   .rule-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .rule-head select { width: auto; }
+  /* row-header selects sit between inline labels and a ✕ in a tight row —
+     13px text keeps field names like "input_context" from being cropped */
+  .rule-head select { width: auto; font-size: 13px; padding-inline: 8px; }
   .drag-handle {
-    color: var(--text-3); font-size: 13px; letter-spacing: -2px; cursor: grab;
+    color: var(--text-3); font-size: 14px; letter-spacing: -2px; cursor: grab;
     user-select: none; padding: 2px 2px; line-height: 1;
   }
   .drag-handle:hover { color: var(--text); }
   .rule-excepts { border-left: 2px solid var(--danger); padding-left: 10px; }
   .rule-subhead {
-    font-size: 10.5px; font-weight: 700; color: var(--text-3); letter-spacing: .06em;
+    font-size: 11.5px; font-weight: 700; color: var(--text-3); letter-spacing: .06em;
     text-transform: uppercase;
   }
   .rule-addcond { display: flex; gap: 6px; align-items: center; }
-  .rule-addcond select { width: auto; font-size: 12px; }
+  .rule-addcond select { width: auto; font-size: 13px; padding-inline: 8px; }
   .not-badge {
-    font-size: 10px; font-weight: 700; letter-spacing: .05em; color: var(--danger);
-    border: 1px solid var(--danger); border-radius: 4px; padding: 1px 5px;
+    font-size: 11px; font-weight: 700; letter-spacing: .05em; color: var(--danger);
+    border: 1px solid var(--danger); border-radius: var(--r-sm); padding: 1px 5px;
   }
   .cond-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cond-row select, .cond-row input[type="number"], .cond-row input[type="text"] { width: auto; }
   .cond-tail { display: flex; gap: 4px; align-items: center; margin-left: auto; }
-  .cond-kind { font-size: 11px; color: var(--text-3); }
+  .cond-kind { font-size: 12px; color: var(--text-3); }
   .rule-cond .chip { cursor: pointer; }
-  .rule-cond .icon-btn { width: 24px; height: 24px; font-size: 12px; }
+  .rule-cond .icon-btn { width: 24px; height: 24px; font-size: 13px; }
 
   /* manual block editor */
   .rule-num {
-    font-size: 11px; font-weight: 700; color: var(--text-3); min-width: 18px; text-align: center;
+    font-size: 12px; font-weight: 700; color: var(--text-3); min-width: 18px; text-align: center;
     user-select: none;
   }
   /* manual-block header: one single row — handle, number, expression, ✕.
@@ -313,52 +371,96 @@
      which would block dragging out a text selection inside the expression */
   .manual-head > textarea.manual-expr { user-select: text; -webkit-user-select: text; }
   .manual-head > .rule-ops { flex: 0 0 auto; margin-left: 0; }
-  /* adapter rows: select + optional custom string + ✕ all on ONE row, the ✕ pushed
-     right by the existing `.rule-head .rule-ops { margin-left: auto }`. adapterList()
-     used to set .rule-main, which is a COLUMN flex container — that is why every ✕
-     stacked onto its own line below the select. min-width:0 on both flexible children
-     is load-bearing: without it a long custom string pushes the ✕ out of the row. */
-  .adapter-wrap { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
-  /* the trailing "+ add adapter" is a flex item here too — keep it at its natural
-     width instead of letting align-items:stretch blow it out to the full row */
-  .adapter-wrap > .table-add { align-self: flex-start; margin-top: 0; }
-  .adapter-row { flex-wrap: nowrap; }
-  .adapter-row > select { flex: 0 1 auto; min-width: 0; }
-  .adapter-row > input[type="text"] { flex: 1 1 auto; width: auto; min-width: 0; }
-  .adapter-row > .rule-ops { flex: 0 0 auto; }
+  /* The manual block editor is an ORDERED pipeline, so it reads as ONE panel of
+     hairline-divided rows — the reference idiom — instead of 24 competing cards.
+     Collapsible group headers were the alternative, but rule order is semantic
+     and the numbering is on screen, so hiding any row would lose meaning. */
+  .rule-list {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  .rule-list > .rule-row {
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    padding: 7px 10px;
+    margin-bottom: 0;
+  }
+  .rule-list > .rule-row:first-child { border-top: none; }
+  .rule-list > .rule-row:hover { background: var(--panel); }
+  /* needs to outrank `.rule-list > .rule-row`'s hairline, which is declared above
+     it at equal specificity, or the drop indicator disappears */
+  .rule-list > .rule-row.drag-over { border-top: 2px solid var(--accent); }
+  /* adapter chips wrap and trailing add-row */
+  .adapter-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .adapter-wrap .list-empty { padding: 0; }
+  .adapter-wrap > .add-row { flex: 0 0 100%; flex-wrap: nowrap; margin-top: 2px; }
+  .adapter-wrap > .add-row select { flex: 0 0 150px; width: 150px; font-size: 13px; padding-inline: 8px; }
+  .adapter-wrap > .add-row input[type="text"] { width: 150px; flex: 0 1 150px; min-width: 110px; }
   /* one line tall by default, matching a single-line text input (31px), with the
      text vertically centred by the symmetric 7px padding. resize:vertical still
      lets a long expression be dragged open. */
   textarea.manual-expr {
     width: 100%; margin: 0; resize: vertical;
-    height: 31px; min-height: 31px;
-    line-height: 15px;
+    height: 32px; min-height: 32px;
+    line-height: 16px;
     overflow-y: hidden;
   }
   textarea.manual-expr:focus { overflow-y: auto; }
+  /* Inside a divided .rule-list the row IS the container, so the input's own
+     border and fill just double every edge. Strip it back to bare text and
+     bring the chrome back only on focus, where it marks the active row. */
+  .rule-list textarea.manual-expr {
+    background: none;
+    padding-left: 6px; padding-right: 6px;
+  }
+  /* :not(:focus) is load-bearing — this selector is more specific than the
+     generic `textarea:focus { border-color: var(--accent) }`, so without it
+     the focused row would keep a transparent border and lose its accent edge. */
+  .rule-list textarea.manual-expr:not(:focus) { border-color: transparent; }
+  .rule-list textarea.manual-expr:hover:not(:focus) { border-color: var(--border); }
+  .rule-list textarea.manual-expr:focus { background: var(--panel); }
+  /* 24 resize nubs at once is visual noise; the affordance comes back on the
+     row you are actually editing, where resize:vertical still works. */
+  .rule-list textarea.manual-expr:not(:focus):not(:hover) { resize: none; }
 
-  .expr-err { color: var(--danger); font-size: 11px; margin-top: 4px; min-height: 0; }
+  .expr-err { color: var(--danger); font-size: 12px; margin-top: 4px; min-height: 0; }
+  /* only indents when there IS an error, so an empty row stays exactly one line */
+  .rule-list .expr-err:not(:empty) { margin-left: 38px; margin-bottom: 3px; }
 
   /* field-override rows */
   .inline-lab {
-    font-size: 11px; color: var(--text-3); font-weight: 600; letter-spacing: .03em;
+    font-size: 12px; color: var(--text-3); font-weight: 600; letter-spacing: .03em;
     text-transform: uppercase; user-select: none; white-space: nowrap;
   }
   /* needs .rule-head to outrank the generic `input[type="text"] { width:100% }`
      rule below, which otherwise ties on specificity and wins by source order */
   .rule-head input.ovr-value {
     width: 140px; flex: 0 0 auto; min-width: 90px;
-    font-family: var(--mono); font-size: 12.5px;
+    font-family: var(--mono); font-size: 13.5px;
   }
   /* push the delete button to the far right of the row header */
   .rule-head .rule-ops { margin-left: auto; }
+  /* override rows: both fields grow to share the full row width —
+     <drag> set <field select grows> to <value input grows> <✕> — so the ✕
+     trails the value field instead of being pinned to the row's right edge
+     with dead space in between */
+  .rule-head.ovr-head { flex-wrap: nowrap; }
+  .rule-head.ovr-head select { flex: 1 1 0; min-width: 0; width: auto; }
+  .rule-head.ovr-head input.ovr-value { flex: 1 1 0; width: auto; min-width: 0; }
+  .rule-head.ovr-head .rule-ops { margin-left: 0; }
   .ovr-targets { row-gap: 6px; }
-  .ovr-h { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--text-2); }
+  .ovr-h { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; color: var(--text-2); }
   .ovr-h input[type="checkbox"] { accent-color: var(--toggle-on); margin: 0; width: auto; }
 
-  .list-empty { color: var(--text-3); font-size: 12.5px; padding: 8px 2px; }
+  .list-empty { color: var(--text-3); font-size: 13.5px; padding: 8px 2px; }
+  /* inside a bordered .rule-list the empty line needs the row's own inset */
+  .rule-list > .list-empty { padding: 10px; }
   .add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .add-row select { flex: 1; min-width: 160px; }
+  .add-row select { flex: 1; min-width: 160px; font-size: 13px; padding-inline: 8px; }
   .add-row .btn { white-space: nowrap; }
   /* inside a chip list the add-row always breaks onto its own line, so the
      "existing values" block reads separately from the "add one" control
@@ -369,45 +471,68 @@
   /* ---------- page sections ---------- */
   .section { display: none; }
   .section.active { display: block; }
-  .page-head h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; letter-spacing: -.01em; }
-  .page-head p { color: var(--text-2); font-size: 13.5px; margin: 0 0 28px; max-width: 640px; }
-
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     padding: 20px 22px;
     margin-bottom: 18px;
   }
-  .card > h3 { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
-  .card > .card-desc { color: var(--text-3); font-size: 12.5px; margin: 0 0 16px; }
+  .card-h1, .page-head h1 {
+    font-size: 20px;
+    font-weight: 650;
+    margin: 0 0 4px;
+    letter-spacing: -.015em;
+    color: var(--text);
+  }
+  .card-h2, .sub-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -.005em;
+    color: var(--text);
+  }
+  .card-desc, .page-head p {
+    color: var(--text-3);
+    font-size: 13.5px;
+    margin: 0 0 16px;
+    max-width: var(--measure);
+    line-height: 1.45;
+  }
 
-  .field { display: grid; grid-template-columns: 220px 1fr; gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--border-2); }
+  .field { display: grid; grid-template-columns: 260px 1fr; gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--border-2); align-items: start; }
   .field:first-of-type { border-top: none; }
-  .field-label { font-size: 13px; font-weight: 550; color: var(--text); padding-top: 7px; line-height: 18px; }
-  .field-label .hint { display: block; color: var(--text-3); font-weight: 400; font-size: 12px; margin-top: 3px; line-height: 16px; }
+  /* the label column: label text first, the per-field reset icon immediately
+     after it (<label> <reset> <flex space> <controls>). Top-aligned so the
+     icon reads as sitting on the label's first line, never centered against
+     a tall control stack; the -6px nudge lines the glyph's top edge up with
+     the text's cap height (the glyph is optically centered in a 32px button) */
+  .field-side { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding-top: 7px; }
+  .field-label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 550; color: var(--text); line-height: 19px; min-width: 0; }
+  .field-label .field-text { min-width: 0; }
+  .field-label .hint { display: block; color: var(--text-3); font-weight: 400; font-size: 13px; margin-top: 3px; line-height: 17px; max-width: var(--measure); }
+  .field-reset { visibility: hidden; flex-shrink: 0; margin-top: -6px; }
+  .field-reset.show { visibility: visible; }
   .field-ctl { min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  /* when the control is a tall block (chip list, rule list) the trailing
-     local/reset affordances should sit at the top, not float at mid-height */
-  .field-ctl:has(> div > .chips-wrap),
-  .field-ctl:has(> .adapter-wrap) { align-items: flex-start; }
-  .field-ctl:has(> div > .chips-wrap) > .ovr-badge,
-  .field-ctl:has(> div > .chips-wrap) > .reset-link,
-  .field-ctl:has(> .adapter-wrap) > .ovr-badge,
-  .field-ctl:has(> .adapter-wrap) > .reset-link { margin-top: 6px; }
+  .field-ctl.ctl-end { justify-content: flex-end; }
   .field-ctl .grow { flex: 1; min-width: 180px; }
 
   input[type="text"], input[type="number"], select, textarea {
-    font: 400 13.5px var(--font);
+    font: 400 13.5px/1.4 var(--font);
     color: var(--text);
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 7px 10px;
+    padding: 5px 10px;
     width: 100%;
+    box-sizing: border-box;
   }
+  /* single-line inputs and selects share one control height with the buttons
+     that sit beside them in a row (add-rows, adapter rows, path rows) so a
+     form group never mixes tall and short controls */
+  input[type="text"], input[type="number"], select { height: 32px; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
-  select { width: auto; min-width: 120px; cursor: pointer; }
+  select { width: auto; min-width: 120px; cursor: pointer; font-size: 13px; line-height: normal; padding: 4px 26px 4px 10px; }
   input::placeholder, textarea::placeholder { color: var(--placeholder); }
   input.invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--invalid-ring); }
 
@@ -416,9 +541,13 @@
   .toggle.on { background: var(--toggle-on); }
   .toggle.on::after { transform: translateX(18px); background: var(--toggle-knob-on); }
 
-  .ovr-badge { font-size: 10.5px; padding: 1px 8px; border-radius: 12px; background: var(--purple); color: var(--ovr-badge-fg); white-space: nowrap; }
-  .reset-link { background: none; border: none; color: var(--text-3); font-size: 11.5px; padding: 0; cursor: pointer; text-decoration: underline; }
-  .reset-link:hover { color: var(--accent); }
+  /* section card heading: the conditional reset icon is pushed to the far
+     right edge of the title row — it only exists while some field in the
+     section differs from its default */
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+  .card-head .card-h1, .card-head .card-h2, .card-head .card-title { margin: 0; min-width: 0; flex: 1; }
+  .card-head .section-reset { visibility: hidden; flex-shrink: 0; margin-left: auto; }
+  .card-head .section-reset.show { visibility: visible; }
 
   /* ---------- target grid ---------- */
   .target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
@@ -434,8 +563,8 @@
   }
   .target-item:hover { border-color: var(--text-3); }
   .target-item.on { background: var(--panel); }
-  .target-item .name { flex: 1; font-size: 13px; font-weight: 500; }
-  .target-item .name small { display: block; color: var(--text-3); font-weight: 400; font-size: 11px; }
+  .target-item .name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; }
+  .target-item .name small { display: block; color: var(--text-3); font-weight: 400; font-size: 12px; }
 
   /* ---------- chips ---------- */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -445,91 +574,180 @@
   .chips-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .chips-wrap .list-empty { padding: 0; }
   .chip {
-    display: inline-flex; align-items: center; gap: 7px;
+    display: inline-flex; align-items: center; gap: 4px;
+    min-height: 32px; box-sizing: border-box;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 5px 11px;
-    font-size: 12.5px;
-    line-height: 16px;
+    border-radius: var(--r-pill);
+    padding: 3px 4px 3px 11px;
+    font-family: var(--font);
+    font-size: 13.5px;
+    line-height: 17px;
     color: var(--text-2);
     cursor: pointer;
     user-select: none;
   }
+  /* a chip with no remove button keeps its symmetric padding */
+  .chip:not(:has(> .x)) { padding: 6px 11px; gap: 7px; }
   .chip:hover { border-color: var(--text-3); }
   .chip.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 550; }
-  .chip .x { color: var(--text-3); font-size: 12px; line-height: 1; padding: 1px 0 1px 1px; border-radius: 50%; }
-  .chip .x:hover { color: var(--danger); }
+  /* sortBuilder()'s flip affordance is a <button>, so it needs the same reset */
+  .chip > .chip-txt {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; color: inherit; cursor: pointer;
+  }
+  .chip > .chip-txt .ic { width: 11px; height: 11px; flex-shrink: 0; }
+  /* was a 0x0 <span>: unclickable and keyboard-unreachable. Now a real button
+     with a 22px square hit area that still reads as a small inline glyph. */
+  .chip .x {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; flex-shrink: 0;
+    background: none; border: none; padding: 0; margin: 0;
+    color: var(--text-3); cursor: pointer;
+    border-radius: 50%;
+  }
+  .chip .x .ic { width: 11px; height: 11px; }
+  .chip .x:hover { color: var(--danger); background: var(--danger-weak); }
   .chip.on .x { color: var(--accent); }
+
+  /* Was styled inline at 9 separate call sites, each slightly different. */
+  .field-note { color: var(--text-3); font-size: 12.5px; line-height: 1.5; max-width: var(--measure); }
+  .field-note + .field-note { margin-top: 4px; }
+
+  /* ---------- raw JSON escape hatch ---------- */
+  .raw-summary { cursor: pointer; color: var(--text-3); font-size: 13px; width: fit-content; }
+  .raw-summary:hover { color: var(--text-2); }
+  .raw-json {
+    width: 100%; min-height: 180px; margin-top: 8px;
+    font-family: var(--mono); font-size: 13px; background: var(--panel-2);
+  }
+  .raw-json-err { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  .raw-json-err:empty { display: none; }
 
   /* ---------- expression preview ---------- */
   .expr-preview {
     font-family: var(--mono);
-    font-size: 12px;
-    background: #0a0a0a;
-    color: #d4e4ff;
+    font-size: 13px;
+    background: var(--expr-bg);
+    color: var(--expr-fg);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--r-sm);
     padding: 6px 10px;
     word-break: break-all;
     max-width: 100%;
-  }  .expr-preview .pfx { color: #ff8ba7; }
-  .expr-preview .field { color: #8bd3ff; }
-  .expr-preview .str { color: #a8f0c8; }
-  .expr-preview .arrow { color: #ffd479; }
-  .match-count { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  }  .expr-preview .pfx { color: var(--expr-pfx); }
+  .expr-preview .field { color: var(--expr-field); }
+  .expr-preview .str { color: var(--expr-str); }
+  .expr-preview .arrow { color: var(--expr-arrow); }
+  .match-count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
   .match-count b { color: var(--text-2); }
 
   /* ---------- mini tables ---------- */
   table.mini { border-collapse: collapse; width: 100%; }
-  table.mini th { text-align: left; font-size: 11px; color: var(--text-3); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  table.mini th { text-align: left; font-size: 12px; color: var(--text-3); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); }
   table.mini td { padding: 4px 8px; }
-  table.mini input, table.mini select { padding: 4px 8px; font-size: 12.5px; }
-  table.mini .del { border: none; background: none; color: var(--text-3); cursor: pointer; font-size: 15px; }
-  table.mini .del:hover { color: var(--danger); }
-  .table-add { margin-top: 6px; }
+  table.mini th:first-child, table.mini td:first-child { padding-left: 0; padding-right: 8px; width: 100%; }
+  table.mini th.col-1m, table.mini td.col-1m { width: 1%; white-space: nowrap; text-align: center; padding-inline: 4px; }
+  table.mini td.col-1m { vertical-align: middle; }
+  table.mini td.col-1m .toggle { margin: 0 auto; }
+  table.mini th.col-act, table.mini td.col-act { width: 1%; white-space: nowrap; text-align: right; padding-left: 4px; padding-right: 0; }
+  table.mini td.col-act .del { margin-left: auto; }
+  table.mini input, table.mini select { padding: 4px 8px; font-size: 13px; }
+  table.mini .del {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-3);
+    border-radius: var(--r-sm);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    line-height: 1;
+    transition: color .12s, border-color .12s;
+  }
+  table.mini .del:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  table.mini .del .ic { width: 13px; height: 13px; }
+  .table-add { margin-top: 8px; }
 
   /* ---------- file browser modal ---------- */
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; z-index: 60;
   }
+  @supports (backdrop-filter: blur(1px)) {
+    .modal-backdrop { backdrop-filter: blur(6px) saturate(1.1); }
+  }
   .modal {
-    background: var(--panel); border-radius: 12px; box-shadow: var(--shadow-md);
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
     width: 560px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
   }
+  /* filesystem paths are data, not prose — set them apart from the copy that
+     introduces them instead of letting a long absolute path read as a sentence */
+  .path-code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: var(--r-sm); padding: 1px 5px;
+    color: var(--text-2); word-break: break-all;
+  }
+
   .modal-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-  .modal-head .path { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .modal-head .close { border: none; background: none; color: var(--text-3); font-size: 18px; cursor: pointer; }
+  .modal-head .path { font-family: var(--mono); font-size: 13.5px; color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-head .close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; flex-shrink: 0;
+    border: none; background: none; padding: 0;
+    color: var(--text-3); cursor: pointer; border-radius: var(--r-sm);
+  }
+  .modal-head .close .ic { width: 14px; height: 14px; }
+  .modal-head .close:hover { color: var(--text); background: var(--panel-2); }
   .modal-body { overflow-y: auto; padding: 8px; min-height: 220px; }
-  .modal-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  /* .modal-row is a <button>, so the UA chrome and inherited font need resetting */
+  .modal-row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 7px 10px; border: none; background: none; text-align: left;
+    border-radius: var(--r-sm); cursor: pointer;
+    font: 14px var(--font); color: var(--text);
+  }
   .modal-row:hover { background: var(--panel-2); }
-  .modal-row .ic { color: var(--text-3); width: 18px; text-align: center; }
+  .modal-row .ic { color: var(--text-3); width: 16px; height: 16px; flex-shrink: 0; }
   .modal-row.dir .ic { color: var(--accent); }
   .modal-row.file .ic { color: var(--text-3); }
-  .modal-row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .modal-foot { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
   .modal-foot input { flex: 1; }
-  .modal-error { color: var(--danger); font-size: 12px; padding: 8px 12px; }
+  .modal-error { color: var(--danger); font-size: 13px; padding: 8px 12px; }
 
   /* ---------- run ---------- */
   .run-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .run-actions .sep { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
-  .run-actions label { font-size: 12px; color: var(--text-3); }
+  .run-actions label { font-size: 13px; color: var(--text-3); }
   .run-actions input[type="number"] { width: 100px; }
-  .run-status { padding: 10px 14px; border-radius: var(--radius); margin: 14px 0; font-size: 13px; display: none; }
+  /* keeps a numeric label glued to its own input across a flex wrap */
+  .run-field { display: inline-flex; align-items: center; gap: 8px; }
+  .run-status { padding: 10px 14px; border-radius: var(--radius); margin: 14px 0; font-size: 14px; display: none; }
   .run-status.running { display: block; background: var(--accent-weak); border: 1px solid var(--accent); color: var(--accent); }
   .run-status.ok { display: block; background: var(--success-weak); border: 1px solid var(--success); color: var(--success); }
   .run-status.fail { display: block; background: var(--danger-weak); border: 1px solid var(--danger); color: var(--danger); }
   #console {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     padding: 14px 16px;
-    font: 12.5px/1.6 var(--mono);
+    font: 14.5px/1.6 var(--mono);
     overflow-y: auto;
-    height: calc(100vh - 320px);
-    min-height: 220px;
+    /* was calc(100vh - 320px), a magic number tied to the old header height */
+    min-height: 320px;
+    max-height: 60vh;
+    margin-top: 14px;
     color: var(--text);
     white-space: pre-wrap;
     word-break: break-all;
@@ -537,111 +755,193 @@
   #console .ln { display: block; }
   #console .err { color: var(--danger); }
   #console .meta { color: var(--text-3); }
+  /* placeholder so an idle console reads as "nothing yet" instead of a void */
+  #console:empty::before {
+    content: 'No output yet. Pick a target above to start a run.';
+    color: var(--text-3);
+    font: 14px var(--font);
+  }
 
   /* ---------- models ---------- */
   .models-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .models-toolbar input[type="text"] { max-width: 260px; }
-  .models-toolbar .count { color: var(--text-3); font-size: 12px; }
-  table.models { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .models-toolbar .count { color: var(--text-3); font-size: 13px; }
+  table.models { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
   table.models th {
-    text-align: left; padding: 10px 12px; font-size: 11px; color: var(--text-3);
+    text-align: left; padding: 10px 12px; font-size: 12px; color: var(--text-3);
     border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; font-weight: 600;
     background: var(--panel-2);
   }
   table.models th:hover { color: var(--text); }
-  table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 12.5px; }
-  table.models td.num { font-family: var(--mono); text-align: right; font-size: 12px; }
+  table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 13.5px; }
+  table.models td.num { font-family: var(--mono); text-align: right; font-size: 13px; }
   table.models tr:hover td { background: var(--panel-2); }
-  .cap { font-size: 10px; padding: 1px 7px; border-radius: 10px; }
+  .cap { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); }
   .cap.y { background: var(--success-weak); color: var(--success); }
   .cap.n { background: var(--border-2); color: var(--text-3); }
   .cap.na { background: var(--warning-weak); color: var(--warning); }
-  .missing-note { color: var(--text-2); font-size: 13px; padding: 24px 0; }
+  .missing-note { color: var(--text-2); font-size: 14px; padding: 24px 0; }
   .providers { margin-top: 8px; }
-  .router-tag { font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--accent-weak); color: var(--accent); }
+  .router-tag { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent-weak); color: var(--accent); }
 
-  /* ---------- sticky save bar ---------- */
+  /* ---------- floating save bar ---------- */
+  /* a centered floating card, not an edge-anchored strip: horizontal center
+     via left:50% + translate(-50%), the same r-md corners as cards, and the
+     translate-only slide-up retained for the show animation */
   #save-bar {
-    position: fixed; bottom: 0; left: 0; right: 0;
+    position: fixed; bottom: 20px; left: 50%;
     background: var(--bar-bg);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid var(--border);
-    padding: 10px 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+    padding: 8px 12px;
     display: flex; align-items: center; gap: 12px;
-    transform: translateY(100%);
-    transition: transform .2s;
+    transform: translate(-50%, 140%);
+    transition: transform .25s;
     z-index: 50;
+    max-width: min(92vw, 560px);
   }
-  #save-bar.show { transform: translateY(0); }
-  #save-bar .msg { flex: 1; font-size: 13px; color: var(--text-2); }
+  @supports (backdrop-filter: blur(1px)) {
+    #save-bar { backdrop-filter: blur(20px) saturate(1.4); }
+  }
+  #save-bar.show { transform: translate(-50%, 0); }
+  #save-bar .msg { font-size: 14px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #save-bar .msg b { color: var(--text); }
+  /* the persistent destination pill: always visible at the bottom-right,
+     telling you where edits land even when nothing is dirty. Sits just below
+     the (transient) save bar so the two stack as one column. */
+  #write-target {
+    position: fixed; bottom: 20px; right: 20px; z-index: 49;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bar-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-md);
+    font-size: 13px;
+    color: var(--text-3);
+    padding: 7px 16px;
+  }
+  @supports (backdrop-filter: blur(1px)) {
+    #write-target { backdrop-filter: blur(20px) saturate(1.4); }
+  }
+  #write-target b { color: var(--text-2); font-weight: 600; }
 
   /* ---------- toast ---------- */
   #toast {
-    position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%) translateY(20px);
+    /* anchored to the content column, not the viewport: with a 232px sidebar a
+       viewport-centred toast reads as visibly left-shifted */
+    position: fixed; bottom: 76px; left: calc(50% + 116px); transform: translateX(-50%) translateY(20px);
     background: var(--text);
     color: var(--bg);
-    padding: 10px 18px; border-radius: 8px;
-    font-size: 13px; box-shadow: var(--shadow-md); transition: transform .2s, opacity .2s;
+    padding: 10px 18px; border-radius: var(--r-sm);
+    font-size: 14px; box-shadow: var(--shadow-md); transition: transform .2s, opacity .2s;
     opacity: 0; pointer-events: none; z-index: 70; max-width: 80vw;
   }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-  #toast .sub { color: var(--text-3); font-size: 11px; display: block; }
+  #toast .sub { color: var(--text-3); font-size: 12px; display: block; }
   #toast.error { background: var(--danger); color: #fff; }
 
-  .loading { color: var(--text-3); padding: 60px; text-align: center; font-size: 14px; }
+  .loading { color: var(--text-3); padding: 60px; text-align: center; font-size: 15px; }
 
   /* reduced motion */
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
+  @media (max-width: 1100px) {
+    /* sidebar is gone below this width, so recentre the toast on the viewport */
+    #toast { left: 50%; }
+  }
   @media (max-width: 760px) {
-    .sidebar { display: none; }
-    .content { padding: 20px 18px 120px; }
+    /* The sidebar used to be display:none here with no replacement, leaving
+       10 of the 11 config sections completely unreachable on a phone. It is
+       now an off-canvas drawer driven by the floating .nav-toggle. */
+    .sidebar {
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 61;
+      width: min(280px, 84vw);
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      box-shadow: var(--shadow-lg);
+      padding-top: 18px;
+    }
+    .sidebar.open { transform: translateX(0); }
+    button.nav-toggle { display: inline-flex; }
+    .content { padding: 60px 18px 150px; }
     .field { grid-template-columns: 1fr; gap: 6px; }
-    .field-label { padding-top: 0; }
-    header { padding: 0 12px; }
-    .save-target { display: none; }
+    .field-side { padding-top: 0; grid-column: 1 / -1; }
+    /* pills stack: persistent destination pill at the bottom, save bar above */
+    #write-target { bottom: 14px; right: 14px; }
+    #save-bar { bottom: 64px; left: 14px; right: 14px; transform: translateY(140%); justify-content: space-between; padding: 8px 10px 8px 16px; max-width: none; border-radius: var(--r-md); }
+    #save-bar.show { transform: translateY(0); }
+    #save-bar .msg { white-space: normal; }
   }
 </style>
 </head>
 <body>
 
-<header>
-  <span class="logo">◈</span>
-  <span class="wordmark">omnilist<span class="dim">/dashboard</span></span>
-  <nav class="tabs">
-    <button class="tab active" data-tab="config">Config</button>
-    <button class="tab" data-tab="run">Run</button>
-    <button class="tab" data-tab="models">Models</button>
-  </nav>
-  <div class="spacer"></div>
-  <span class="save-target" id="write-target">saving to <b>…</b></span>
-  <button class="icon-btn" id="reset-all-btn" title="Reset every setting back to its default" aria-label="Reset all">↺</button>
-  <button class="btn small ghost" id="reload-btn">Reload</button>
-  <button class="btn small icon-btn" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">
-    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-  </button>
-  <button class="btn small danger" id="shutdown-btn" title="Stop the omnilist GUI server" aria-label="Shut down server">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;display:block"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>
-  </button>
-</header>
+<!-- Icon sprite. One family, 24x24 grid, stroke-width 1.5, currentColor.
+     Replaces the ad-hoc Unicode glyphs (◆ 🗀 ⇄ ◫ ⊞ ✎ ◎ ⛓ ↯ ＋ ⚙ ↺ ✕ ⋮⋮ ▲ ▼ ▸ ↰)
+     which had inconsistent optical weight and size across platforms. -->
+<svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="i-base" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 3l7 4.5v9L12 21l-7-4.5v-9L12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 8l3.5 2.25v4.5L12 17l-3.5-2.25v-4.5L12 8z" fill="currentColor" opacity=".55"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h8M16 17h4"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="14" cy="17" r="2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 17V7.5z"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3-3M20 15H7l3 3"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5-8 4.5L4 7.5 12 3z"/><path d="M20 12l-8 4.5L4 12M20 16.5L12 21l-8-4.5"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.83l-1.17-1.17a2 2 0 0 0-2.83 0L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1"/><path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.2M17.6 15.3l2.2 1.2M4.2 16.5l2.2-1.2M17.6 8.7l2.2-1.2"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.5 5.8"/><path d="M4 6.5V12h5.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></symbol>
+  <symbol id="i-caret-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></symbol>
+  <symbol id="i-caret-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 12l6-6 6 6"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5V7.5L14 3z"/><path d="M13.5 3.5V8h4.5"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l2.5 3L7 15M12.5 15H17"/></symbol>
+  <!-- refresh: two circular arrows, distinct from #i-reset's single counterclockwise arrow -->
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3"/><path d="M20 4v4.5h-4.5M4 20v-4.5h4.5"/></symbol>
+</svg>
+
+<button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Show navigation" aria-expanded="false" aria-controls="config-nav"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg></button>
 
 <main>
-  <aside class="sidebar" id="config-nav">
-    <div class="nav-label">Configuration</div>
-    <button class="nav-item active" data-sec="general"><span class="ico">◆</span>General</button>
-    <button class="nav-item" data-sec="paths"><span class="ico">🗀</span>Paths</button>
-    <button class="nav-item" data-sec="targets"><span class="ico">⇄</span>Sync targets</button>
-    <button class="nav-item" data-sec="filters"><span class="ico">◫</span>Catalog &amp; filters</button>
-    <button class="nav-item" data-sec="harness-filters"><span class="ico">⊞</span>Harness filters</button>
-    <button class="nav-item" data-sec="overrides"><span class="ico">✎</span>Field overrides</button>
-    <button class="nav-item" data-sec="capabilities"><span class="ico">◎</span>Capabilities</button>
-    <button class="nav-item" data-sec="adapters"><span class="ico">⛓</span>Adapters</button>
-    <button class="nav-item" data-sec="t3"><span class="ico">↯</span>T3 drivers</button>
-    <button class="nav-item" data-sec="custom-models"><span class="ico">＋</span>Custom models</button>
-    <button class="nav-item" data-sec="commands"><span class="ico">⚙</span>Commands &amp; advanced</button>
+  <aside class="sidebar" id="config-nav" aria-label="Dashboard sections">
+    <div class="sidebar-scroll">
+      <h1 class="sidebar-title">OmniList</h1>
+      <button class="nav-item" data-view="run"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-terminal"/></svg>Run</button>
+      <button class="nav-item" data-view="models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg>Models</button>
+      <button class="nav-item active" data-sec="general" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>General</button>
+      <button class="nav-item" data-sec="paths"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>Paths</button>
+      <button class="nav-item" data-sec="targets"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sync"/></svg>Sync targets</button>
+      <button class="nav-item" data-sec="filters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"/></svg>Catalog &amp; filters</button>
+      <button class="nav-item" data-sec="harness-filters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg>Harness filters</button>
+      <button class="nav-item" data-sec="overrides"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>Field overrides</button>
+      <button class="nav-item" data-sec="capabilities"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-target"/></svg>Capabilities</button>
+      <button class="nav-item" data-sec="adapters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>Adapters</button>
+      <button class="nav-item" data-sec="t3"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bolt"/></svg>T3 drivers</button>
+      <button class="nav-item" data-sec="custom-models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Custom models</button>
+      <button class="nav-item" data-sec="commands"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>Commands &amp; advanced</button>
+    </div>
+    <div class="sidebar-tools">
+      <button class="icon-btn" id="reset-all-btn" title="Reset every setting back to its default" aria-label="Reset all settings to defaults"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg></button>
+      <button class="icon-btn" id="reload-btn" title="Reload the config from disk" aria-label="Reload config from disk"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+      <button class="icon-btn" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button class="icon-btn" id="shutdown-btn" title="Stop the omnilist GUI server" aria-label="Shut down server">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>
+      </button>
+    </div>
   </aside>
 
   <div class="content" id="config-content">
@@ -650,57 +950,72 @@
   </div>
 
   <div class="content" id="tab-run" style="display:none">
-    <div class="page-head">
-      <h1>Run the pipeline</h1>
-      <p>Runs <code>omnilist.js</code> in a fresh process, so save your changes first — runs use the config on disk.</p>
+    <div class="card depth-1">
+      <div class="page-head">
+        <h1>Run the pipeline</h1>
+        <p>Runs <code>omnilist.js</code> in a fresh process, so save your changes first. Runs use the config on disk.</p>
+      </div>
+      <div class="run-actions">
+        <button class="btn primary" id="run-all-btn">Run everything</button>
+        <div class="sep" aria-hidden="true"></div>
+        <button class="btn" data-run="fetch">Fetch</button>
+        <button class="btn" data-run="opencode">OpenCode</button>
+        <button class="btn" data-run="kilo">Kilo</button>
+        <button class="btn" data-run="t3 t3rest">T3</button>
+        <button class="btn" data-run="dsh">DSH</button>
+        <button class="btn" data-run="pi">pi</button>
+        <button class="btn" data-run="zcode">zcode</button>
+        <button class="btn" data-run="opencodex">ocx</button>
+        <div class="sep" aria-hidden="true"></div>
+        <button class="btn" data-run="cleanup" title="Delete transient cache files (e.g. T3 logs)">Clean cache</button>
+        <button class="btn danger" data-run="cleanmodels" title="Remove all script-added models and c-* providers across all harness configs">Remove models</button>
+        <div class="sep" aria-hidden="true"></div>
+        <button class="btn" data-run="commands" title="Run configured custom commands sequentially">Custom commands</button>
+        <div class="sep" aria-hidden="true"></div>
+        <!-- label + input are wrapped as one unit so flex-wrap can never break
+             a label onto a different row from the input it names -->
+        <span class="run-field">
+          <label for="run-mi">Min input</label>
+          <input type="number" id="run-mi" min="0" step="1000" placeholder="0">
+        </span>
+        <span class="run-field">
+          <label for="run-mo">Min output</label>
+          <input type="number" id="run-mo" min="0" step="1000" placeholder="0">
+        </span>
+        <div class="sep" aria-hidden="true"></div>
+        <button class="btn danger" id="stop-btn" disabled>Stop</button>
+      </div>
+      <div class="run-status" id="run-status" role="status" aria-live="polite"></div>
+      <div id="console" role="log" aria-label="Run output"></div>
     </div>
-    <div class="run-actions">
-      <button class="btn primary" id="run-all-btn">Run everything</button>
-      <div class="sep"></div>
-      <button class="btn" data-run="fetch">Fetch</button>
-      <button class="btn" data-run="opencode">OpenCode</button>
-      <button class="btn" data-run="kilo">Kilo</button>
-      <button class="btn" data-run="t3 t3rest">T3</button>
-      <button class="btn" data-run="dsh">DSH</button>
-      <button class="btn" data-run="pi">pi</button>
-      <button class="btn" data-run="zcode">zcode</button>
-      <button class="btn" data-run="opencodex">ocx</button>
-      <div class="sep"></div>
-      <button class="btn" data-run="cleanup">Cleanup</button>
-      <div class="sep"></div>
-      <label>min input</label>
-      <input type="number" id="run-mi" min="0" step="1000" placeholder="0">
-      <label>min output</label>
-      <input type="number" id="run-mo" min="0" step="1000" placeholder="0">
-      <div class="sep"></div>
-      <button class="btn danger" id="stop-btn" disabled>Stop</button>
-    </div>
-    <div class="run-status" id="run-status"></div>
-    <div id="console"></div>
   </div>
 
   <div class="content" id="tab-models" style="display:none">
-    <div class="page-head">
-      <h1>Model catalog</h1>
-      <p id="models-path"></p>
+    <div class="card depth-1">
+      <div class="page-head">
+        <h1>Model catalog</h1>
+        <p class="card-desc" id="models-path"></p>
+      </div>
+      <div class="models-toolbar">
+        <select id="models-which" aria-label="Which catalog file to show">
+          <option value="filtered">models-filtered.csv</option>
+          <option value="all">models-all.csv (raw)</option>
+        </select>
+        <input type="text" id="models-search" placeholder="Search model ID" aria-label="Search models by ID">
+        <span class="count" id="models-count" role="status" aria-live="polite"></span>
+        <button class="btn small" id="models-refresh"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>Refresh</button>
+      </div>
+      <div id="models-table-wrap"></div>
     </div>
-    <div class="models-toolbar">
-      <select id="models-which">
-        <option value="filtered">models-filtered.csv</option>
-        <option value="all">models-all.csv (raw)</option>
-      </select>
-      <input type="text" id="models-search" placeholder="Search model id…">
-      <span class="count" id="models-count"></span>
-      <button class="btn small" id="models-refresh">Refresh</button>
-    </div>
-    <div id="models-table-wrap"></div>
     <div class="card" style="margin-top:22px">
-      <h3>Providers</h3>
+      <h2 class="card-h2">Providers</h2>
       <p class="card-desc" id="providers-path"></p>
       <div id="providers-table-wrap"></div>
     </div>
   </div>
 </main>
+
+<span class="save-target" id="write-target">saving to <b>…</b></span>
 
 <div id="save-bar">
   <span class="msg">You have <b>unsaved changes</b>.</span>
@@ -759,14 +1074,6 @@ async function api(method, url, body) {
 // ===========================================================================
 // provenance + helpers
 // ===========================================================================
-function localHas(pathArr) {
-  let node = S.local;
-  for (const p of pathArr) {
-    if (node == null || typeof node !== 'object' || !(p in node)) return false;
-    node = node[p];
-  }
-  return true;
-}
 function getAt(obj, pathArr) {
   let node = obj;
   for (const p of pathArr) {
@@ -788,47 +1095,165 @@ function setDirty(v) {
   dirty = v;
   $('#save-bar').classList.toggle('show', v);
   $('#save-btn').disabled = !v;
+  // every control funnels its edits through setDirty, so this is the one hook
+  // that keeps the conditional field/section reset icons in step with the data
+  refreshResetState();
+}
+// value differs from its default? JSON round-trip: stable for the scalars,
+// arrays and plain objects this config holds, and order-sensitive for lists,
+// which is exactly the semantics a reordered list deserves
+function differsFromDefault(pathArr) {
+  return JSON.stringify(getAt(S.effective, pathArr)) !== JSON.stringify(getAt(S.defaults, pathArr));
+}
+// Show/hide the per-field reset icons and the per-section reset icon of the
+// ACTIVE section only — hidden sections are rebuilt on entry anyway.
+function refreshResetState() {
+  if (!S.defaults) return;
+  const sec = $('#sec-' + currentSection());
+  if (!sec) return;
+  sec.querySelectorAll('.field-reset').forEach((btn) => {
+    let pathArr = null;
+    try { pathArr = JSON.parse(btn.dataset.path || 'null'); } catch (e) { /* noop */ }
+    btn.classList.toggle('show', !!pathArr && differsFromDefault(pathArr));
+  });
+  const secBtn = sec.querySelector('.section-reset');
+  if (secBtn) {
+    const keys = SECTION_KEYS[currentSection()] || [];
+    secBtn.classList.toggle('show', keys.some((k) => differsFromDefault(k)));
+  }
 }
 function fieldLabel(key) {
   return key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
+// Display-only spellings for harness ids. The ids themselves are never changed —
+// only what the user reads. Anything missing falls back to the raw id.
+const HARNESS_LABEL = {
+  opencode: 'OpenCode', kilo: 'Kilo', t3: 'T3', dsh: 'DSH',
+  pi: 'pi', zcode: 'zcode', ocx: 'ocx', opencodex: 'ocx',
+};
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Render a filesystem path as a labelled <code> chip instead of raw body copy.
+// Long paths are truncated from the MIDDLE, since the filename at the tail is
+// what identifies the file; the untruncated path stays available via title.
+function setSourcePath(el, path, label) {
+  el.textContent = '';
+  if (!path) return;
+  const full = String(path);
+  const lead = label == null ? 'Source' : label;
+  if (lead) el.appendChild(document.createTextNode(lead + ' '));
+  const code = document.createElement('code');
+  code.className = 'path-code';
+  code.textContent = full.length > 58 ? full.slice(0, 26) + '…' + full.slice(-29) : full;
+  code.title = full;
+  el.appendChild(code);
 }
 
 // ===========================================================================
 // generic control builders
 // ===========================================================================
-function fieldRow(labelText, hint, controlEl, pathArr) {
+// Monotonic id source so every field can be wired label -> control.
+let __fieldSeq = 0;
+
+function fieldRow(labelText, hint, controlEl, pathArr, iconId) {
   const row = document.createElement('div');
   row.className = 'field';
-  const label = document.createElement('div');
+
+  // Find the thing the label should point at. Native controls accept <label for>;
+  // our toggle() is a role="switch" div, which does not, so that case is wired
+  // with aria-labelledby instead.
+  const native = controlEl.matches('input, select, textarea')
+    ? controlEl
+    : controlEl.querySelector('input, select, textarea');
+  const widget = native || (controlEl.matches('[role="switch"], [role="checkbox"]')
+    ? controlEl
+    : controlEl.querySelector('[role="switch"], [role="checkbox"]'));
+
+  const uid = 'f' + (++__fieldSeq);
+  const label = document.createElement('label');
   label.className = 'field-label';
-  label.innerHTML = esc(labelText) + (hint ? '<span class="hint"></span>' : '');
-  if (hint) label.querySelector('.hint').textContent = hint;
-  row.appendChild(label);
+  label.id = uid + '-l';
+
+  if (iconId) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'field-ico');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#' + iconId);
+    svg.appendChild(use);
+    label.appendChild(svg);
+  }
+
+  const nameWrap = document.createElement('span');
+  nameWrap.className = 'field-text';
+  const name = document.createElement('span');
+  name.className = 'field-name';
+  name.textContent = labelText;
+  nameWrap.appendChild(name);
+  // NOTE: .hint is queried by JS elsewhere, so the class and nesting stay.
+  if (hint) {
+    const h = document.createElement('span');
+    h.className = 'hint';
+    h.textContent = hint;
+    nameWrap.appendChild(h);
+  }
+  label.appendChild(nameWrap);
+
+  // the label column holds the label AND the per-field reset: the icon sits
+  // right after the label text (not after a flexible gap, not against the
+  // control), top-aligned with the first line of the label
+  const side = document.createElement('div');
+  side.className = 'field-side';
+  side.appendChild(label);
+  if (pathArr) side.appendChild(makeFieldReset(labelText, pathArr));
+  row.appendChild(side);
+
+  if (native) {
+    if (!native.id) native.id = uid + '-c';
+    label.setAttribute('for', native.id);
+  } else if (widget) {
+    // role=switch / role=checkbox: associate by reference.
+    widget.setAttribute('aria-labelledby', label.id);
+  }
+
   const ctl = document.createElement('div');
   ctl.className = 'field-ctl';
-  ctl.appendChild(controlEl);
-  row.appendChild(ctl);
-  if (pathArr && localHas(pathArr)) {
-    const b = document.createElement('span');
-    b.className = 'ovr-badge';
-    b.title = 'Overridden in config.local.jsonc';
-    b.textContent = 'local';
-    ctl.appendChild(b);
-    const reset = document.createElement('button');
-    reset.className = 'reset-link';
-    reset.textContent = 'reset';
-    reset.addEventListener('click', () => {
-      setAt(pathArr, deepClone(getAt(S.defaults, pathArr)));
-      setDirty(true);
-      rebuildConfig();
-      showSection(currentSection());
-    });
-    ctl.appendChild(reset);
+  // a lone switch reads as a setting toggle: right-align it in the control
+  // column with flexible space before it, unlike an input which fills
+  const isSwitch = !!(controlEl.matches('[role="switch"], [role="checkbox"]')
+    || controlEl.querySelector('[role="switch"], [role="checkbox"]'));
+  if (isSwitch) ctl.classList.add('ctl-end');
+  if (isSwitch) {
+    ctl.appendChild(controlEl);
+  } else {
+    const holder = document.createElement('div');
+    holder.className = 'grow';
+    holder.appendChild(controlEl);
+    ctl.appendChild(holder);
   }
+  row.appendChild(ctl);
   return row;
+}
+
+// per-field reset icon; hidden until the value differs from its default
+function makeFieldReset(labelText, pathArr) {
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.className = 'icon-btn field-reset';
+  reset.dataset.path = JSON.stringify(pathArr);
+  reset.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+  reset.title = 'Reset ' + labelText + ' to default';
+  reset.setAttribute('aria-label', 'Reset ' + labelText + ' to default');
+  reset.addEventListener('click', () => {
+    setAt(pathArr, deepClone(getAt(S.defaults, pathArr)));
+    setDirty(true);
+    rebuildConfig();
+    showSection(currentSection());
+  });
+  return reset;
 }
 
 function textField(pathArr, placeholder) {
@@ -875,10 +1300,34 @@ function select(options, current, onchange) {
   return sel;
 }
 
-function card(title, desc) {
+// level 1 = the section's own heading (one visible at a time, so one h1 per
+// rendered page); 2 = a sub-card inside a section. Sizes come from the
+// .card-h* classes, so the tag change alone never moves any pixels.
+// resetFor: section name whose SECTION_KEYS drive the conditional reset icon
+// rendered at the right edge of the title row.
+function card(title, desc, level, resetFor) {
   const c = document.createElement('div');
   c.className = 'card';
-  if (title) { const h = document.createElement('h3'); h.textContent = title; c.appendChild(h); }
+  const lv = level || 2;
+  if (title) {
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const h = document.createElement('h' + lv);
+    h.className = 'card-h' + lv;
+    h.textContent = title;
+    head.appendChild(h);
+    if (resetFor) {
+      const rst = document.createElement('button');
+      rst.type = 'button';
+      rst.className = 'icon-btn section-reset';
+      rst.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+      rst.title = 'Reset this section to defaults';
+      rst.setAttribute('aria-label', 'Reset ' + title + ' to defaults');
+      rst.addEventListener('click', () => resetSection(resetFor));
+      head.appendChild(rst);
+    }
+    c.appendChild(head);
+  }
   if (desc) { const p = document.createElement('p'); p.className = 'card-desc'; p.textContent = desc; c.appendChild(p); }
   return c;
 }
@@ -906,10 +1355,18 @@ function listEditor(pathArr, opts = {}) {
     arr.forEach((item, i) => {
       const chip = document.createElement('span');
       chip.className = 'chip';
-      chip.textContent = item;
-      const x = document.createElement('span');
+      const txt = document.createElement('span');
+      txt.className = 'chip-txt';
+      txt.textContent = item;
+      chip.appendChild(txt);
+      // was a <span> measuring 0x0, so the remove affordance was unclickable
+      // and unreachable by keyboard; now a real button with a 24px hit area
+      const x = document.createElement('button');
+      x.type = 'button';
       x.className = 'x';
-      x.textContent = '✕';
+      x.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      x.title = 'Remove ' + item;
+      x.setAttribute('aria-label', 'Remove ' + item);
       x.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
       chip.appendChild(x);
       box.appendChild(chip);
@@ -918,7 +1375,8 @@ function listEditor(pathArr, opts = {}) {
     add.className = 'add-row';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = opts.placeholder || 'add…';
+    input.placeholder = opts.placeholder || 'Add an entry';
+    input.setAttribute('aria-label', opts.addLabel || 'New entry');
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && input.value.trim()) {
         set(get().concat([input.value.trim()])); input.value = ''; render();
@@ -926,14 +1384,15 @@ function listEditor(pathArr, opts = {}) {
     });
     const btn = document.createElement('button');
     btn.className = 'btn small';
-    btn.textContent = 'Add';
+    btn.type = 'button';
+    btn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
     btn.addEventListener('click', () => {
       if (input.value.trim()) { set(get().concat([input.value.trim()])); input.value = ''; render(); }
     });
     add.appendChild(input);
     add.appendChild(btn);
     box.appendChild(add);
-    if (opts.note) { const n = document.createElement('div'); n.className = 'field-note'; n.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px'; n.textContent = opts.note; box.appendChild(n); }
+    if (opts.note) { const n = document.createElement('div'); n.className = 'field-note'; n.style.marginTop = '6px'; n.textContent = opts.note; box.appendChild(n); }
   }
   render();
   return wrap;
@@ -953,6 +1412,7 @@ function sortBuilder(pathArr) {
   const wrap = document.createElement('div');
   wrap.style.flex = '1';
   const fields = ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'];
+  const FIELD_LABEL = { id: 'Model ID', input_context: 'Input context', output_context: 'Output context', vision: 'Vision', reasoning: 'Reasoning', tool: 'Tool use' };
   function render() {
     wrap.innerHTML = '';
     const pairs = parseSortToPairs(getAt(S.effective, pathArr));
@@ -962,16 +1422,27 @@ function sortBuilder(pathArr) {
     pairs.forEach((p, i) => {
       const chip = document.createElement('span');
       chip.className = 'chip on';
-      chip.style.cssText = 'cursor:pointer';
-      const label = document.createElement('span');
-      label.textContent = (p.desc ? '▼ ' : '▲ ') + p.field;
+      const name = FIELD_LABEL[p.field] || p.field;
+      const dir = p.desc ? 'descending' : 'ascending';
+      // The flip affordance is the label itself, so it has to be a real button
+      // to be reachable without a mouse.
+      const label = document.createElement('button');
+      label.type = 'button';
+      label.className = 'chip-txt';
+      label.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="' + (p.desc ? '#i-caret-down' : '#i-caret-up') + '"/></svg><span></span>';
+      label.querySelector('span').textContent = name;
+      label.title = 'Sorting ' + dir + '. Click to flip.';
+      label.setAttribute('aria-label', name + ', sorted ' + dir + '. Activate to flip direction.');
       label.addEventListener('click', () => {
         pairs[i].desc = !pairs[i].desc;
         setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
       });
-      const x = document.createElement('span');
+      const x = document.createElement('button');
+      x.type = 'button';
       x.className = 'x';
-      x.textContent = '✕';
+      x.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      x.title = 'Remove ' + name;
+      x.setAttribute('aria-label', 'Remove sort key ' + name);
       x.addEventListener('click', () => {
         pairs.splice(i, 1);
         setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
@@ -984,10 +1455,12 @@ function sortBuilder(pathArr) {
     add.className = 'add-row';
     add.style.marginTop = '8px';
     const sel = document.createElement('select');
-    for (const f of fields) { const o = document.createElement('option'); o.value = f; o.textContent = f; sel.appendChild(o); }
+    sel.setAttribute('aria-label', 'Sort field to add');
+    for (const f of fields) { const o = document.createElement('option'); o.value = f; o.textContent = FIELD_LABEL[f] || f; sel.appendChild(o); }
     const btn = document.createElement('button');
     btn.className = 'btn small';
-    btn.textContent = '+ sort key';
+    btn.type = 'button';
+    btn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Sort key';
     btn.addEventListener('click', () => {
       pairs.push({ field: sel.value, desc: true });
       setAt(pathArr, pairsToSort(pairs)); setDirty(true); render();
@@ -996,8 +1469,8 @@ function sortBuilder(pathArr) {
     wrap.appendChild(add);
     const note = document.createElement('div');
     note.className = 'field-note';
-    note.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px';
-    note.textContent = 'Primary sort key first; ties break by the next key, then by id. Click a chip to flip ascending/descending.';
+    note.style.marginTop = '6px';
+    note.textContent = 'Primary sort key first; ties break by the next key, then by ID. Click a chip to flip ascending or descending.';
     wrap.appendChild(note);
   }
   render();
@@ -1173,11 +1646,12 @@ function manualBlockBuilder(pathArr, opts = {}) {
   const get = () => getAt(S.effective, pathArr) || [];
   const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
 
-  function iconBtn(sym, title, fn) {
+  function iconBtn(sym, title, fn, ariaLabel) {
     const b = document.createElement('button');
     b.className = 'icon-btn';
     b.innerHTML = sym;
     b.title = title;
+    b.setAttribute('aria-label', ariaLabel || title);
     b.addEventListener('click', fn);
     return b;
   }
@@ -1269,11 +1743,12 @@ function manualBlockBuilder(pathArr, opts = {}) {
 
     const hint = document.createElement('div');
     hint.className = 'field-note';
-    hint.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:8px';
-    hint.textContent = opts.hint || 'Written by hand, one expression per block — drag a block to reorder. "!" blocks, "==xxx" keeps-only, bare allows; $field comparisons, (topN:sort) directives' + (isHarness ? ' and "->t3,dsh" targeting' : '') + ' all work.';
+    hint.style.marginBottom = '8px';
+    hint.textContent = opts.hint || 'One expression per block. Drag a block to reorder. "!" blocks, "==xxx" keeps only, a bare pattern allows; $field comparisons and (topN:sort) directives' + (isHarness ? ' and "->t3,dsh" targeting' : '') + ' all work.';
     wrap.appendChild(hint);
 
     const box = document.createElement('div');
+    box.className = 'rule-list';
     box.style.flex = '1';
     if (!rows.length) {
       const e = document.createElement('div');
@@ -1289,7 +1764,7 @@ function manualBlockBuilder(pathArr, opts = {}) {
     if (!isHarness) {
       const prev = document.createElement('div');
       prev.className = 'field-note';
-      prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:11.5px';
+      prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px';
       prev.innerHTML = 'Live preview: <span id="preview-count">…</span>';
       wrap.appendChild(prev);
     }
@@ -1299,7 +1774,8 @@ function manualBlockBuilder(pathArr, opts = {}) {
     addBar.style.marginTop = '8px';
     const addBtn = document.createElement('button');
     addBtn.className = 'btn small';
-    addBtn.textContent = '+ add rule';
+    addBtn.type = 'button';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add rule';
     // read from the live row objects, not the last-committed array, so text
     // typed but not yet debounce-committed isn't lost when adding a block
     const addGen = gen;
@@ -1327,11 +1803,13 @@ function manualBlockBuilder(pathArr, opts = {}) {
     const handle = document.createElement('span');
     handle.className = 'drag-handle';
     handle.title = 'Drag to reorder';
-    handle.textContent = '⋮⋮';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grip"/></svg>';
     head.appendChild(handle);
     const num = document.createElement('span');
     num.className = 'rule-num';
     num.textContent = String(i + 1);
+    num.setAttribute('aria-hidden', 'true');
     head.appendChild(num);
 
     const ta = document.createElement('textarea');
@@ -1340,6 +1818,7 @@ function manualBlockBuilder(pathArr, opts = {}) {
     ta.rows = 1;
     ta.value = r.text;
     ta.placeholder = opts.placeholder || 'e.g. !(kc/* && !*free)';
+    ta.setAttribute('aria-label', (isHarness ? 'Harness filter' : 'Filter rule') + ' ' + (i + 1) + ' expression');
     // the expression sits inline between the number and the ✕, so all four
     // controls share one row
     head.appendChild(ta);
@@ -1349,13 +1828,13 @@ function manualBlockBuilder(pathArr, opts = {}) {
     // leaving the handle + number left-aligned on the same row
     const ops = document.createElement('div');
     ops.className = 'rule-ops';
-    ops.appendChild(iconBtn('✕', 'Remove this rule', () => {
+    ops.appendChild(iconBtn('<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>', 'Remove this rule', () => {
       if (myGen !== gen) return; // detached handler from a previous render
       const a = allRows.map((x) => x.text);
       a.splice(i, 1);
       set(a);
       render();
-    }));
+    }, 'Remove rule ' + (i + 1)));
     head.appendChild(ops);
 
     box.appendChild(head);
@@ -1491,7 +1970,7 @@ function ruleBuilder(pathArr, opts = {}) {
     if (!rows.length) {
       const e = document.createElement('div');
       e.className = 'list-empty';
-      e.textContent = opts.emptyText || '(no rules — everything passes through)';
+      e.textContent = opts.emptyText || 'No rules yet. Everything passes through.';
       box.appendChild(e);
     }
     rows.forEach((row, i) => box.appendChild(renderRule(row, i, rows)));
@@ -1501,7 +1980,7 @@ function ruleBuilder(pathArr, opts = {}) {
     // live preview line
     const prev = document.createElement('div');
     prev.className = 'field-note';
-    prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:11.5px';
+    prev.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:12.5px';
     prev.innerHTML = 'Live preview: <span id="preview-count">…</span>';
     wrap.appendChild(prev);
 
@@ -1533,7 +2012,7 @@ function ruleBuilder(pathArr, opts = {}) {
   function renderRaw(rows) {
     const label = document.createElement('div');
     label.className = 'field-note';
-    label.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:4px';
+    label.style.cssText = 'color:var(--text-3);font-size:12.5px;margin-bottom:4px';
     label.textContent = opts.rawNote || 'One expression per line. "!" blocks, "==xxx" keeps-only, bare allows; $field comparisons, (topN:sort) directives and "->t3,dsh" harness targeting all work.';
     wrap.appendChild(label);
     const ta = document.createElement('textarea');
@@ -1541,7 +2020,7 @@ function ruleBuilder(pathArr, opts = {}) {
     ta.spellcheck = false;
     ta.value = rows.map((r) => r.raw).join('\n');
     const err = document.createElement('div');
-    err.style.cssText = 'color:var(--danger);font-size:11px;margin-top:4px;min-height:14px';
+    err.style.cssText = 'color:var(--danger);font-size:12px;margin-top:4px;min-height:14px';
     const guiBtn = iconBtn('☰', 'Back to dropdown mode', () => {
       // keep whatever is typed when switching back
       apply(ta.value);
@@ -1654,7 +2133,7 @@ function ruleBuilder(pathArr, opts = {}) {
     if (!(r.excepts || []).length) {
       const hint = document.createElement('div');
       hint.className = 'field-note';
-      hint.style.cssText = 'font-size:11px;color:var(--text-3)';
+      hint.style.cssText = 'font-size:12px;color:var(--text-3)';
       hint.textContent = 'No exceptions — add one to carve models out of this rule.';
       excBox.appendChild(hint);
     }
@@ -1672,7 +2151,7 @@ function ruleBuilder(pathArr, opts = {}) {
       tRow.className = 'rule-cond';
       HARNESSES.forEach((h) => {
         const ck = document.createElement('label');
-        ck.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px';
+        ck.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;font-size:13px';
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = !!(r.harnesses && r.harnesses.includes(h));
@@ -1891,17 +2370,19 @@ function overrideBuilder(pathArr, opts = {}) {
       const main = document.createElement('div');
       main.className = 'rule-main';
       const head = document.createElement('div');
-      head.className = 'rule-head';
+      head.className = 'rule-head ovr-head';
       const handle = document.createElement('span');
       handle.className = 'drag-handle';
       handle.title = 'Drag to reorder';
-      handle.textContent = '⋮⋮';
+      handle.setAttribute('aria-hidden', 'true');
+      handle.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-grip"/></svg>';
       head.appendChild(handle);
       const fLab = document.createElement('span');
       fLab.className = 'inline-lab';
       fLab.textContent = 'set';
       head.appendChild(fLab);
-      const fsel = select(FIELDS.map((f) => [f, f]), row.field, (v) => { row.field = v; commit(i, rows); });
+      const fsel = select(FIELDS.map((f) => [f, fieldLabel(f)]), row.field, (v) => { row.field = v; commit(i, rows); });
+      fsel.setAttribute('aria-label', 'Override ' + (i + 1) + ' field');
       head.appendChild(fsel);
       const vLab = document.createElement('span');
       vLab.className = 'inline-lab';
@@ -1912,14 +2393,17 @@ function overrideBuilder(pathArr, opts = {}) {
       vin.className = 'ovr-value';
       vin.placeholder = 'value';
       vin.value = row.value;
+      vin.setAttribute('aria-label', 'Override ' + (i + 1) + ' value');
       vin.addEventListener('input', () => { row.value = vin.value; commit(i, rows); });
       head.appendChild(vin);
       const ops = document.createElement('div');
       ops.className = 'rule-ops';
       const del = document.createElement('button');
       del.className = 'icon-btn';
-      del.innerHTML = '✕';
+      del.type = 'button';
+      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
       del.title = 'Remove this override';
+      del.setAttribute('aria-label', 'Remove override ' + (i + 1));
       del.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
       ops.appendChild(del);
       head.appendChild(ops);
@@ -1944,7 +2428,7 @@ function overrideBuilder(pathArr, opts = {}) {
           else row.targets = row.targets.filter((x) => x !== h);
           commit(i, rows);
         });
-        ck.appendChild(cb); ck.appendChild(document.createTextNode(h));
+        ck.appendChild(cb); ck.appendChild(document.createTextNode(HARNESS_LABEL[h] || h));
         target.appendChild(ck);
       });
       main.appendChild(target);
@@ -1964,7 +2448,8 @@ function overrideBuilder(pathArr, opts = {}) {
     add.style.marginTop = '8px';
     const addBtn = document.createElement('button');
     addBtn.className = 'btn small';
-    addBtn.textContent = '+ add override';
+    addBtn.type = 'button';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add override';
     addBtn.addEventListener('click', () => {
       set(get().concat([build({ field: 'input_context', value: '1000000', targets: null })]));
       render();
@@ -1972,32 +2457,36 @@ function overrideBuilder(pathArr, opts = {}) {
     add.appendChild(addBtn);
     const rawBtn = document.createElement('button');
     rawBtn.className = 'icon-btn';
-    rawBtn.innerHTML = '✎';
-    rawBtn.title = 'Manual mode — type override directives by hand';
+    rawBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>';
+    rawBtn.title = 'Manual mode. Type override directives by hand.';
+    rawBtn.setAttribute('aria-label', 'Switch to manual mode and type override directives by hand');
     rawBtn.addEventListener('click', () => { wrap.dataset.mode = 'raw'; render(); });
     add.appendChild(rawBtn);
     wrap.appendChild(add);
     const note = document.createElement('div');
     note.className = 'field-note';
-    note.style.cssText = 'color:var(--text-3);font-size:11px;margin-top:6px';
+    note.style.marginTop = '6px';
     note.textContent = opts.note || '';
     wrap.appendChild(note);
   }
   function renderRaw(rows) {
     const label = document.createElement('div');
     label.className = 'field-note';
-    label.style.cssText = 'color:var(--text-3);font-size:11.5px;margin-bottom:4px';
-    label.textContent = 'One directive per line: (field:value) or (field:value)->t3,dsh — e.g. (input_context:1000000)->t3,dsh';
+    label.style.marginBottom = '4px';
+    label.textContent = 'One directive per line: (field:value) or (field:value)->t3,dsh, e.g. (input_context:1000000)->t3,dsh';
     wrap.appendChild(label);
     const ta = document.createElement('textarea');
     ta.className = 'raw-expr';
     ta.spellcheck = false;
+    ta.setAttribute('aria-label', 'Override directives, one per line');
     ta.value = rows.map((r) => r.raw).join('\n');
     const guiBtn = document.createElement('button');
     guiBtn.className = 'icon-btn';
+    guiBtn.type = 'button';
     guiBtn.style.marginTop = '4px';
-    guiBtn.innerHTML = '☰';
-    guiBtn.title = 'Back to dropdown mode';
+    guiBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>';
+    guiBtn.title = 'Back to guided mode';
+    guiBtn.setAttribute('aria-label', 'Leave manual mode and go back to guided mode');
     guiBtn.addEventListener('click', () => {
       set(ta.value.split('\n').map((l) => l.trim()).filter(Boolean));
       wrap.dataset.mode = 'gui';
@@ -2022,11 +2511,20 @@ function customModelsTable() {
   function render() {
     wrap.innerHTML = '';
     const arr = S.effective.custom_models || [];
+    if (!arr.length) {
+      const e = document.createElement('div');
+      e.className = 'list-empty';
+      e.textContent = 'No custom models yet. Add one below.';
+      wrap.appendChild(e);
+    }
     const table = document.createElement('table');
     table.className = 'mini';
-    table.innerHTML = '<thead><tr><th>id</th><th>input ctx</th><th>output ctx</th><th>vision</th><th>reasoning</th><th>tool</th><th></th></tr></thead>';
+    table.innerHTML = '<thead><tr><th scope="col">Model ID</th><th scope="col">Input ctx</th><th scope="col">Output ctx</th><th scope="col">Vision</th><th scope="col">Reasoning</th><th scope="col">Tool use</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>';
+    if (!arr.length) table.classList.add('is-empty');
     const tbody = table.createTBody();
+    const COL_LABEL = { vision: 'Vision', reasoning: 'Reasoning', tool: 'Tool use', in: 'Input context', out: 'Output context' };
     arr.forEach((m, i) => {
+      const who = m.id ? '"' + m.id + '"' : 'row ' + (i + 1);
       const tr = tbody.insertRow();
       const tdId = tr.insertCell();
       const idIn = document.createElement('input');
@@ -2034,6 +2532,7 @@ function customModelsTable() {
       idIn.value = m.id || '';
       idIn.placeholder = 'provider/model';
       idIn.style.width = '220px';
+      idIn.setAttribute('aria-label', 'Model ID, row ' + (i + 1));
       idIn.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], id: idIn.value }; S.effective.custom_models = a; setDirty(true); });
       tdId.appendChild(idIn);
       for (const col of ['in', 'out']) {
@@ -2042,28 +2541,35 @@ function customModelsTable() {
         n.type = 'number';
         n.value = m[col] == null ? '' : m[col];
         n.style.width = '90px';
+        n.setAttribute('aria-label', COL_LABEL[col] + ' for ' + who);
         n.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: n.value === '' ? 0 : parseInt(n.value, 10) }; S.effective.custom_models = a; setDirty(true); });
         td.appendChild(n);
       }
       for (const col of ['vision', 'reasoning', 'tool']) {
         const td = tr.insertCell();
         const sel = document.createElement('select');
-        sel.innerHTML = '<option value="1">1 — yes</option><option value="0">0 — no</option><option value="-1">-1 — unknown</option>';
+        sel.innerHTML = '<option value="1">Yes</option><option value="0">No</option><option value="-1">Unknown</option>';
         sel.value = String(m[col] == null ? 1 : m[col]);
+        sel.setAttribute('aria-label', COL_LABEL[col] + ' for ' + who);
         sel.addEventListener('change', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: parseInt(sel.value, 10) }; S.effective.custom_models = a; setDirty(true); });
         td.appendChild(sel);
       }
       const tdDel = tr.insertCell();
+      tdDel.className = 'col-act';
       const del = document.createElement('button');
       del.className = 'del';
-      del.textContent = '✕';
+      del.type = 'button';
+      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      del.title = 'Remove this model';
+      del.setAttribute('aria-label', 'Remove custom model ' + who);
       del.addEventListener('click', () => { S.effective.custom_models = S.effective.custom_models.filter((_, j) => j !== i); setDirty(true); render(); });
       tdDel.appendChild(del);
     });
     wrap.appendChild(table);
     const add = document.createElement('button');
     add.className = 'btn small table-add';
-    add.textContent = '+ add custom model';
+    add.type = 'button';
+    add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add custom model';
     add.addEventListener('click', () => {
       S.effective.custom_models = (S.effective.custom_models || []).concat([{ id: '', in: 200000, out: 8192, vision: 1, reasoning: 1, tool: 1 }]);
       setDirty(true); render();
@@ -2079,42 +2585,55 @@ function customModelsTable() {
 // ===========================================================================
 function driverTable(pathArr, title) {
   const wrap = document.createElement('div');
-  wrap.style.marginBottom = '14px';
-  const lab = document.createElement('div');
-  lab.style.cssText = 'color:var(--text-3);font-size:12px;margin-bottom:6px';
-  lab.textContent = title;
-  wrap.appendChild(lab);
+  wrap.style.flex = '1';
   const render = () => {
-    wrap.querySelector('table')?.remove();
+    wrap.innerHTML = '';
     const arr = getAt(S.effective, pathArr) || [];
+    if (!arr.length) {
+      const e = document.createElement('div');
+      e.className = 'list-empty';
+      e.textContent = 'No drivers yet. Add one below.';
+      wrap.appendChild(e);
+    }
     const table = document.createElement('table');
     table.className = 'mini';
-    table.innerHTML = '<thead><tr><th>driver</th><th>[1m]</th><th></th></tr></thead>';
+    table.innerHTML = '<thead><tr><th scope="col">Driver</th><th scope="col" class="col-1m">1M context</th><th scope="col" class="col-act"><span class="sr-only">Actions</span></th></tr></thead>';
     const tbody = table.createTBody();
     arr.forEach((item, i) => {
+      const who = item.driver ? '"' + item.driver + '"' : 'row ' + (i + 1);
       const tr = tbody.insertRow();
       const tdD = tr.insertCell();
       const input = document.createElement('input');
       input.type = 'text';
       input.value = item.driver || '';
       input.placeholder = 'driver';
-      input.style.width = '200px';
+      // fills the whole Driver column; the toggle and ✕ cells size to
+      // their content and the table is width:100%
+      input.style.width = '100%';
+      input.setAttribute('aria-label', (title || 'Driver') + ' name, row ' + (i + 1));
       input.addEventListener('input', () => { const a = getAt(S.effective, pathArr).slice(); a[i] = { ...a[i], driver: input.value }; setAt(pathArr, a); setDirty(true); });
       tdD.appendChild(input);
       const tdM = tr.insertCell();
+      tdM.className = 'col-1m';
       const t = toggle([...pathArr, i, '1m']);
+      t.setAttribute('aria-label', '1M context for ' + who);
       tdM.appendChild(t);
       const tdX = tr.insertCell();
+      tdX.className = 'col-act';
       const del = document.createElement('button');
       del.className = 'del';
-      del.textContent = '✕';
+      del.type = 'button';
+      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      del.title = 'Remove this driver';
+      del.setAttribute('aria-label', 'Remove driver ' + who);
       del.addEventListener('click', () => { const a = getAt(S.effective, pathArr).slice(); a.splice(i, 1); setAt(pathArr, a); setDirty(true); render(); });
       tdX.appendChild(del);
     });
     wrap.appendChild(table);
     const add = document.createElement('button');
     add.className = 'btn small table-add';
-    add.textContent = '+ add driver';
+    add.type = 'button';
+    add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add driver';
     add.addEventListener('click', () => { const a = (getAt(S.effective, pathArr) || []).concat([{ driver: '', '1m': false }]); setAt(pathArr, a); setDirty(true); render(); });
     wrap.appendChild(add);
   };
@@ -2138,7 +2657,6 @@ function adapterList(pathArr, harnessKey) {
   wrap.className = 'adapter-wrap';
   wrap.style.flex = '1';
   const adapters = HARNESS_ADAPTERS[harnessKey] || HARNESS_ADAPTERS['opencode'];
-  const defaultAdapter = adapters[0];
   const get = () => getAt(S.effective, pathArr) || [];
   const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
   function render() {
@@ -2146,38 +2664,62 @@ function adapterList(pathArr, harnessKey) {
     const arr = get();
     if (!arr.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = '(none)'; wrap.appendChild(e); }
     arr.forEach((item, i) => {
-      const row = document.createElement('div');
-      row.className = 'rule-head adapter-row';
-      const sel = document.createElement('select');
-      sel.innerHTML = adapters.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('') + '<option value="__custom">custom…</option>';
-      if (adapters.includes(item)) sel.value = item;
-      else sel.value = '__custom';
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.value = adapters.includes(item) ? '' : item;
-      inp.placeholder = 'adapter string';
-      inp.style.display = adapters.includes(item) ? 'none' : '';
-      inp.addEventListener('input', () => { const a = get().slice(); a[i] = inp.value; set(a); });
-      sel.addEventListener('change', () => {
-        const custom = sel.value === '__custom';
-        inp.style.display = custom ? '' : 'none';
-        if (custom) { inp.focus(); return; }
-        const a = get().slice(); a[i] = sel.value; set(a); render();
-      });
-      const del = document.createElement('button');
-      del.className = 'btn small ghost'; del.textContent = '✕';
-      del.title = 'Remove this adapter';
-      del.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
-      const ops = document.createElement('div');
-      ops.className = 'rule-ops';
-      ops.appendChild(del);
-      row.appendChild(sel); row.appendChild(inp); row.appendChild(ops);
-      wrap.appendChild(row);
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      const txt = document.createElement('span');
+      txt.className = 'chip-txt';
+      txt.textContent = item;
+      chip.appendChild(txt);
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'x';
+      x.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      x.title = 'Remove ' + item;
+      x.setAttribute('aria-label', 'Remove ' + item);
+      x.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
+      chip.appendChild(x);
+      wrap.appendChild(chip);
     });
-    const add = document.createElement('button');
-    add.className = 'btn small table-add';
-    add.textContent = '+ add adapter';
-    add.addEventListener('click', () => { set(get().concat([defaultAdapter])); render(); });
+    const add = document.createElement('div');
+    add.className = 'add-row';
+    // fixed-width preset dropdown (mirrors the Capabilities add-field input's
+    // ~150px footprint) with a custom… entry; picking custom reveals a text
+    // input that fills the rest of the row before the Add button
+    const addSel = document.createElement('select');
+    addSel.innerHTML = adapters.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('') + '<option value="__custom">custom…</option>';
+    addSel.setAttribute('aria-label', 'New adapter preset');
+    const addInp = document.createElement('input');
+    addInp.type = 'text';
+    addInp.placeholder = 'adapter string';
+    addInp.setAttribute('aria-label', 'New adapter custom string');
+    addInp.style.display = 'none';
+    const commitAdd = () => {
+      const val = addSel.value === '__custom' ? addInp.value.trim() : addSel.value;
+      if (!val) return;
+      if (!get().includes(val)) {
+        set(get().concat([val]));
+      }
+      addInp.value = '';
+      if (addSel.value === '__custom') {
+        addSel.value = adapters[0] || '';
+        addInp.style.display = 'none';
+      }
+      render();
+    };
+    addSel.addEventListener('change', () => {
+      const custom = addSel.value === '__custom';
+      addInp.style.display = custom ? '' : 'none';
+      if (custom) addInp.focus();
+    });
+    addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn small';
+    addBtn.type = 'button';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
+    addBtn.addEventListener('click', commitAdd);
+    add.appendChild(addSel);
+    add.appendChild(addInp);
+    add.appendChild(addBtn);
     wrap.appendChild(add);
   }
   render();
@@ -2208,17 +2750,36 @@ function openFileBrowser(input, pathArr) {
   let cur = '~';
   const root = $('#modal-root');
   root.innerHTML = '';
+  const returnFocus = document.activeElement;
   const back = document.createElement('div');
   back.className = 'modal-backdrop';
   const modal = document.createElement('div');
   modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-label', 'Browse for a file or folder');
   const head = document.createElement('div');
   head.className = 'modal-head';
   const pathEl = document.createElement('span');
   pathEl.className = 'path';
   const close = document.createElement('button');
-  close.className = 'close'; close.textContent = '✕';
-  close.addEventListener('click', () => root.innerHTML = '');
+  close.className = 'close';
+  close.type = 'button';
+  close.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+  close.title = 'Close';
+  close.setAttribute('aria-label', 'Close file browser');
+  // Every exit route lands here so focus always returns to the Browse button.
+  function dismiss() {
+    root.innerHTML = '';
+    document.removeEventListener('keydown', onKey);
+    if (returnFocus && returnFocus.focus) returnFocus.focus();
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
+  }
+  document.addEventListener('keydown', onKey);
+  back.addEventListener('mousedown', (e) => { if (e.target === back) dismiss(); });
+  close.addEventListener('click', dismiss);
   head.appendChild(pathEl); head.appendChild(close);
   const body = document.createElement('div');
   body.className = 'modal-body';
@@ -2226,20 +2787,40 @@ function openFileBrowser(input, pathArr) {
   foot.className = 'modal-foot';
   const val = document.createElement('input');
   val.type = 'text';
+  val.setAttribute('aria-label', 'Selected path');
   foot.appendChild(val);
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn small';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', dismiss);
+  foot.appendChild(cancelBtn);
   const useBtn = document.createElement('button');
   useBtn.className = 'btn primary small';
+  useBtn.type = 'button';
   useBtn.textContent = 'Use this path';
   useBtn.addEventListener('click', () => {
     input.value = val.value;
     setAt(pathArr, val.value);
     setDirty(true);
-    root.innerHTML = '';
+    dismiss();
   });
   foot.appendChild(useBtn);
   modal.appendChild(head); modal.appendChild(body); modal.appendChild(foot);
   back.appendChild(modal);
   root.appendChild(back);
+
+  // Rows were click-only <div>s. A real <button> keeps the same click handler
+  // but becomes tabbable and responds to Enter/Space for free.
+  function mkRow(kind, sym, name, onPick) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'modal-row ' + kind;
+    row.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="' + sym + '"/></svg><span class="nm"></span>';
+    row.querySelector('.nm').textContent = name;
+    row.addEventListener('click', onPick);
+    return row;
+  }
 
   async function load(dir) {
     cur = dir;
@@ -2251,27 +2832,14 @@ function openFileBrowser(input, pathArr) {
       pathEl.textContent = r.dir;
       val.value = r.dir;
       if (r.parent) {
-        const up = document.createElement('div');
-        up.className = 'modal-row dir';
-        up.innerHTML = '<span class="ic">↰</span><span class="nm">.. (up)</span>';
-        up.addEventListener('click', () => load(r.parent));
+        const up = mkRow('dir', '#i-arrow-up', '.. (up)', () => load(r.parent));
         body.appendChild(up);
       }
       for (const d of r.dirs) {
-        const row = document.createElement('div');
-        row.className = 'modal-row dir';
-        row.innerHTML = '<span class="ic">▸</span><span class="nm"></span>';
-        row.querySelector('.nm').textContent = d;
-        row.addEventListener('click', () => load(r.dir + '/' + d));
-        body.appendChild(row);
+        body.appendChild(mkRow('dir', '#i-chevron-right', d, () => load(r.dir + '/' + d)));
       }
       for (const f of r.files) {
-        const row = document.createElement('div');
-        row.className = 'modal-row file';
-        row.innerHTML = '<span class="ic">·</span><span class="nm"></span>';
-        row.querySelector('.nm').textContent = f;
-        row.addEventListener('click', () => { val.value = r.dir + '/' + f; });
-        body.appendChild(row);
+        body.appendChild(mkRow('file', '#i-file', f, () => { val.value = r.dir + '/' + f; }));
       }
       if (!r.dirs.length && !r.files.length && !r.parent) {
         const e = document.createElement('div');
@@ -2338,15 +2906,6 @@ function buildConfigUI() {
     const div = document.createElement('div');
     div.className = 'section';
     div.id = 'sec-' + name;
-    const bar = document.createElement('div');
-    bar.className = 'section-bar';
-    const rst = document.createElement('button');
-    rst.className = 'icon-btn';
-    rst.innerHTML = '↺';
-    rst.title = 'Reset this section to defaults';
-    rst.addEventListener('click', () => resetSection(name));
-    bar.appendChild(rst);
-    div.appendChild(bar);
     div.appendChild(fn());
     root.appendChild(div);
   }
@@ -2355,17 +2914,26 @@ function buildConfigUI() {
 }
 
 function currentSection() {
-  return $('#config-nav .nav-item.active')?.dataset.sec || 'general';
+  return $('#config-nav .nav-item[data-sec].active')?.dataset.sec || 'general';
 }
 function showSection(name) {
   $$('#config-root .section').forEach((s) => s.classList.remove('active'));
   const el = $('#sec-' + name);
   if (el) el.classList.add('active');
-  $$('#config-nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.sec === name));
+  $$('#config-nav .nav-item').forEach((b) => {
+    const on = b.dataset.sec === name;
+    b.classList.toggle('active', on);
+    // announce the current section to assistive tech, not just paint it
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  // a freshly entered section needs its conditional reset icons brought up to
+  // date with the current data
+  refreshResetState();
 }
 
 function buildGeneral() {
-  const c = card('General', 'Command registration, model endpoint, cleanup, and template behavior.');
+  const c = card('General', 'Command registration, model endpoint, cleanup, and template behavior.', 1, 'general');
   c.appendChild(fieldRow('Install as command', 'Auto-register a global command on every run', toggle(['cli', 'install_as_command']), ['cli', 'install_as_command']));
   c.appendChild(fieldRow('Command name', '', textField(['cli', 'command_name']), ['cli', 'command_name']));
   c.appendChild(fieldRow('Models endpoint', 'Full URL for the model list; leave empty to use {base_url}/models from the Router row', textField(['fetch', 'models_endpoint'], '') , ['fetch', 'models_endpoint']));
@@ -2377,7 +2945,7 @@ function buildGeneral() {
 }
 
 function buildPaths() {
-  const c = card('Paths', 'Where catalog files and each harness’s config live. Relative paths resolve next to the script; ~ means your home directory.');
+  const c = card('Paths', 'Where catalog files and each harness’s config live. Relative paths resolve next to the script; ~ means your home directory.', 1, 'paths');
   for (const key of ['models_csv', 'providers_csv', 'all_models_csv', 'harness_models_file', 'opencode_file', 'kilo_file', 't3_data_dir', 't3_settings_file', 't3_logs_dir', 'dsh_settings_file', 'dsh_credentials_file', 'pi_file', 'zcode_file', 'opencodex_file']) {
     c.appendChild(fieldRow(fieldLabel(key), '', pathField(['paths', key]), ['paths', key]));
   }
@@ -2385,47 +2953,66 @@ function buildPaths() {
 }
 
 function buildTargets() {
-  const c = card('Sync targets', 'Which config blocks omnilist writes on each run. Router = the gateway provider block; REST = per-provider c-* blocks.');
-  const grid = document.createElement('div');
-  grid.className = 'target-grid';
-  const keys = S.defaults.targets ? Object.keys(S.defaults.targets) : Object.keys(S.effective.targets || {});
-  for (const key of keys) {
-    const item = document.createElement('div');
-    item.className = 'target-item' + (getAt(S.effective, ['targets', key]) ? ' on' : '');
-    const harness = key.replace(/_(router|rest)$/, '').replace(/_/g, ' ');
-    const kind = key.endsWith('_router') ? 'Router block' : key === 'kilo_copy_opencode_full_provider_block' ? 'Copy from OpenCode' : 'REST providers';
-    item.innerHTML = '<span class="name">' + esc(harness) + '<small>' + esc(kind) + '</small></span>';
-    const t = toggle(['targets', key]);
-    item.addEventListener('click', (e) => { if (!e.target.closest('.toggle')) t.click(); });
-    item.appendChild(t);
-    grid.appendChild(item);
+  const c = card('Sync targets', 'Which config blocks omnilist writes on each run. Router = the gateway provider block; REST = per-provider c-* blocks.', 1, 'targets');
+
+  const HARNESSES = [
+    ['opencode', 'OpenCode'],
+    ['kilo', 'Kilo'],
+    ['t3', 'T3'],
+    ['dsh', 'DSH'],
+    ['pi', 'pi'],
+    ['zcode', 'zcode'],
+    ['opencodex', 'ocx'],
+  ];
+
+  // 1. Router blocks
+  const subRouter = card('Router blocks', 'Gateway provider blocks written to each harness configuration.');
+  for (const [id, label] of HARNESSES) {
+    const key = id === 'opencodex' ? 'opencodex_router' : id + '_router';
+    subRouter.appendChild(fieldRow(label, 'Write ' + label + ' gateway provider block', toggle(['targets', key]), ['targets', key]));
   }
-  c.appendChild(grid);
+  c.appendChild(subRouter);
+
+  // 2. REST providers
+  const subRest = card('REST providers', 'Per-provider c-* instances written to each harness configuration.');
+  for (const [id, label] of HARNESSES) {
+    const key = id === 'opencodex' ? 'opencodex_rest' : id + '_rest';
+    subRest.appendChild(fieldRow(label, 'Write ' + label + ' per-provider blocks', toggle(['targets', key]), ['targets', key]));
+  }
+  c.appendChild(subRest);
+
+  // 3. Extra Options
+  const subOptions = card('Options', 'Additional synchronization options.');
+  subOptions.appendChild(fieldRow('Kilo: Copy from OpenCode', 'Copy the full provider block from OpenCode into Kilo instead of generating it separately', toggle(['targets', 'kilo_copy_opencode_full_provider_block']), ['targets', 'kilo_copy_opencode_full_provider_block']));
+  c.appendChild(subOptions);
+
   return c;
 }
 
 function buildFilters() {
-  const c = card('Catalog & filters', 'The order of the filtered pipeline, and the fetch-time model rules. Rules run top to bottom — the last matching rule wins.');
+  const c = card('Catalog & filters', 'The order of the filtered pipeline, and the fetch-time model rules.', 1, 'filters');
   c.appendChild(fieldRow('Model sort', 'Primary sort order for models-filtered.csv and every harness config', sortBuilder(['model_sort']), ['model_sort']));
   const fg = document.createElement('div');
   fg.className = 'card';
   fg.style.cssText = 'border:none;padding:0;margin-top:6px';
-  const h = document.createElement('h3');
+  const h = document.createElement('h2');
+  h.className = 'card-h2';
   h.textContent = 'Model filters';
   const d = document.createElement('p');
   d.className = 'card-desc';
-  d.textContent = 'Rules are written by hand, one expression per block — drag blocks to reorder. Rules run top to bottom; the last matching rule wins.';
+  // one sentence, said once: this used to repeat the card's own description
+  d.textContent = 'One expression per block. Drag to reorder; rules run top to bottom and the last matching rule wins.';
   fg.appendChild(h); fg.appendChild(d);
-  fg.appendChild(manualBlockBuilder(['model_filters'], { isHarness: false, emptyText: 'No rules — every model passes through.', placeholder: 'e.g. !(kc/* && !*free), *glm*, !$input_context<200000' }));
+  fg.appendChild(manualBlockBuilder(['model_filters'], { isHarness: false, hint: '"!" blocks, "==xxx" keeps only, a bare pattern allows. $field comparisons and (topN:sort) directives also work.', emptyText: 'No rules yet. Every model passes through.', placeholder: 'e.g. !(kc/* && !*free), *glm*, !$input_context<200000' }));
   c.appendChild(fg);
   return c;
 }
 
 function buildHarnessFilters() {
-  const c = card('Harness filters', 'Second-stage filters applied at sync time on top of models-filtered.csv. Written by hand, one expression per block — drag blocks to reorder. Suffix "->t3,dsh" targets only those harnesses; a bare rule applies to all.');
-  c.appendChild(manualBlockBuilder(['harness_filters'], { isHarness: true, emptyText: 'No harness filters.', placeholder: 'e.g. !(kc/* && !*free)->t3,dsh or (top100:-input_context)->dsh' }));
+  const c = card('Harness filters', 'Second-stage filters applied at sync time on top of models-filtered.csv.', 1, 'harness-filters');
+  c.appendChild(manualBlockBuilder(['harness_filters'], { isHarness: true, hint: 'One expression per block. Drag to reorder. Suffix "->t3,dsh" targets only those harnesses; a bare rule applies to all.', emptyText: 'No harness filters yet.', placeholder: 'e.g. !(kc/* && !*free)->t3,dsh or (top100:-input_context)->dsh' }));
   c.appendChild(fieldRow('Raw catalog harnesses', 'These harnesses read models-all.csv (raw, unfiltered) instead of models-filtered.csv', harnessChips(['raw_catalog_harnesses']), ['raw_catalog_harnesses']));
-  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'raw — only raw_catalog_harnesses'], ['all', 'all — every synced harness'], ['configured', 'configured — only harness_filters targets'], ['none', 'none — never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
+  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'Raw catalog harnesses only'], ['all', 'Every synced harness'], ['configured', 'Only harness_filters targets'], ['none', 'Never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
   return c;
 }
 
@@ -2439,9 +3026,14 @@ function harnessChips(pathArr) {
     const chips = document.createElement('div');
     chips.className = 'chips';
     HARNESSES.forEach((h) => {
-      const chip = document.createElement('span');
-      chip.className = 'chip' + (arr.includes(h) ? ' on' : '');
-      chip.textContent = h;
+      const on = arr.includes(h);
+      // These are toggles, not labels: a real <button> with aria-pressed makes the
+      // on/off state audible and the chip reachable without a mouse.
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (on ? ' on' : '');
+      chip.textContent = HARNESS_LABEL[h] || h;
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
       chip.addEventListener('click', () => {
         const a = getAt(S.effective, pathArr) || [];
         const n = a.includes(h) ? a.filter((x) => x !== h) : a.concat([h]);
@@ -2456,7 +3048,7 @@ function harnessChips(pathArr) {
 }
 
 function buildOverrides() {
-  const c = card('Field overrides', 'Rewrite model fields at sync time (CSV files keep the raw router values). Later directives win.');
+  const c = card('Field overrides', 'Rewrite model fields at sync time (CSV files keep the raw router values). Later directives win.', 1, 'overrides');
   const g1 = card('Invalid-value overrides', 'Rewrite only when the current value is invalid (zero/negative, or empty id).');
   g1.appendChild(overrideBuilder(['invalid_value_overrides'], { emptyText: 'No invalid-value overrides.' }));
   c.appendChild(g1);
@@ -2467,20 +3059,26 @@ function buildOverrides() {
 }
 
 function buildCapabilities() {
-  const c = card('Capabilities', 'Which router model fields are checked for each capability, and what to assume when a router reports no data.');
+  const c = card('Capabilities', 'Which router model fields are checked for each capability, and what to assume when a router reports no data.', 1, 'capabilities');
+  // "vision" / "reasoning" / "tool" were rendered lowercase, the only
+  // lowercase labels in the app. Display names, raw keys unchanged.
+  const CAP_NAME = { vision: 'Vision', reasoning: 'Reasoning', tool: 'Tool use' };
   for (const cap of ['vision', 'reasoning', 'tool']) {
-    c.appendChild(fieldRow(cap, 'Fields probed on each router model', listEditor(['capabilities', 'fields', cap], { placeholder: 'field name', emptyText: '(no fields probed)' }), ['capabilities', 'fields', cap]));
+    c.appendChild(fieldRow(CAP_NAME[cap], 'Fields probed on each router model', listEditor(['capabilities', 'fields', cap], { placeholder: 'field name', emptyText: '(no fields probed)' }), ['capabilities', 'fields', cap]));
   }
   for (const cap of ['vision', 'reasoning', 'tool']) {
-    c.appendChild(fieldRow('Assume ' + cap + ' when unknown', 'Used when the router reports no data for this capability', toggle(['capabilities', 'n_a_defaults', cap]), ['capabilities', 'n_a_defaults', cap]));
+    c.appendChild(fieldRow('Assume ' + CAP_NAME[cap].toLowerCase() + ' when unknown', 'Used when the router reports no data for this capability', toggle(['capabilities', 'n_a_defaults', cap]), ['capabilities', 'n_a_defaults', cap]));
   }
   return c;
 }
 
 function buildAdapters() {
-  const c = card('Adapters', 'The adapter each harness uses for the Router block and per-provider REST blocks.');
+  const c = card('Adapters', 'The adapter each harness uses for the Router block and per-provider REST blocks.', 1, 'adapters');
+  // Display names: the raw keys were rendered in shouty uppercase, which read
+  // as a different label convention from every other heading in the app.
+  const HARNESS_NAME = { opencode: 'OpenCode', kilo: 'Kilo', pi: 'pi', zcode: 'zcode', opencodex: 'ocx', dsh: 'DSH' };
   for (const h of ['opencode', 'kilo', 'pi', 'zcode', 'opencodex', 'dsh']) {
-    const sub = card(h.toUpperCase(), '');
+    const sub = card(HARNESS_NAME[h] || h, '');
     sub.appendChild(fieldRow('Router adapters', '', adapterList([h, 'router_adapters'], h), [h, 'router_adapters']));
     sub.appendChild(fieldRow('REST adapters', '', adapterList([h, 'rest_adapters'], h), [h, 'rest_adapters']));
     if (h === 'dsh') {
@@ -2492,40 +3090,47 @@ function buildAdapters() {
 }
 
 function buildT3() {
-  const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider instances, plus how each driver is launched.');
-  c.appendChild(driverTable(['t3', 'router_drivers'], 'Router drivers'));
-  c.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
-  c.appendChild(fieldRow('Driver strategy', 'How each driver receives its key/URL', rawJson(['t3', 'driver_strategy'], 'driver_strategy'), ['t3', 'driver_strategy']));
+  const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider instances, plus how each driver is launched.', 1, 't3');
+  const subRouter = card('Router drivers', '');
+  subRouter.appendChild(driverTable(['t3', 'router_drivers'], 'Router drivers'));
+  c.appendChild(subRouter);
+  const subRest = card('REST provider drivers', '');
+  subRest.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
+  c.appendChild(subRest);
+  const subStrat = card('Driver strategy', 'How each driver receives its key/URL');
+  subStrat.appendChild(rawJson(['t3', 'driver_strategy'], 'Show raw JSON'));
+  c.appendChild(subStrat);
   return c;
 }
 
 function buildCustomModels() {
-  const c = card('Custom models', 'Models injected into the pipeline that are never filtered out. in/out are context sizes; capabilities: 1 = yes, 0 = no, -1 = unknown.');
+  const c = card('Custom models', 'Models injected into the pipeline that are never filtered out. in/out are context sizes; capabilities: 1 = yes, 0 = no, -1 = unknown.', 1, 'custom-models');
   c.appendChild(customModelsTable());
   return c;
 }
 
 function buildCommands() {
-  const c = card('Commands & advanced', 'Post-sync commands, plus the raw JSON escape hatch for the entire config.');
+  const c = card('Commands & advanced', 'Post-sync commands, plus the raw JSON escape hatch for the entire config.', 1, 'commands');
   c.appendChild(fieldRow('Custom commands', 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.', listEditor(['custom_commands'], { placeholder: 'e.g. ocx sync', emptyText: 'No custom commands.' }), ['custom_commands']));
-  c.appendChild(fieldRow('Entire config (raw JSON)', 'Anything the forms don’t cover can be edited here as JSON', rawJson([], 'entire config'), null));
+  c.appendChild(fieldRow('Entire config (raw JSON)', 'Anything the forms don’t cover can be edited here as JSON', rawJson([], 'Show raw JSON'), null));
   return c;
 }
 
 function rawJson(pathArr, title) {
   const wrap = document.createElement('details');
-  wrap.style.flex = '1';
-  wrap.style.cssText = 'width:100%';
+  wrap.style.cssText = 'flex:1;width:100%';
   const summary = document.createElement('summary');
+  summary.className = 'raw-summary';
   summary.textContent = title;
-  summary.style.cssText = 'cursor:pointer;color:var(--text-3);font-size:12px';
   wrap.appendChild(summary);
   const ta = document.createElement('textarea');
   ta.value = JSON.stringify(getAt(S.effective, pathArr), null, 2);
   ta.spellcheck = false;
-  ta.style.cssText = 'width:100%;min-height:180px;margin-top:8px;font-family:var(--mono);font-size:12px;background:var(--panel-2)';
+  ta.className = 'raw-json';
+  ta.setAttribute('aria-label', title);
   const err = document.createElement('div');
-  err.style.cssText = 'color:var(--danger);font-size:11px;margin-top:4px';
+  err.className = 'raw-json-err';
+  err.setAttribute('role', 'alert');
   wrap.appendChild(ta);
   wrap.appendChild(err);
   ta.addEventListener('input', () => {
@@ -2540,20 +3145,84 @@ function rawJson(pathArr, title) {
 }
 
 // ===========================================================================
-// rebuild + tabs
+// rebuild + view switching
 // ===========================================================================
 function rebuildConfig() {
   buildConfigUI();
   showSection(currentSection());
 }
 
-function showTab(name) {
-  $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  $('#config-nav').style.display = name === 'config' ? '' : 'none';
+// Views are sidebar entries: 'run' and 'models' are leaf views, 'config'
+// returns to whichever config section was last active.
+function showView(name) {
   $('#config-content').style.display = name === 'config' ? '' : 'none';
   $('#tab-run').style.display = name === 'run' ? '' : 'none';
   $('#tab-models').style.display = name === 'models' ? '' : 'none';
+  $$('#config-nav .nav-item[data-view]').forEach((b) => {
+    const on = b.dataset.view === name;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  if (name !== 'config') {
+    // leaving config view clears the section highlight so only one sidebar
+    // entry reads as current
+    $$('#config-nav .nav-item[data-sec]').forEach((b) => {
+      b.classList.remove('active');
+      b.removeAttribute('aria-current');
+    });
+    closeDrawer();
+  }
   if (name === 'models') loadModels();
+}
+
+// ===========================================================================
+// mobile nav drawer
+// ===========================================================================
+let drawerReturnFocus = null;
+function drawerOpen() { return $('#config-nav').classList.contains('open'); }
+function openDrawer() {
+  const nav = $('#config-nav');
+  if (!nav || drawerOpen()) return;
+  drawerReturnFocus = document.activeElement;
+  nav.classList.add('open');
+  $('#drawer-scrim').classList.add('show');
+  $('#nav-toggle').setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+  (nav.querySelector('.nav-item.active') || nav.querySelector('.nav-item'))?.focus();
+}
+function closeDrawer() {
+  const nav = $('#config-nav');
+  if (!nav || !nav.classList.contains('open')) return;
+  nav.classList.remove('open');
+  $('#drawer-scrim').classList.remove('show');
+  $('#nav-toggle').setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+  const back = drawerReturnFocus;
+  drawerReturnFocus = null;
+  // Never hand focus back to something inside the drawer we just closed — it is
+  // off-canvas now, so the focus ring would vanish. The hamburger is the
+  // affordance that opened it, so it is the correct landing spot.
+  if (back && document.contains(back) && !back.closest('#config-nav')) back.focus();
+  else $('#nav-toggle')?.focus();
+}
+function initDrawer() {
+  const scrim = document.createElement('div');
+  scrim.className = 'drawer-scrim';
+  scrim.id = 'drawer-scrim';
+  scrim.addEventListener('click', closeDrawer);
+  document.body.appendChild(scrim);
+  $('#nav-toggle').addEventListener('click', () => (drawerOpen() ? closeDrawer() : openDrawer()));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawerOpen()) { e.preventDefault(); closeDrawer(); return; }
+    if (e.key !== 'Tab' || !drawerOpen()) return;
+    // trap Tab inside the open drawer
+    const items = [...$('#config-nav').querySelectorAll('button:not([disabled])')];
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 }
 
 // ===========================================================================
@@ -2578,13 +3247,13 @@ function connectSSE() {
   es.addEventListener('done', (e) => {
     const { code } = JSON.parse(e.data);
     setRunButtons(false);
-    setRunStatus(code === 0 ? 'ok' : 'fail', code === 0 ? '✓ Finished — exit 0' : '✗ Finished — exit ' + code);
-    appendLine({ stream: 'meta', text: '— exit ' + code + ' —' });
+    setRunStatus(code === 0 ? 'ok' : 'fail', code === 0 ? 'Finished, exit 0' : 'Finished, exit ' + code);
+    appendLine({ stream: 'meta', text: '--- exit ' + code + ' ---' });
   });
   api('GET', '/api/run/status').then((st) => {
     if (!st.hasRun) return;
     setRunButtons(st.active);
-    setRunStatus(st.active ? 'running' : st.exitCode === 0 ? 'ok' : 'fail', st.active ? '▶ ' + st.cmdline + ' (in progress)' : (st.exitCode === 0 ? '✓ Finished — exit 0' : '✗ Finished — exit ' + st.exitCode));
+    setRunStatus(st.active ? 'running' : st.exitCode === 0 ? 'ok' : 'fail', st.active ? 'Running: ' + st.cmdline : (st.exitCode === 0 ? 'Finished, exit 0' : 'Finished, exit ' + st.exitCode));
   }).catch(() => {});
 }
 function setRunButtons(active) {
@@ -2592,7 +3261,7 @@ function setRunButtons(active) {
   $$('#tab-run .run-actions button:not(#stop-btn)').forEach((b) => (b.disabled = active));
 }
 async function startRun(targets) {
-  if (dirty) { toast('You have unsaved changes', 'Save first — runs use the config on disk.', true); return; }
+  if (dirty) { toast('You have unsaved changes', 'Save first. Runs use the config on disk.', true); return; }
   try {
     const r = await api('POST', '/api/run', { targets, minInput: $('#run-mi').value, minOutput: $('#run-mo').value });
     setRunButtons(true);
@@ -2617,11 +3286,11 @@ async function loadModels() {
     const r = await api('GET', '/api/models?file=' + which);
     const wrap = $('#models-table-wrap');
     wrap.innerHTML = '';
-    $('#models-path').textContent = r.path ? 'Source: ' + r.path : '';
+    setSourcePath($('#models-path'), r.path, 'Source');
     if (!r.exists) {
       const p = document.createElement('p');
       p.className = 'missing-note';
-      p.textContent = 'File not found yet — run "Fetch" in the Run tab first.';
+      p.textContent = 'File not found yet. Run Fetch in the Run tab first.';
       wrap.appendChild(p);
       $('#models-count').textContent = '';
       loadProviders();
@@ -2687,9 +3356,9 @@ async function loadProviders() {
     const r = await api('GET', '/api/providers');
     const wrap = $('#providers-table-wrap');
     wrap.innerHTML = '';
-    $('#providers-path').textContent = r.path ? 'Source: ' + r.path : '';
+    setSourcePath($('#providers-path'), r.path, 'Source');
     if (!r.exists) {
-      wrap.innerHTML = '<p class="missing-note">providers.csv not found — the first terminal run will prompt for the Router URL + key.</p>';
+      wrap.innerHTML = '<p class="missing-note">providers.csv not found. The first terminal run will prompt you for the Router URL and key.</p>';
       return;
     }
     const table = document.createElement('table');
@@ -2722,7 +3391,8 @@ async function init() {
     S.writeTarget = cfg.writeTarget;
     S.localExists = cfg.localExists;
     S.meta = meta;
-    $('#write-target').innerHTML = 'saving to <b>' + esc(cfg.writeTarget.split(/[\\/]/).pop()) + '</b>';
+    const shortTarget = esc(cfg.writeTarget.split(/[\\/]/).pop());
+    $('#write-target').innerHTML = 'saving to <b>' + shortTarget + '</b>';
     buildConfigUI();
     showSection('general');
   } catch (e) {
@@ -2730,21 +3400,29 @@ async function init() {
     el.textContent = 'Could not reach the omnilist server: ' + e.message;
     el.style.cssText = 'color:var(--danger);padding:60px;text-align:center';
     const hint = document.createElement('div');
-    hint.style.cssText = 'color:var(--text-3);font-size:13px;margin-top:12px';
-    hint.innerHTML = 'Open this page through the server, e.g. <code>http://127.0.0.1:47613/</code> — run <code>omnilist gui</code> in a terminal to start it.';
+    hint.style.cssText = 'color:var(--text-3);font-size:14px;margin-top:12px';
+    hint.innerHTML = 'Open this page through the server, e.g. <code>http://127.0.0.1:47613/</code>. Run <code>omnilist gui</code> in a terminal to start it.';
     el.appendChild(hint);
     return;
   }
   connectSSE();
 }
 
-$$('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 $('#config-nav').addEventListener('click', (e) => {
   const btn = e.target.closest('.nav-item');
-  if (btn) showSection(btn.dataset.sec);
+  if (!btn) return;
+  if (btn.dataset.view) showView(btn.dataset.view);
+  else if (btn.dataset.sec) { showView('config'); showSection(btn.dataset.sec); }
+  closeDrawer();
 });
+initDrawer();
 $('#run-all-btn').addEventListener('click', () => startRun(['all']));
-$$('#tab-run [data-run]').forEach((b) => b.addEventListener('click', () => startRun(b.dataset.run.split(' '))));
+$$('#tab-run [data-run]').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.run === 'cleanmodels' && !confirm('Are you sure you want to remove all models added by this script across all harness configs?')) {
+    return;
+  }
+  startRun(b.dataset.run.split(' '));
+}));
 $('#stop-btn').addEventListener('click', async () => { try { await api('POST', '/api/run/stop'); } catch (e) { toast('Stop failed', e.message, true); } });
 $('#models-which').addEventListener('change', loadModels);
 $('#models-search').addEventListener('input', () => { if (modelsCache) renderModelsTable(modelsCache); });
@@ -2757,7 +3435,8 @@ $('#save-btn').addEventListener('click', async () => {
     S.saved = deepClone(S.effective);
     const [cfg, meta] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/meta')]);
     Object.assign(S, { defaults: cfg.defaults, base: cfg.base, local: cfg.local || {}, effective: cfg.effective, saved: deepClone(cfg.effective), writeTarget: cfg.writeTarget, localExists: cfg.localExists, meta });
-    $('#write-target').innerHTML = 'saving to <b>' + esc(cfg.writeTarget.split(/[\\/]/).pop()) + '</b>';
+    const shortTarget2 = esc(cfg.writeTarget.split(/[\\/]/).pop());
+    $('#write-target').innerHTML = 'saving to <b>' + shortTarget2 + '</b>';
     rebuildConfig();
     showSection(currentSection());
     toast('Saved to ' + r.written.split(/[\\/]/).pop(), r.mode === 'diff' ? Object.keys(r.keys || {}).length + ' override key(s)' : 'full config written');

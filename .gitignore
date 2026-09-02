@@ -10,3 +10,4 @@ test/
 .agents/
 .zcode/
 *.bak
+design-exploration/
