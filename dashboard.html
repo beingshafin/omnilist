@@ -514,8 +514,27 @@
     margin-bottom: 18px;
   }
   .card .card {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-bottom: 24px;
+  }
+  .sub-section {
+    margin-top: 22px;
+    margin-bottom: 24px;
+  }
+  .sub-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -.005em;
+    color: var(--text);
+  }
+  .sub-section-desc {
+    color: var(--text-3);
+    font-size: 13px;
+    margin: 0 0 12px;
+    line-height: 1.4;
   }
   .card-h1, .page-head h1 {
     font-size: 20px;
@@ -758,8 +777,8 @@
     opacity: 0;
     pointer-events: none;
   }
-  .rule-select-cb:hover { border-color: var(--accent); }
-  .rule-select-cb:checked {
+  .rule-select-cb:checked,
+  .rule-select-cb:indeterminate {
     background: var(--accent);
     border-color: var(--accent);
     opacity: 1 !important;
@@ -774,10 +793,19 @@
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
+  .rule-select-cb:indeterminate::after {
+    content: '';
+    position: absolute;
+    top: 6px; left: 3px;
+    width: 9px; height: 2px;
+    background: #ffffff;
+    border-radius: 1px;
+  }
   /* Show checkbox on row hover, or when in selection mode, or when checked */
   .rule-row:hover .rule-select-cb,
   .selection-mode .rule-select-cb,
-  .rule-select-cb:checked {
+  .rule-select-cb:checked,
+  .rule-select-cb:indeterminate {
     opacity: 1 !important;
     pointer-events: auto !important;
   }
@@ -800,20 +828,25 @@
   .rule-list-header {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     height: 44px; min-height: 44px; max-height: 44px; box-sizing: border-box;
-    padding: 0 14px; background: var(--panel-2);
-    border: 1px solid var(--border); border-bottom: none;
+    padding: 0 14px; background: var(--panel);
+    border: 1px solid var(--border); border-bottom: 1px solid var(--border);
     border-top-left-radius: var(--r-md); border-top-right-radius: var(--r-md);
-    font-size: 12px; color: var(--text-3); font-weight: 600;
+    font-size: 12px; color: var(--text-2); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.03em;
   }
   .rule-list-header.selection-active {
-    background: var(--panel-3, var(--panel));
-    border-color: var(--accent);
+    background: var(--panel);
+    border-color: var(--border);
   }
   .rule-list-header .header-left {
     display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
   }
   .rule-list-header .header-right {
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .rule-list-header .header-col-title {
+    color: var(--text-2); font-weight: 600; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.03em;
   }
 
   .cb-slot {
@@ -1018,14 +1051,16 @@
   .models-toolbar .count { color: var(--text-3); font-size: 13px; }
   table.models { border-collapse: collapse; width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
   table.models th {
-    text-align: left; padding: 10px 12px; font-size: 12px; color: var(--text-3);
+    text-align: left; padding: 10px 12px; font-size: 12px; color: var(--text-2);
     border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.03em;
     background: var(--panel);
   }
+  table.models th.num-col { text-align: right; }
   table.models th:hover { color: var(--text); }
   table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 13.5px; }
   table.models td.num { font-family: var(--mono); text-align: right; font-size: 13px; }
-  table.models tr:hover td { background: var(--panel); }
+  table.models tr:hover td { background: rgba(255, 255, 255, 0.03); }
   .cap { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); }
   .cap.y { background: var(--success-weak); color: var(--success); }
   .cap.n { background: var(--border-2); color: var(--text-3); }
@@ -1764,6 +1799,24 @@ function card(title, desc, level, resetFor) {
   }
   if (desc) { const p = document.createElement('p'); p.className = 'card-desc'; p.textContent = desc; c.appendChild(p); }
   return c;
+}
+
+function subSection(title, desc) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sub-section';
+  if (title) {
+    const h = document.createElement('h2');
+    h.className = 'sub-section-title';
+    h.textContent = title;
+    wrap.appendChild(h);
+  }
+  if (desc) {
+    const p = document.createElement('p');
+    p.className = 'sub-section-desc';
+    p.textContent = desc;
+    wrap.appendChild(p);
+  }
+  return wrap;
 }
 
 // ===========================================================================
@@ -3105,29 +3158,35 @@ function overrideBuilder(pathArr, opts = {}) {
     const left = document.createElement('div');
     left.className = 'header-left';
 
-    const cbSlot = document.createElement('div');
-    cbSlot.className = 'cb-slot';
-    const selectAllCb = document.createElement('input');
-    selectAllCb.type = 'checkbox';
-    selectAllCb.checked = rows.length > 0 && selectedIndices.size === rows.length;
-    selectAllCb.indeterminate = selectedIndices.size > 0 && selectedIndices.size < rows.length;
-    cbSlot.appendChild(selectAllCb);
-    cbSlot.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (selectedIndices.size === rows.length) {
-        selectedIndices.clear();
-        isSelectionMode = false;
-      } else {
-        selectedIndices = new Set(rows.map((_, i) => i));
-        isSelectionMode = true;
-      }
-      render();
-    });
-    left.appendChild(cbSlot);
+    const inSelection = (selectedIndices.size > 0 || isSelectionMode);
 
+    if (inSelection) {
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const selectAllCb = document.createElement('input');
+      selectAllCb.type = 'checkbox';
+      selectAllCb.className = 'rule-select-cb';
+      selectAllCb.checked = rows.length > 0 && selectedIndices.size === rows.length;
+      selectAllCb.indeterminate = selectedIndices.size > 0 && selectedIndices.size < rows.length;
+      cbSlot.appendChild(selectAllCb);
+      cbSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectedIndices.size === rows.length) {
+          selectedIndices.clear();
+          isSelectionMode = false;
+        } else {
+          selectedIndices = new Set(rows.map((_, i) => i));
+          isSelectionMode = true;
+        }
+        render();
+      });
+      left.appendChild(cbSlot);
+    }
+
+    const padLen = Math.max(2, String(rows.length).length);
     const numCol = document.createElement('span');
     numCol.className = 'rule-num';
-    numCol.style.cssText = 'font-weight:600;color:var(--text-3);font-size:11.5px;';
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:${inSelection ? '0' : '28px'};font-family:var(--mono);`;
     numCol.textContent = '#';
     left.appendChild(numCol);
 
@@ -3448,31 +3507,35 @@ function buildCustomModelsEditor() {
     const left = document.createElement('div');
     left.className = 'header-left';
 
-    const cbSlot = document.createElement('div');
-    cbSlot.className = 'cb-slot';
-    const selectAllCb = document.createElement('input');
-    selectAllCb.type = 'checkbox';
-    selectAllCb.className = 'rule-select-cb';
-    selectAllCb.title = 'Select all models in scope';
-    selectAllCb.style.opacity = (isSelectionMode || selectedIndices.size > 0) ? '1' : '';
-    selectAllCb.checked = visibleItems.length > 0 && visibleItems.every(item => selectedIndices.has(item.origIdx));
-    selectAllCb.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (selectAllCb.checked) {
-        visibleItems.forEach(item => selectedIndices.add(item.origIdx));
-        isSelectionMode = true;
-      } else {
-        selectedIndices.clear();
-        isSelectionMode = false;
-      }
-      render();
-    });
-    cbSlot.appendChild(selectAllCb);
-    left.appendChild(cbSlot);
+    const inSelection = (selectedIndices.size > 0 || isSelectionMode);
+
+    if (inSelection) {
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const selectAllCb = document.createElement('input');
+      selectAllCb.type = 'checkbox';
+      selectAllCb.className = 'rule-select-cb';
+      selectAllCb.title = 'Select all models in scope';
+      selectAllCb.checked = visibleItems.length > 0 && visibleItems.every(item => selectedIndices.has(item.origIdx));
+      selectAllCb.indeterminate = selectedIndices.size > 0 && selectedIndices.size < visibleItems.length;
+      selectAllCb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectAllCb.checked) {
+          visibleItems.forEach(item => selectedIndices.add(item.origIdx));
+          isSelectionMode = true;
+        } else {
+          selectedIndices.clear();
+          isSelectionMode = false;
+        }
+        render();
+      });
+      cbSlot.appendChild(selectAllCb);
+      left.appendChild(cbSlot);
+    }
 
     const padLen = Math.max(2, String(visibleItems.length).length);
     const numCol = document.createElement('span');
-    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;font-family:var(--mono);`;
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:${inSelection ? '0' : '28px'};font-family:var(--mono);`;
     numCol.textContent = '#';
     left.appendChild(numCol);
 
@@ -3777,56 +3840,127 @@ const customModelsTable = buildCustomModelsEditor;
 function driverTable(pathArr, title) {
   const wrap = document.createElement('div');
   wrap.style.flex = '1';
+
   const render = () => {
     wrap.innerHTML = '';
     const arr = getAt(S.effective, pathArr) || [];
+
+    // Permanent List Header
+    const listHeader = document.createElement('div');
+    listHeader.className = 'rule-list-header';
+
+    const left = document.createElement('div');
+    left.className = 'header-left';
+    left.innerHTML = `
+      <span class="rule-num" style="min-width:24px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:8px;font-family:var(--mono);">#</span>
+      <span class="header-col-title" style="color:var(--text);font-weight:600">Driver Name</span>
+    `;
+    listHeader.appendChild(left);
+
+    const right = document.createElement('div');
+    right.className = 'header-right';
+    right.style.cssText = 'display:flex;align-items:center;gap:20px;margin-right:8px;';
+    right.innerHTML = `
+      <span style="font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;">1M Context</span>
+      <span style="font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;width:28px;text-align:center;">Action</span>
+    `;
+    listHeader.appendChild(right);
+    wrap.appendChild(listHeader);
+
+    // List container
+    const listEl = document.createElement('div');
+    listEl.className = 'rule-list has-header';
+
     if (!arr.length) {
       const e = document.createElement('div');
       e.className = 'list-empty';
       e.textContent = 'No drivers yet. Add one below.';
-      wrap.appendChild(e);
+      listEl.appendChild(e);
+    } else {
+      const padLen = Math.max(2, String(arr.length).length);
+      arr.forEach((item, i) => {
+        const who = item.driver ? '"' + item.driver + '"' : 'row ' + (i + 1);
+        const row = document.createElement('div');
+        row.className = 'rule-row';
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 12px;gap:12px;';
+
+        const rowLeft = document.createElement('div');
+        rowLeft.style.cssText = 'display:flex;align-items:center;gap:10px;flex:1;min-width:0;';
+
+        const num = document.createElement('span');
+        num.className = 'rule-num';
+        num.style.cssText = `min-width:24px;text-align:right;color:var(--text-3);font-size:12.5px;font-family:var(--mono);font-variant-numeric:tabular-nums;margin-left:8px;`;
+        num.textContent = String(i + 1).padStart(padLen, '0');
+        rowLeft.appendChild(num);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'manual-expr';
+        input.value = item.driver || '';
+        input.placeholder = 'driver name (e.g. claudeAgent)';
+        input.style.cssText = 'flex:1;background:transparent;border:1px solid transparent;padding:4px 8px;font-family:var(--mono);font-size:13px;color:var(--text);height:32px;border-radius:var(--r-sm);box-sizing:border-box;';
+        input.setAttribute('aria-label', (title || 'Driver') + ' name, row ' + (i + 1));
+        input.addEventListener('input', () => {
+          const a = getAt(S.effective, pathArr).slice();
+          a[i] = { ...a[i], driver: input.value };
+          setAt(pathArr, a);
+          setDirty(true);
+        });
+        rowLeft.appendChild(input);
+        row.appendChild(rowLeft);
+
+        const rowRight = document.createElement('div');
+        rowRight.style.cssText = 'display:flex;align-items:center;gap:24px;margin-right:8px;flex-shrink:0;';
+
+        const t = toggle([...pathArr, i, '1m']);
+        t.setAttribute('aria-label', '1M context for ' + who);
+        rowRight.appendChild(t);
+
+        const del = document.createElement('button');
+        del.className = 'icon-btn';
+        del.type = 'button';
+        del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+        del.title = 'Remove this driver';
+        del.setAttribute('aria-label', 'Remove driver ' + who);
+        del.addEventListener('click', () => {
+          const a = getAt(S.effective, pathArr).slice();
+          a.splice(i, 1);
+          setAt(pathArr, a);
+          setDirty(true);
+          render();
+        });
+        rowRight.appendChild(del);
+
+        row.appendChild(rowRight);
+        listEl.appendChild(row);
+      });
     }
-    const table = document.createElement('table');
-    table.className = 'mini';
-    table.innerHTML = '<thead><tr><th scope="col">Driver</th><th scope="col" class="col-1m">1M context</th><th scope="col" class="col-act"><span class="sr-only">Actions</span></th></tr></thead>';
-    const tbody = table.createTBody();
-    arr.forEach((item, i) => {
-      const who = item.driver ? '"' + item.driver + '"' : 'row ' + (i + 1);
-      const tr = tbody.insertRow();
-      const tdD = tr.insertCell();
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = item.driver || '';
-      input.placeholder = 'driver';
-      // fills the whole Driver column; the toggle and ✕ cells size to
-      // their content and the table is width:100%
-      input.style.width = '100%';
-      input.setAttribute('aria-label', (title || 'Driver') + ' name, row ' + (i + 1));
-      input.addEventListener('input', () => { const a = getAt(S.effective, pathArr).slice(); a[i] = { ...a[i], driver: input.value }; setAt(pathArr, a); setDirty(true); });
-      tdD.appendChild(input);
-      const tdM = tr.insertCell();
-      tdM.className = 'col-1m';
-      const t = toggle([...pathArr, i, '1m']);
-      t.setAttribute('aria-label', '1M context for ' + who);
-      tdM.appendChild(t);
-      const tdX = tr.insertCell();
-      tdX.className = 'col-act';
-      const del = document.createElement('button');
-      del.className = 'del';
-      del.type = 'button';
-      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
-      del.title = 'Remove this driver';
-      del.setAttribute('aria-label', 'Remove driver ' + who);
-      del.addEventListener('click', () => { const a = getAt(S.effective, pathArr).slice(); a.splice(i, 1); setAt(pathArr, a); setDirty(true); render(); });
-      tdX.appendChild(del);
-    });
-    wrap.appendChild(table);
+    wrap.appendChild(listEl);
+
+    // Bottom Bar
+    const bottomBar = document.createElement('div');
+    bottomBar.className = 'rule-bottom-bar';
+    bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 2px;';
+
     const add = document.createElement('button');
-    add.className = 'btn primary small table-add';
+    add.className = 'btn primary small';
     add.type = 'button';
     add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add driver';
-    add.addEventListener('click', () => { const a = (getAt(S.effective, pathArr) || []).concat([{ driver: '', '1m': false }]); setAt(pathArr, a); setDirty(true); render(); });
-    wrap.appendChild(add);
+    add.addEventListener('click', () => {
+      const a = (getAt(S.effective, pathArr) || []).concat([{ driver: '', '1m': false }]);
+      setAt(pathArr, a);
+      setDirty(true);
+      render();
+    });
+    bottomBar.appendChild(add);
+
+    const countEl = document.createElement('div');
+    countEl.className = 'field-note';
+    countEl.style.cssText = 'margin:0;color:var(--text-3);font-size:12.5px;';
+    countEl.textContent = `${arr.length} driver${arr.length === 1 ? '' : 's'}`;
+    bottomBar.appendChild(countEl);
+
+    wrap.appendChild(bottomBar);
   };
   render();
   return wrap;
@@ -4425,7 +4559,7 @@ function buildTargets() {
     ['opencodex', 'ocx'],
   ];
 
-  const subHarnesses = card('Harness sync targets', 'Toggle provider blocks written to each harness. Click Solo, Router, or REST to toggle that block type on or off.');
+  const subHarnesses = subSection('Harness sync targets', 'Toggle provider blocks written to each harness. Click Solo, Router, or REST to toggle that block type on or off.');
 
   const TYPES = [
     ['solo', 'Solo', 'Solo provider blocks'],
@@ -4433,12 +4567,16 @@ function buildTargets() {
     ['rest', 'REST', 'Per-provider REST blocks'],
   ];
 
-  HARNESSES.forEach(([id, label]) => {
+  const listWrap = document.createElement('div');
+  listWrap.style.cssText = 'background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;';
+
+  HARNESSES.forEach(([id, label], idx) => {
     const prefix = id === 'opencodex' ? 'opencodex' : id;
+    const isLast = idx === HARNESSES.length - 1;
     const row = document.createElement('div');
     row.className = 'field-row harness-target-row';
     row.dataset.harness = id;
-    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:16px;flex-wrap:wrap;min-height:50px;';
+    row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:12px 14px;${isLast ? '' : 'border-bottom:1px solid var(--border);'}gap:16px;flex-wrap:wrap;min-height:50px;`;
 
     const titleEl = document.createElement('div');
     titleEl.className = 'harness-name';
@@ -4478,14 +4616,18 @@ function buildTargets() {
     });
 
     row.appendChild(toggleGroup);
-    subHarnesses.appendChild(row);
+    listWrap.appendChild(row);
   });
 
+  subHarnesses.appendChild(listWrap);
   c.appendChild(subHarnesses);
 
   // 3. Extra Options
-  const subOptions = card('Options', 'Additional synchronization options.');
-  subOptions.appendChild(fieldRow('Kilo: Copy from OpenCode', 'Copy the full provider block from OpenCode into Kilo instead of generating it separately', toggle(['targets', 'kilo_copy_opencode_full_provider_block']), ['targets', 'kilo_copy_opencode_full_provider_block']));
+  const subOptions = subSection('Options', 'Additional synchronization options.');
+  const optWrap = document.createElement('div');
+  optWrap.style.cssText = 'background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;';
+  optWrap.appendChild(fieldRow('Kilo: Copy from OpenCode', 'Copy the full provider block from OpenCode into Kilo instead of generating it separately', toggle(['targets', 'kilo_copy_opencode_full_provider_block']), ['targets', 'kilo_copy_opencode_full_provider_block']));
+  subOptions.appendChild(optWrap);
   c.appendChild(subOptions);
 
   c.appendChild(createRawEditorCard({
@@ -4714,31 +4856,35 @@ function buildFilters() {
     const left = document.createElement('div');
     left.className = 'header-left';
 
-    const cbSlot = document.createElement('div');
-    cbSlot.className = 'cb-slot';
-    const selectAllCb = document.createElement('input');
-    selectAllCb.type = 'checkbox';
-    selectAllCb.className = 'rule-select-cb';
-    selectAllCb.title = 'Select all rules in scope';
-    selectAllCb.style.opacity = (isSelectionMode || selectedIds.size > 0) ? '1' : '';
-    selectAllCb.checked = visibleRules.length > 0 && visibleRules.every(r => selectedIds.has(r.id));
-    selectAllCb.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (selectAllCb.checked) {
-        visibleRules.forEach(r => selectedIds.add(r.id));
-        isSelectionMode = true;
-      } else {
-        selectedIds.clear();
-        isSelectionMode = false;
-      }
-      renderRules();
-    });
-    cbSlot.appendChild(selectAllCb);
-    left.appendChild(cbSlot);
+    const inSelection = (selectedIds.size > 0 || isSelectionMode);
+
+    if (inSelection) {
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const selectAllCb = document.createElement('input');
+      selectAllCb.type = 'checkbox';
+      selectAllCb.className = 'rule-select-cb';
+      selectAllCb.title = 'Select all rules in scope';
+      selectAllCb.checked = visibleRules.length > 0 && visibleRules.every(r => selectedIds.has(r.id));
+      selectAllCb.indeterminate = selectedIds.size > 0 && selectedIds.size < visibleRules.length;
+      selectAllCb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectAllCb.checked) {
+          visibleRules.forEach(r => selectedIds.add(r.id));
+          isSelectionMode = true;
+        } else {
+          selectedIds.clear();
+          isSelectionMode = false;
+        }
+        renderRules();
+      });
+      cbSlot.appendChild(selectAllCb);
+      left.appendChild(cbSlot);
+    }
 
     const padLen = Math.max(2, String(visibleRules.length).length);
     const numCol = document.createElement('span');
-    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:20px;font-family:var(--mono);`;
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:${inSelection ? '0' : '28px'};font-family:var(--mono);`;
     numCol.textContent = '#';
     left.appendChild(numCol);
 
@@ -5213,10 +5359,10 @@ function harnessChips(pathArr) {
 
 function buildOverrides() {
   const c = card('Field overrides', 'Rewrite model fields at sync time (CSV files keep the raw router values). Later directives win.', 1, 'overrides');
-  const g1 = card('Invalid-value overrides', 'Rewrite only when the current value is invalid (zero/negative, or empty id).');
+  const g1 = subSection('Invalid-value overrides', 'Rewrite only when the current value is invalid (zero/negative, or empty id).');
   g1.appendChild(overrideBuilder(['invalid_value_overrides'], { emptyText: 'No invalid-value overrides.' }));
   c.appendChild(g1);
-  const g2 = card('Always overrides', 'Rewrite the field unconditionally.');
+  const g2 = subSection('Always overrides', 'Rewrite the field unconditionally.');
   g2.appendChild(overrideBuilder(['always_overrides'], { emptyText: 'No always-overrides.' }));
   c.appendChild(g2);
 
@@ -5307,10 +5453,10 @@ function buildAdapters() {
 
 function buildT3() {
   const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider instances, plus how each driver is launched.', 1, 't3');
-  const subRouter = card('Router drivers', '');
+  const subRouter = subSection('Router drivers', 'Drivers launched for the router flat list.');
   subRouter.appendChild(driverTable(['t3', 'router_drivers'], 'Router drivers'));
   c.appendChild(subRouter);
-  const subRest = card('REST provider drivers', '');
+  const subRest = subSection('REST provider drivers', 'Drivers launched for REST provider instances.');
   subRest.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
   c.appendChild(subRest);
 
@@ -5386,31 +5532,35 @@ function buildCustomCommandsEditor() {
     const left = document.createElement('div');
     left.className = 'header-left';
 
-    const cbSlot = document.createElement('div');
-    cbSlot.className = 'cb-slot';
-    const selectAllCb = document.createElement('input');
-    selectAllCb.type = 'checkbox';
-    selectAllCb.className = 'rule-select-cb';
-    selectAllCb.title = 'Select all commands';
-    selectAllCb.style.opacity = (isSelectionMode || selectedIndices.size > 0) ? '1' : '';
-    selectAllCb.checked = commands.length > 0 && commands.every((_, i) => selectedIndices.has(i));
-    selectAllCb.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (selectAllCb.checked) {
-        commands.forEach((_, i) => selectedIndices.add(i));
-        isSelectionMode = true;
-      } else {
-        selectedIndices.clear();
-        isSelectionMode = false;
-      }
-      render();
-    });
-    cbSlot.appendChild(selectAllCb);
-    left.appendChild(cbSlot);
+    const inSelection = (selectedIndices.size > 0 || isSelectionMode);
+
+    if (inSelection) {
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const selectAllCb = document.createElement('input');
+      selectAllCb.type = 'checkbox';
+      selectAllCb.className = 'rule-select-cb';
+      selectAllCb.title = 'Select all commands';
+      selectAllCb.checked = commands.length > 0 && commands.every((_, i) => selectedIndices.has(i));
+      selectAllCb.indeterminate = selectedIndices.size > 0 && selectedIndices.size < commands.length;
+      selectAllCb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (selectAllCb.checked) {
+          commands.forEach((_, i) => selectedIndices.add(i));
+          isSelectionMode = true;
+        } else {
+          selectedIndices.clear();
+          isSelectionMode = false;
+        }
+        render();
+      });
+      cbSlot.appendChild(selectAllCb);
+      left.appendChild(cbSlot);
+    }
 
     const padLen = Math.max(2, String(commands.length).length);
     const numCol = document.createElement('span');
-    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:20px;font-family:var(--mono);`;
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:${inSelection ? '0' : '28px'};font-family:var(--mono);`;
     numCol.textContent = '#';
     left.appendChild(numCol);
 
