@@ -9,5 +9,6 @@ test/
 .claude/
 .agents/
 .zcode/
+*.png
 *.bak
 design-exploration/

@@ -173,7 +173,19 @@
     flex-direction: column;
   }
   .sidebar-scroll { flex: 1; min-height: 0; padding-top: 4px; }
-  .sidebar-title { padding: 14px 14px 16px; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.02em; margin: 0; }
+  .sidebar-title { padding: 14px 14px 14px; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.02em; margin: 0; }
+  .nav-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    padding: 14px 12px 6px;
+    user-select: none;
+  }
+  .nav-group-label:first-of-type {
+    padding-top: 2px;
+  }
   .nav-item {
     display: flex;
     align-items: center;
@@ -332,10 +344,14 @@
      13px text keeps field names like "input_context" from being cropped */
   .rule-head select { width: auto; font-size: 13px; padding-inline: 8px; }
   .drag-handle {
-    color: var(--text-3); font-size: 14px; letter-spacing: -2px; cursor: grab;
-    user-select: none; padding: 2px 2px; line-height: 1;
+    width: 14px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-3); font-size: 14px; cursor: grab !important;
+    user-select: none; padding: 0 !important; margin: 0 4px 0 2px !important;
+    line-height: 1; flex-shrink: 0;
   }
   .drag-handle:hover { color: var(--text); }
+  .drag-handle:active { cursor: grabbing !important; }
+  .drag-handle svg, .drag-handle .ic { width: 14px; height: 14px; pointer-events: none; }
   .rule-excepts { border-left: 2px solid var(--danger); padding-left: 10px; }
   .rule-subhead {
     font-size: 11.5px; font-weight: 700; color: var(--text-3); letter-spacing: .06em;
@@ -356,16 +372,18 @@
 
   /* manual block editor */
   .rule-num {
-    font-size: 12px; font-weight: 700; color: var(--text-3); min-width: 18px; text-align: center;
-    user-select: none;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 12px; font-weight: 700; color: var(--text-3); min-width: 22px; text-align: right;
+    user-select: none; flex-shrink: 0; margin-right: 10px;
   }
   /* manual-block header: one single row — handle, number, expression, ✕.
      nowrap keeps the ✕ on the same line as the textarea however long the
      expression is; the textarea is the only flexible child so it absorbs
      all the leftover width. */
   .manual-head { flex-wrap: nowrap; align-items: center; }
-  .manual-head > .drag-handle { padding-left: 0; flex: 0 0 auto; }
-  .manual-head > .rule-num { text-align: left; min-width: 0; flex: 0 0 auto; }
+  .manual-head > .drag-handle { flex: 0 0 auto; }
+  .manual-head > .rule-num { text-align: right; flex: 0 0 auto; margin-right: 10px; }
   .manual-head > textarea.manual-expr { flex: 1 1 auto; width: auto; min-width: 0; }
   /* the draggable .rule-row ancestor makes its whole subtree user-select:none,
      which would block dragging out a text selection inside the expression */
@@ -379,7 +397,11 @@
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
-    overflow: hidden;
+    overflow: visible !important;
+  }
+  .rule-list.has-header {
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
   }
   .rule-list > .rule-row {
     background: none;
@@ -388,8 +410,17 @@
     border-radius: 0;
     padding: 7px 10px;
     margin-bottom: 0;
+    cursor: default !important;
   }
-  .rule-list > .rule-row:first-child { border-top: none; }
+  .rule-list > .rule-row:first-child:not(.has-header *) {
+    border-top: none;
+    border-top-left-radius: var(--r-md);
+    border-top-right-radius: var(--r-md);
+  }
+  .rule-list > .rule-row:last-child {
+    border-bottom-left-radius: var(--r-md);
+    border-bottom-right-radius: var(--r-md);
+  }
   .rule-list > .rule-row:hover { background: var(--panel); }
   /* needs to outrank `.rule-list > .rule-row`'s hairline, which is declared above
      it at equal specificity, or the drop indicator disappears */
@@ -404,28 +435,32 @@
      text vertically centred by the symmetric 7px padding. resize:vertical still
      lets a long expression be dragged open. */
   textarea.manual-expr {
-    width: 100%; margin: 0; resize: vertical;
-    height: 32px; min-height: 32px;
-    line-height: 16px;
-    overflow-y: hidden;
+    width: 100%; margin: 0; resize: none !important;
+    height: 34px; min-height: 34px; max-height: 34px;
+    line-height: 20px;
+    overflow: hidden !important;
+    box-sizing: border-box;
   }
-  textarea.manual-expr:focus { overflow-y: auto; }
+  textarea.manual-expr:focus {
+    overflow: hidden !important;
+    resize: none !important;
+  }
   /* Inside a divided .rule-list the row IS the container, so the input's own
      border and fill just double every edge. Strip it back to bare text and
      bring the chrome back only on focus, where it marks the active row. */
   .rule-list textarea.manual-expr {
     background: none;
-    padding-left: 6px; padding-right: 6px;
+    padding-left: 8px; padding-right: 8px;
+    resize: none !important;
+    overflow: hidden !important;
   }
   /* :not(:focus) is load-bearing — this selector is more specific than the
      generic `textarea:focus { border-color: var(--accent) }`, so without it
      the focused row would keep a transparent border and lose its accent edge. */
-  .rule-list textarea.manual-expr:not(:focus) { border-color: transparent; }
-  .rule-list textarea.manual-expr:hover:not(:focus) { border-color: var(--border); }
-  .rule-list textarea.manual-expr:focus { background: var(--panel); }
-  /* 24 resize nubs at once is visual noise; the affordance comes back on the
-     row you are actually editing, where resize:vertical still works. */
-  .rule-list textarea.manual-expr:not(:focus):not(:hover) { resize: none; }
+  .rule-list textarea.manual-expr:not(:focus) { border-color: transparent; resize: none !important; }
+  .rule-list textarea.manual-expr:hover:not(:focus) { border-color: var(--border); resize: none !important; }
+  .rule-list textarea.manual-expr:focus { background: var(--panel); resize: none !important; overflow: hidden !important; }
+  .rule-list textarea.manual-expr:not(:focus):not(:hover) { resize: none !important; }
 
   .expr-err { color: var(--danger); font-size: 12px; margin-top: 4px; min-height: 0; }
   /* only indents when there IS an error, so an empty row stays exactly one line */
@@ -478,6 +513,10 @@
     padding: 20px 22px;
     margin-bottom: 18px;
   }
+  .card .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
   .card-h1, .page-head h1 {
     font-size: 20px;
     font-weight: 650;
@@ -517,7 +556,7 @@
   .field-ctl.ctl-end { justify-content: flex-end; }
   .field-ctl .grow { flex: 1; min-width: 180px; }
 
-  input[type="text"], input[type="number"], select, textarea {
+  input[type="text"], input[type="number"], input[type="url"], input[type="password"], select, textarea {
     font: 400 13.5px/1.4 var(--font);
     color: var(--text);
     background: var(--panel);
@@ -530,7 +569,7 @@
   /* single-line inputs and selects share one control height with the buttons
      that sit beside them in a row (add-rows, adapter rows, path rows) so a
      form group never mixes tall and short controls */
-  input[type="text"], input[type="number"], select { height: 32px; }
+  input[type="text"], input[type="number"], input[type="url"], input[type="password"], select { height: 32px; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
   select { width: auto; min-width: 120px; cursor: pointer; font-size: 13px; line-height: normal; padding: 4px 26px 4px 10px; }
   input::placeholder, textarea::placeholder { color: var(--placeholder); }
@@ -615,7 +654,207 @@
   .field-note { color: var(--text-3); font-size: 12.5px; line-height: 1.5; max-width: var(--measure); }
   .field-note + .field-note { margin-top: 4px; }
 
-  /* ---------- raw JSON escape hatch ---------- */
+  /* ---------- raw editor direct edit card ---------- */
+  .raw-editor-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px !important;
+    margin-top: 20px;
+    margin-bottom: 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    transition: border-color .15s ease;
+  }
+  .raw-editor-card:hover {
+    border-color: var(--border-2);
+  }
+  .raw-editor-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .raw-editor-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .raw-editor-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+    letter-spacing: -.005em;
+  }
+  .raw-editor-desc {
+    font-size: 12.5px;
+    color: var(--text-3);
+    margin: 0;
+    line-height: 1.45;
+  }
+  .raw-editor-right {
+    flex-shrink: 0;
+  }
+  .raw-editor-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .raw-expr {
+    width: 100%; font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px; box-sizing: border-box; resize: vertical; min-height: 160px;
+  }
+  .raw-expr:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  .expr-err { color: var(--danger); font-size: 12px; margin-top: 6px; }
+  .expr-err:empty { display: none; }
+
+  /* ---------- spacious raw editor modal (88vh) ---------- */
+  .modal.modal-large {
+    width: 94vw; max-width: 1100px; height: 88vh; max-height: 90vh;
+  }
+  .modal-large .modal-body {
+    flex: 1; display: flex; flex-direction: column; padding: 14px 18px; min-height: 0; overflow: hidden;
+  }
+  .modal-large .raw-expr-modal {
+    flex: 1; width: 100%; height: 100%; min-height: 0; resize: none;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.6;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; box-sizing: border-box; outline: none;
+  }
+  .modal-large .raw-expr-modal:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  /* ---------- filter rules & multi-select ---------- */
+  .rule-row.rule-disabled { opacity: 0.52; }
+  .rule-row.rule-disabled .manual-expr { text-decoration: line-through; color: var(--text-3); }
+  .rule-row.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
+
+  /* Checkboxes: placed on far left before drag handle with reserved space */
+  .rule-select-cb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 17px; height: 17px;
+    border: 1.5px solid var(--border-2, #6b7280);
+    border-radius: 4px;
+    background: var(--panel-2, #18181b);
+    cursor: pointer;
+    position: relative;
+    transition: opacity .15s ease, border-color .15s ease, background .15s ease;
+    flex-shrink: 0;
+    outline: none;
+    margin: 0 8px 0 0;
+    vertical-align: middle;
+    display: inline-block !important;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .rule-select-cb:hover { border-color: var(--accent); }
+  .rule-select-cb:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .rule-select-cb:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 5px;
+    width: 4px; height: 8px;
+    border: solid #ffffff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  /* Show checkbox on row hover, or when in selection mode, or when checked */
+  .rule-row:hover .rule-select-cb,
+  .selection-mode .rule-select-cb,
+  .rule-select-cb:checked {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .rule-disabled-tag {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+
+  .rule-list-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    height: 44px; min-height: 44px; max-height: 44px; box-sizing: border-box;
+    padding: 0 14px; background: var(--panel-2);
+    border: 1px solid var(--border); border-bottom: none;
+    border-top-left-radius: var(--r-md); border-top-right-radius: var(--r-md);
+    font-size: 12px; color: var(--text-3); font-weight: 600;
+  }
+  .rule-list-header.selection-active {
+    background: var(--panel-3, var(--panel));
+    border-color: var(--accent);
+  }
+  .rule-list-header .header-left {
+    display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
+  }
+  .rule-list-header .header-right {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+
+  .cb-slot {
+    width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer !important; flex-shrink: 0; margin-right: 2px;
+  }
+  .cb-slot .rule-select-cb {
+    margin: 0 !important; cursor: pointer !important;
+  }
+
+  .bulk-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 14px; background: var(--panel-2); border: 1px solid var(--accent);
+    border-radius: var(--radius); margin-bottom: 10px; animation: fadeIn .15s ease;
+  }
+  .bulk-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rule-scope-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 12px 16px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .raw-leakage-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .raw-leakage-desc {
+    font-size: 12.5px; color: var(--text-3); line-height: 1.5; margin: 6px 0 10px;
+  }
+  .custom-ctx-menu {
+    position: fixed; z-index: 1000; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 4px; min-width: 190px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .ctx-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 13px;
+    color: var(--text); border: none; background: none; text-align: left; width: 100%;
+    cursor: pointer; border-radius: var(--r-sm);
+  }
+  .ctx-item:hover { background: var(--panel-2); color: var(--accent); }
+  .ctx-item.danger:hover { color: var(--danger); }
+  .ctx-divider { height: 1px; background: var(--border); margin: 3px 0; }
   .raw-summary { cursor: pointer; color: var(--text-3); font-size: 13px; width: fit-content; }
   .raw-summary:hover { color: var(--text-2); }
   .raw-json {
@@ -644,14 +883,25 @@
   .match-count b { color: var(--text-2); }
 
   /* ---------- mini tables ---------- */
-  table.mini { border-collapse: collapse; width: 100%; }
-  table.mini th { text-align: left; font-size: 12px; color: var(--text-3); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); }
-  table.mini td { padding: 4px 8px; }
-  table.mini th:first-child, table.mini td:first-child { padding-left: 0; padding-right: 8px; width: 100%; }
-  table.mini th.col-1m, table.mini td.col-1m { width: 1%; white-space: nowrap; text-align: center; padding-inline: 4px; }
+  table.mini {
+    border-collapse: collapse; width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  table.mini th {
+    text-align: left; font-size: 12px; color: var(--text-3); font-weight: 600;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  table.mini td { padding: 6px 12px; border-bottom: 1px solid var(--border-2); }
+  table.mini tr:last-child td { border-bottom: none; }
+  table.mini th:first-child, table.mini td:first-child { padding-left: 12px; padding-right: 8px; width: 100%; }
+  table.mini th.col-1m, table.mini td.col-1m { width: 1%; white-space: nowrap; text-align: center; padding-inline: 8px; }
   table.mini td.col-1m { vertical-align: middle; }
   table.mini td.col-1m .toggle { margin: 0 auto; }
-  table.mini th.col-act, table.mini td.col-act { width: 1%; white-space: nowrap; text-align: right; padding-left: 4px; padding-right: 0; }
+  table.mini th.col-act, table.mini td.col-act { width: 1%; white-space: nowrap; text-align: right; padding-left: 8px; padding-right: 12px; }
   table.mini td.col-act .del { margin-left: auto; }
   table.mini input, table.mini select { padding: 4px 8px; font-size: 13px; }
   table.mini .del {
@@ -766,16 +1016,16 @@
   .models-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .models-toolbar input[type="text"] { max-width: 260px; }
   .models-toolbar .count { color: var(--text-3); font-size: 13px; }
-  table.models { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  table.models { border-collapse: collapse; width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
   table.models th {
     text-align: left; padding: 10px 12px; font-size: 12px; color: var(--text-3);
     border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; font-weight: 600;
-    background: var(--panel-2);
+    background: var(--panel);
   }
   table.models th:hover { color: var(--text); }
   table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 13.5px; }
   table.models td.num { font-family: var(--mono); text-align: right; font-size: 13px; }
-  table.models tr:hover td { background: var(--panel-2); }
+  table.models tr:hover td { background: var(--panel); }
   .cap { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); }
   .cap.y { background: var(--success-weak); color: var(--success); }
   .cap.n { background: var(--border-2); color: var(--text-3); }
@@ -828,16 +1078,14 @@
 
   /* ---------- toast ---------- */
   #toast {
-    /* anchored to the content column, not the viewport: with a 232px sidebar a
-       viewport-centred toast reads as visibly left-shifted */
-    position: fixed; bottom: 76px; left: calc(50% + 116px); transform: translateX(-50%) translateY(20px);
+    position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 20px);
     background: var(--text);
     color: var(--bg);
-    padding: 10px 18px; border-radius: var(--r-sm);
-    font-size: 14px; box-shadow: var(--shadow-md); transition: transform .2s, opacity .2s;
-    opacity: 0; pointer-events: none; z-index: 70; max-width: 80vw;
+    padding: 10px 18px; border-radius: var(--r-md);
+    font-size: 14px; box-shadow: var(--shadow-lg); transition: transform .2s, opacity .2s;
+    opacity: 0; pointer-events: none; z-index: 70; max-width: min(92vw, 560px);
   }
-  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.show { transform: translate(-50%, 0); opacity: 1; }
   #toast .sub { color: var(--text-3); font-size: 12px; display: block; }
   #toast.error { background: var(--danger); color: #fff; }
 
@@ -851,6 +1099,115 @@
     /* sidebar is gone below this width, so recentre the toast on the viewport */
     #toast { left: 50%; }
   }
+  /* ---------- Providers & Badges ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px; border-radius: var(--r-sm);
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap; line-height: 1.4;
+  }
+  .badge-router { background: rgba(59,130,246,.15); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
+  .badge-solo { background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+  .badge-rest { background: rgba(139,92,246,.15); color: #8b5cf6; border: 1px solid rgba(139,92,246,.3); }
+
+  .provider-stats-bar {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .provider-stat-item {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2);
+  }
+
+  table.providers-table {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  table.providers-table th {
+    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border);
+    color: var(--text-2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
+    background: var(--panel);
+  }
+  table.providers-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border-2); vertical-align: middle;
+  }
+  table.providers-table tr:hover td { background: var(--panel); }
+  table.providers-table .mono-cell { font-family: var(--mono); font-size: 12.5px; }
+  table.providers-table .url-cell {
+    max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .table-actions { display: inline-flex; gap: 4px; align-items: center; }
+
+  /* Modal Form Controls */
+  .modal-form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-form .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .modal-form label { font-size: 13px; font-weight: 600; color: var(--text); }
+  .modal-form label .req { color: var(--danger); }
+  .modal-form input[type="text"], .modal-form input[type="url"], .modal-form input[type="password"] {
+    width: 100%; font-size: 13.5px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    box-sizing: border-box;
+  }
+  .modal-form input:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  .input-with-action { position: relative; display: flex; align-items: center; width: 100%; }
+  .input-with-action input { padding-right: 36px !important; width: 100%; box-sizing: border-box; }
+  .input-with-action .inline-action-btn {
+    position: absolute; right: 4px; background: none; border: none; padding: 4px 6px;
+    color: var(--text-3); cursor: pointer; border-radius: var(--r-sm);
+  }
+  .input-with-action .inline-action-btn:hover { color: var(--text); background: var(--panel-2); }
+
+  .radio-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 2px;
+  }
+  .radio-card {
+    display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--border);
+    border-radius: var(--r-md); cursor: pointer; transition: border-color .15s, background .15s;
+    background: var(--panel); position: relative;
+  }
+  .radio-card input { position: absolute; opacity: 0; }
+  .radio-card:hover { border-color: var(--border-hover); background: var(--panel-2); }
+  .radio-card.selected {
+    border-color: var(--accent); background: var(--panel-2); box-shadow: 0 0 0 1px var(--accent);
+  }
+  .radio-card-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; justify-content: space-between; }
+  .radio-card-desc { font-size: 11.5px; color: var(--text-3); line-height: 1.35; }
+
+  /* Provider target dropdown on filter rule rows */
+  .prov-target-wrap { position: relative; display: inline-flex; margin: 0 4px; flex-shrink: 0; }
+  .prov-target-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+    font-size: 12px; color: var(--text-2); cursor: pointer; font-family: var(--font);
+    height: 30px; transition: border-color .15s, color .15s; max-width: 240px;
+    white-space: nowrap;
+  }
+  .prov-target-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .prov-target-btn .prov-count-badge {
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 9px; padding: 0 5px; min-width: 15px; text-align: center;
+  }
+  .prov-target-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg); padding: 6px; min-width: 190px; max-height: 250px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+  }
+  .prov-target-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-sm);
+    cursor: pointer; font-size: 12.5px; color: var(--text); user-select: none;
+  }
+  .prov-target-item:hover { background: var(--panel-2); }
+  .prov-target-item input[type="checkbox"] { margin: 0; cursor: pointer; }
+  .prov-target-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
   @media (max-width: 760px) {
     /* The sidebar used to be display:none here with no replacement, leaving
        10 of the 11 config sections completely unreachable on a phone. It is
@@ -909,6 +1266,16 @@
   <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l2.5 3L7 15M12.5 15H17"/></symbol>
   <!-- refresh: two circular arrows, distinct from #i-reset's single counterclockwise arrow -->
   <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3"/><path d="M20 4v4.5h-4.5M4 20v-4.5h4.5"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="6" y1="17.5" x2="6.01" y2="17.5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+  <symbol id="i-check-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 12 11 16 20 7"/><polyline points="2 12 6 16 10 12"/></symbol>
 </svg>
 
 <button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Show navigation" aria-expanded="false" aria-controls="config-nav"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg></button>
@@ -917,18 +1284,24 @@
   <aside class="sidebar" id="config-nav" aria-label="Dashboard sections">
     <div class="sidebar-scroll">
       <h1 class="sidebar-title">OmniList</h1>
+
+      <div class="nav-group-label">Workspace</div>
       <button class="nav-item" data-view="run"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-terminal"/></svg>Run</button>
       <button class="nav-item" data-view="models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg>Models</button>
-      <button class="nav-item active" data-sec="general" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>General</button>
-      <button class="nav-item" data-sec="paths"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>Paths</button>
-      <button class="nav-item" data-sec="targets"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sync"/></svg>Sync targets</button>
-      <button class="nav-item" data-sec="filters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"/></svg>Catalog &amp; filters</button>
-      <button class="nav-item" data-sec="harness-filters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg>Harness filters</button>
+      <button class="nav-item" data-view="providers"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-server"/></svg>Providers</button>
+
+      <div class="nav-group-label">Rules &amp; Pipeline</div>
+      <button class="nav-item" data-sec="filters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-layers"/></svg>Filters</button>
       <button class="nav-item" data-sec="overrides"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>Field overrides</button>
       <button class="nav-item" data-sec="capabilities"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-target"/></svg>Capabilities</button>
+      <button class="nav-item" data-sec="custom-models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Custom models</button>
+
+      <div class="nav-group-label">System</div>
+      <button class="nav-item active" data-sec="general" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>General</button>
+      <button class="nav-item" data-sec="paths"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>Paths</button>
+      <button class="nav-item" data-sec="targets"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sync"/></svg>Integrations</button>
       <button class="nav-item" data-sec="adapters"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>Adapters</button>
       <button class="nav-item" data-sec="t3"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bolt"/></svg>T3 drivers</button>
-      <button class="nav-item" data-sec="custom-models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Custom models</button>
       <button class="nav-item" data-sec="commands"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>Commands &amp; advanced</button>
     </div>
     <div class="sidebar-tools">
@@ -1007,10 +1380,44 @@
       </div>
       <div id="models-table-wrap"></div>
     </div>
-    <div class="card" style="margin-top:22px">
-      <h2 class="card-h2">Providers</h2>
-      <p class="card-desc" id="providers-path"></p>
+  </div>
+
+  <div class="content" id="tab-providers" style="display:none">
+    <div class="card depth-1">
+      <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1>Providers</h1>
+          <p class="card-desc" id="providers-path">Manage Router, Solo, and REST providers in <code>providers.csv</code></p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn small" id="providers-refresh-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>Refresh</button>
+          <button class="btn primary small" id="add-provider-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add provider</button>
+        </div>
+      </div>
+      <div class="provider-stats-bar" id="provider-stats-bar">
+        <span class="provider-stat-item" id="provider-count-total"><b>0</b> providers</span>
+        <span class="badge badge-router" id="badge-count-router">1 Router</span>
+        <span class="badge badge-solo" id="badge-count-solo">0 Solo</span>
+        <span class="badge badge-rest" id="badge-count-rest">0 REST</span>
+      </div>
+      <div class="models-toolbar" style="margin-bottom:14px">
+        <input type="text" id="providers-search" placeholder="Search provider name, URL, or notes..." aria-label="Search providers">
+        <span class="count" id="providers-search-count" role="status" aria-live="polite"></span>
+      </div>
       <div id="providers-table-wrap"></div>
+
+      <div class="card raw-editor-card" id="raw-providers-card">
+        <div class="raw-editor-left">
+          <div class="raw-editor-title-row">
+            <h3 class="raw-editor-title">Raw providers.csv</h3>
+            <span class="badge" style="font-size:10px;text-transform:none">Direct Edit</span>
+          </div>
+          <p class="raw-editor-desc">Edit <code>providers.csv</code> directly in modal dialog. Columns: <code>provider,base_url,api_key,type,description</code></p>
+        </div>
+        <div class="raw-editor-right">
+          <button type="button" class="btn small raw-editor-btn" id="raw-providers-modal-btn" title="Open spacious 88vh modal editor"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-maximize"/></svg>Direct Edit</button>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -1091,10 +1498,37 @@ function setAt(pathArr, value) {
   }
   node[pathArr[pathArr.length - 1]] = value;
 }
+function isDeepEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null || typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return a === b;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isDeepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const keysA = Object.keys(a).filter(k => a[k] !== undefined);
+  const keysB = Object.keys(b).filter(k => b[k] !== undefined);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, k) || !isDeepEqual(a[k], b[k])) return false;
+  }
+  return true;
+}
+
 function setDirty(v) {
-  dirty = v;
-  $('#save-bar').classList.toggle('show', v);
-  $('#save-btn').disabled = !v;
+  if (v === false) {
+    dirty = false;
+  } else if (!S.saved || !S.effective) {
+    dirty = !!v;
+  } else {
+    dirty = !isDeepEqual(S.effective, S.saved);
+  }
+  $('#save-bar').classList.toggle('show', dirty);
+  $('#save-btn').disabled = !dirty;
   // every control funnels its edits through setDirty, so this is the one hook
   // that keeps the conditional field/section reset icons in step with the data
   refreshResetState();
@@ -1639,6 +2073,247 @@ function splitTop(s, opStr) {
 // Manual-only block editor: one textarea per expression, drag blocks to
 // reorder. No dropdowns — expressions are written by hand, validated against
 // the real parser, with a live match-count preview for model filters.
+function createProviderTargetDropdown(initialTargets, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'prov-target-wrap';
+
+  let currentTargets = Array.isArray(initialTargets) && initialTargets.length ? initialTargets.slice() : ['all'];
+  if (currentTargets.length > 1 && currentTargets.includes('all')) {
+    currentTargets = currentTargets.filter(t => t !== 'all');
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'prov-target-btn';
+  btn.title = 'Target providers for this filter rule';
+
+  function updateBtnText() {
+    if (!currentTargets.length || currentTargets.includes('all')) {
+      btn.innerHTML = `<span>All</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+    } else if (currentTargets.length === 1) {
+      btn.innerHTML = `<span style="font-weight:600;color:var(--text)">${esc(currentTargets[0])}</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+    } else {
+      btn.innerHTML = `<span class="prov-count-badge">${currentTargets.length}</span> <span>provs</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+    }
+  }
+  updateBtnText();
+
+  const menu = document.createElement('div');
+  menu.className = 'prov-target-menu';
+  menu.style.display = 'none';
+
+  function renderMenu() {
+    menu.innerHTML = '';
+    const allLabel = document.createElement('label');
+    allLabel.className = 'prov-target-item';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox';
+    allCb.checked = currentTargets.includes('all') || !currentTargets.length;
+    allCb.onchange = () => {
+      if (allCb.checked) currentTargets = ['all'];
+      else currentTargets = [];
+      renderMenu();
+      updateBtnText();
+      onChange(currentTargets);
+    };
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode('All providers'));
+    menu.appendChild(allLabel);
+
+    const div = document.createElement('div');
+    div.className = 'prov-target-divider';
+    menu.appendChild(div);
+
+    const provs = (S.meta && S.meta.configuredProviders && S.meta.configuredProviders.length)
+      ? S.meta.configuredProviders
+      : (typeof providersCache !== 'undefined' && providersCache.length ? providersCache : []);
+
+    if (!provs.length) {
+      const note = document.createElement('div');
+      note.style.fontSize = '11.5px';
+      note.style.color = 'var(--text-3)';
+      note.style.padding = '4px 8px';
+      note.textContent = 'No providers configured';
+      menu.appendChild(note);
+    } else {
+      for (const p of provs) {
+        const provName = p.provider;
+        const provLower = provName.toLowerCase();
+        const pLabel = document.createElement('label');
+        pLabel.className = 'prov-target-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = currentTargets.includes(provLower);
+        cb.onchange = () => {
+          if (cb.checked) {
+            currentTargets = currentTargets.filter(t => t !== 'all');
+            if (!currentTargets.includes(provLower)) currentTargets.push(provLower);
+          } else {
+            currentTargets = currentTargets.filter(t => t !== provLower);
+            if (!currentTargets.length) currentTargets = ['all'];
+          }
+          renderMenu();
+          updateBtnText();
+          onChange(currentTargets);
+        };
+        pLabel.appendChild(cb);
+        const nameSpan = document.createElement('span');
+        nameSpan.style.fontFamily = 'var(--mono)';
+        nameSpan.style.fontWeight = '500';
+        nameSpan.textContent = provName;
+        pLabel.appendChild(nameSpan);
+        const b = document.createElement('span');
+        const pType = p.type || (p.isRouter ? 'router' : (p.isSolo ? 'solo' : 'rest'));
+        b.className = 'badge badge-' + pType;
+        b.style.fontSize = '9.5px';
+        b.style.padding = '1px 4px';
+        b.style.marginLeft = 'auto';
+        b.textContent = pType;
+        pLabel.appendChild(b);
+        menu.appendChild(pLabel);
+      }
+    }
+  }
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const isShowing = menu.style.display !== 'none';
+    document.querySelectorAll('.prov-target-menu').forEach(m => m.style.display = 'none');
+    if (!isShowing) {
+      renderMenu();
+      menu.style.display = 'flex';
+      const rect = btn.getBoundingClientRect();
+      const menuHeight = 240;
+      if (rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight) {
+        menu.style.top = 'auto';
+        menu.style.bottom = 'calc(100% + 4px)';
+      } else {
+        menu.style.top = 'calc(100% + 4px)';
+        menu.style.bottom = 'auto';
+      }
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) menu.style.display = 'none';
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(menu);
+  return wrap;
+}
+
+function createHarnessTargetDropdown(initialHarnesses, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'prov-target-wrap';
+
+  let current = Array.isArray(initialHarnesses) && initialHarnesses.length ? initialHarnesses.slice() : ['all'];
+  if (current.length > 1 && current.includes('all')) {
+    current = current.filter(t => t !== 'all');
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'prov-target-btn';
+  btn.title = 'Target harnesses for this rule';
+
+  function updateBtnText() {
+    if (!current.length || current.includes('all')) {
+      btn.innerHTML = `<span>All harnesses</span> <svg class="ic" style="width:10px;height:10px;opacity:.7;flex-shrink:0" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+      btn.title = 'Target harnesses: All harnesses';
+    } else {
+      const labels = current.map(h => HARNESS_LABEL[String(h).toLowerCase()] || h).join(', ');
+      btn.innerHTML = `<span style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(labels)}</span> <svg class="ic" style="width:10px;height:10px;opacity:.7;flex-shrink:0" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+      btn.title = `Target harnesses: ${labels}`;
+    }
+  }
+  updateBtnText();
+
+  const menu = document.createElement('div');
+  menu.className = 'prov-target-menu';
+  menu.style.display = 'none';
+
+  const harnessList = (S.meta && S.meta.harnessIds && S.meta.harnessIds.length)
+    ? S.meta.harnessIds
+    : ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'];
+
+  function renderMenu() {
+    menu.innerHTML = '';
+    const allLabel = document.createElement('label');
+    allLabel.className = 'prov-target-item';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox';
+    allCb.checked = current.includes('all') || !current.length;
+    allCb.onchange = () => {
+      if (allCb.checked) current = ['all'];
+      else current = [];
+      renderMenu();
+      updateBtnText();
+      onChange(current);
+    };
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode('All harnesses'));
+    menu.appendChild(allLabel);
+
+    const div = document.createElement('div');
+    div.className = 'prov-target-divider';
+    menu.appendChild(div);
+
+    for (const h of harnessList) {
+      const hLabel = document.createElement('label');
+      hLabel.className = 'prov-target-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = current.includes(h);
+      cb.onchange = () => {
+        if (cb.checked) {
+          current = current.filter(t => t !== 'all');
+          if (!current.includes(h)) current.push(h);
+        } else {
+          current = current.filter(t => t !== h);
+          if (!current.length) current = ['all'];
+        }
+        renderMenu();
+        updateBtnText();
+        onChange(current);
+      };
+      hLabel.appendChild(cb);
+      const nameSpan = document.createElement('span');
+      nameSpan.style.fontWeight = '500';
+      nameSpan.textContent = HARNESS_LABEL[String(h).toLowerCase()] || h;
+      hLabel.appendChild(nameSpan);
+      menu.appendChild(hLabel);
+    }
+  }
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const isShowing = menu.style.display !== 'none';
+    document.querySelectorAll('.prov-target-menu').forEach(m => m.style.display = 'none');
+    if (!isShowing) {
+      renderMenu();
+      menu.style.display = 'flex';
+      const rect = btn.getBoundingClientRect();
+      const menuHeight = 240;
+      if (rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight) {
+        menu.style.top = 'auto';
+        menu.style.bottom = 'calc(100% + 4px)';
+      } else {
+        menu.style.top = 'calc(100% + 4px)';
+        menu.style.bottom = 'auto';
+      }
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) menu.style.display = 'none';
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(menu);
+  return wrap;
+}
+
 function manualBlockBuilder(pathArr, opts = {}) {
   const wrap = document.createElement('div');
   wrap.style.flex = '1';
@@ -1812,24 +2487,52 @@ function manualBlockBuilder(pathArr, opts = {}) {
     num.setAttribute('aria-hidden', 'true');
     head.appendChild(num);
 
+    function parseEntry(str) {
+      const atIdx = str.lastIndexOf('@');
+      if (atIdx === -1) return { rule: str, targets: ['all'] };
+      const rule = str.slice(0, atIdx).trim();
+      const provPart = str.slice(atIdx + 1).trim();
+      if (!rule || !provPart || provPart.toLowerCase() === 'all') return { rule: rule || str, targets: ['all'] };
+      const targets = provPart.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      return { rule, targets: targets.length ? targets : ['all'] };
+    }
+
+    function serializeEntry(rule, targets) {
+      const clean = (rule || '').trim();
+      if (!targets || !targets.length || targets.includes('all')) return clean;
+      return clean + '@' + targets.join(',');
+    }
+
+    const parsed = parseEntry(r.text);
+    let ruleExpr = parsed.rule;
+    let ruleTargets = parsed.targets;
+
     const ta = document.createElement('textarea');
     ta.className = 'raw-expr manual-expr';
     ta.spellcheck = false;
     ta.rows = 1;
-    ta.value = r.text;
+    ta.value = ruleExpr;
     ta.placeholder = opts.placeholder || 'e.g. !(kc/* && !*free)';
     ta.setAttribute('aria-label', (isHarness ? 'Harness filter' : 'Filter rule') + ' ' + (i + 1) + ' expression');
-    // the expression sits inline between the number and the ✕, so all four
-    // controls share one row
     head.appendChild(ta);
 
-    // ✕ goes in a .rule-ops wrapper so the existing
-    // `.rule-head .rule-ops { margin-left: auto }` pushes it to the far right,
-    // leaving the handle + number left-aligned on the same row
+    // Provider target dropdown for model_filters
+    if (!isHarness) {
+      const provDropdown = createProviderTargetDropdown(ruleTargets, (newTargets) => {
+        ruleTargets = newTargets;
+        r.text = serializeEntry(ruleExpr, ruleTargets);
+        if (myGen !== gen) return;
+        const a = allRows.map((x) => x.text);
+        set(a);
+        schedulePreview();
+      });
+      head.appendChild(provDropdown);
+    }
+
     const ops = document.createElement('div');
     ops.className = 'rule-ops';
     ops.appendChild(iconBtn('<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>', 'Remove this rule', () => {
-      if (myGen !== gen) return; // detached handler from a previous render
+      if (myGen !== gen) return;
       const a = allRows.map((x) => x.text);
       a.splice(i, 1);
       set(a);
@@ -1841,27 +2544,23 @@ function manualBlockBuilder(pathArr, opts = {}) {
 
     const err = document.createElement('div');
     err.className = 'expr-err';
-    // commit-on-type: write the text into the array WITHOUT re-rendering, so
-    // focus and caret position survive
     let vTimer = null;
     ta.addEventListener('input', () => {
-      r.text = ta.value;
+      ruleExpr = ta.value;
+      r.text = serializeEntry(ruleExpr, ruleTargets);
       clearTimeout(vTimer);
       pendingTimers.delete(vTimer);
       vTimer = setTimeout(() => {
         pendingTimers.delete(vTimer);
-        // a re-render happened after this timer was scheduled — the row objects
-        // this closure holds are stale, so writing them back would clobber it
         if (myGen !== gen) return;
         const a = allRows.map((x) => x.text);
         set(a);
         schedulePreview();
-        validateExpr(ta.value).then((msg) => { err.textContent = msg || ''; });
+        validateExpr(ruleExpr).then((msg) => { err.textContent = msg || ''; });
       }, 300);
       pendingTimers.add(vTimer);
     });
-    // validate whatever exists right now
-    validateExpr(r.text).then((msg) => { if (msg) err.textContent = msg; });
+    validateExpr(ruleExpr).then((msg) => { if (msg) err.textContent = msg; });
 
     box.appendChild(err);
     return box;
@@ -2149,21 +2848,33 @@ function ruleBuilder(pathArr, opts = {}) {
       target.appendChild(tTitle);
       const tRow = document.createElement('div');
       tRow.className = 'rule-cond';
+      const chips = document.createElement('div');
+      chips.className = 'chips';
       HARNESSES.forEach((h) => {
-        const ck = document.createElement('label');
-        ck.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;font-size:13px';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = !!(r.harnesses && r.harnesses.includes(h));
-        cb.addEventListener('change', () => {
+        const on = !!(r.harnesses && r.harnesses.includes(h));
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip' + (on ? ' on' : '');
+        chip.textContent = HARNESS_LABEL[h] || h;
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
           r.harnesses = r.harnesses || [];
-          if (cb.checked) { if (!r.harnesses.includes(h)) r.harnesses.push(h); }
-          else r.harnesses = r.harnesses.filter((x) => x !== h);
+          const idx = r.harnesses.indexOf(h);
+          if (idx >= 0) {
+            r.harnesses.splice(idx, 1);
+            chip.classList.remove('on');
+            chip.setAttribute('aria-pressed', 'false');
+          } else {
+            r.harnesses.push(h);
+            chip.classList.add('on');
+            chip.setAttribute('aria-pressed', 'true');
+          }
           commit(i, allRows);
         });
-        ck.appendChild(cb); ck.appendChild(document.createTextNode(h));
-        tRow.appendChild(ck);
+        chips.appendChild(chip);
       });
+      tRow.appendChild(chips);
       target.appendChild(tRow);
       main.appendChild(target);
     }
@@ -2286,35 +2997,36 @@ function ruleBuilder(pathArr, opts = {}) {
 function overrideBuilder(pathArr, opts = {}) {
   const wrap = document.createElement('div');
   wrap.style.flex = '1';
-  const HARNESSES = S.meta ? S.meta.harnessIds : ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'];
-  const FIELDS = S.meta ? S.meta.overrideFields : ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'];
+  const FIELDS = (S.meta && S.meta.overrideFields) ? S.meta.overrideFields : ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'];
   const get = () => getAt(S.effective, pathArr) || [];
   const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
-  wrap.dataset.mode = 'gui';
+
+  let selectedIndices = new Set();
+  let isSelectionMode = false;
+  let lastCheckedIdx = null;
 
   function parse(s) {
     const raw = String(s == null ? '' : s).trim();
     const arrow = raw.lastIndexOf('->');
     let targets = null;
     let body = raw;
-    if (arrow !== -1) { targets = raw.slice(arrow + 2).split(',').map((x) => x.trim()).filter(Boolean); body = raw.slice(0, arrow).trim(); }
+    if (arrow !== -1) {
+      targets = raw.slice(arrow + 2).split(',').map((x) => x.trim()).filter(Boolean);
+      body = raw.slice(0, arrow).trim();
+    }
     const m = body.match(/^\(?([A-Za-z_]+)\s*:\s*([^)]+)\)?$/);
     if (!m) return { field: 'input_context', value: '1000000', targets, raw };
     return { field: m[1].trim(), value: m[2].trim(), targets, raw };
   }
+
   function build(o) {
     let out = '(' + o.field + ':' + o.value + ')';
-    if (o.targets && o.targets.length) out += '->' + o.targets.join(',');
+    if (o.targets && o.targets.length && !o.targets.includes('all')) {
+      out += '->' + o.targets.join(',');
+    }
     return out;
   }
-  // write rows[i] back without re-rendering, so open dropdowns/inputs keep state
-  function commit(i, rows) {
-    const a = get().slice();
-    a[i] = build(rows[i]);
-    set(a);
-    const foot = wrap.querySelectorAll('.rule-foot .expr-preview')[i];
-    if (foot) foot.textContent = a[i];
-  }
+
   // HTML5 drag & drop reordering
   function initDragDrop(box, rows) {
     let fromIdx = null;
@@ -2324,7 +3036,7 @@ function overrideBuilder(pathArr, opts = {}) {
       fromIdx = parseInt(row.dataset.idx, 10);
       row.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) { /* IE */ }
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) {}
     });
     box.addEventListener('dragend', () => {
       const row = box.querySelector('.rule-row.dragging');
@@ -2353,232 +3065,711 @@ function overrideBuilder(pathArr, opts = {}) {
       render();
     });
   }
-  function render() {
-    wrap.innerHTML = '';
-    const rows = get().map(parse);
-    if ((wrap.dataset.mode || 'gui') === 'raw') return renderRaw(rows);
 
-    const box = document.createElement('div');
-    box.style.flex = '1';
-    wrap.appendChild(box);
-    if (!rows.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = opts.emptyText || '(no overrides)'; box.appendChild(e); }
+  // Header element
+  const listHeader = document.createElement('div');
+  listHeader.className = 'rule-list-header';
+  wrap.appendChild(listHeader);
+
+  // List element
+  const listEl = document.createElement('div');
+  listEl.className = 'rule-list has-header';
+  wrap.appendChild(listEl);
+
+  // Bottom bar
+  const bottomBar = document.createElement('div');
+  bottomBar.className = 'rule-bottom-bar';
+  bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 2px;';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary small';
+  addBtn.type = 'button';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add override';
+  addBtn.addEventListener('click', () => {
+    const rows = get().map(parse);
+    rows.push({ field: 'input_context', value: '1000000', targets: null });
+    set(rows.map(build));
+    render();
+  });
+  bottomBar.appendChild(addBtn);
+
+  const countEl = document.createElement('div');
+  countEl.className = 'field-note';
+  countEl.style.cssText = 'margin:0;color:var(--text-3);font-size:12.5px;';
+  bottomBar.appendChild(countEl);
+
+  wrap.appendChild(bottomBar);
+
+  function updateHeader(rows) {
+    listHeader.innerHTML = '';
+    const left = document.createElement('div');
+    left.className = 'header-left';
+
+    const cbSlot = document.createElement('div');
+    cbSlot.className = 'cb-slot';
+    const selectAllCb = document.createElement('input');
+    selectAllCb.type = 'checkbox';
+    selectAllCb.checked = rows.length > 0 && selectedIndices.size === rows.length;
+    selectAllCb.indeterminate = selectedIndices.size > 0 && selectedIndices.size < rows.length;
+    cbSlot.appendChild(selectAllCb);
+    cbSlot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedIndices.size === rows.length) {
+        selectedIndices.clear();
+        isSelectionMode = false;
+      } else {
+        selectedIndices = new Set(rows.map((_, i) => i));
+        isSelectionMode = true;
+      }
+      render();
+    });
+    left.appendChild(cbSlot);
+
+    const numCol = document.createElement('span');
+    numCol.className = 'rule-num';
+    numCol.style.cssText = 'font-weight:600;color:var(--text-3);font-size:11.5px;';
+    numCol.textContent = '#';
+    left.appendChild(numCol);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'header-col-title';
+    titleSpan.textContent = 'Override Directive';
+    left.appendChild(titleSpan);
+    listHeader.appendChild(left);
+
+    const right = document.createElement('div');
+    right.className = 'header-right';
+
+    if (selectedIndices.size > 0 || isSelectionMode) {
+      listHeader.classList.add('selection-active');
+      right.innerHTML = `
+        <span style="font-weight:600;font-size:12px;color:var(--accent);margin-right:4px">${selectedIndices.size} selected</span>
+        <button type="button" class="btn small danger" id="ovr-bulk-delete" title="Delete selected overrides">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete
+        </button>
+        <button type="button" class="btn small" id="ovr-bulk-clear" title="Done">
+          Done
+        </button>
+      `;
+      right.querySelector('#ovr-bulk-delete').onclick = () => {
+        if (!selectedIndices.size) return;
+        if (!confirm(`Delete ${selectedIndices.size} selected override(s)?`)) return;
+        const newRows = rows.filter((_, idx) => !selectedIndices.has(idx));
+        selectedIndices.clear();
+        isSelectionMode = false;
+        set(newRows.map(build));
+        render();
+      };
+      right.querySelector('#ovr-bulk-clear').onclick = () => {
+        selectedIndices.clear();
+        isSelectionMode = false;
+        render();
+      };
+    } else {
+      listHeader.classList.remove('selection-active');
+      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">Target Harnesses</span>`;
+    }
+    listHeader.appendChild(right);
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    const rows = get().map(parse);
+    countEl.textContent = `${rows.length} override${rows.length === 1 ? '' : 's'}`;
+    const inSelection = isSelectionMode || selectedIndices.size > 0;
+    listEl.classList.toggle('selection-mode', inSelection);
+
+    updateHeader(rows);
+
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = opts.emptyText || '(no overrides configured)';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    const padLen = Math.max(2, String(rows.length).length);
+
     rows.forEach((row, i) => {
       const rbox = document.createElement('div');
-      rbox.className = 'rule-row';
+      rbox.className = 'rule-row' + (selectedIndices.has(i) ? ' selected' : '');
       rbox.draggable = true;
       rbox.dataset.idx = i;
-      const main = document.createElement('div');
-      main.className = 'rule-main';
+
       const head = document.createElement('div');
-      head.className = 'rule-head ovr-head';
+      head.className = 'rule-head manual-head';
+      head.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;';
+
+      // Checkbox slot
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'rule-select-cb';
+      cb.checked = selectedIndices.has(i);
+      cbSlot.appendChild(cb);
+      cbSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (e.shiftKey && lastCheckedIdx !== null && lastCheckedIdx !== i) {
+          const [start, end] = [Math.min(lastCheckedIdx, i), Math.max(lastCheckedIdx, i)];
+          for (let k = start; k <= end; k++) selectedIndices.add(k);
+        } else {
+          if (cb.checked) selectedIndices.add(i);
+          else selectedIndices.delete(i);
+        }
+        lastCheckedIdx = i;
+        if (selectedIndices.size === 0) isSelectionMode = false;
+        render();
+      });
+      head.appendChild(cbSlot);
+
+      // Drag handle
       const handle = document.createElement('span');
       handle.className = 'drag-handle';
       handle.title = 'Drag to reorder';
       handle.setAttribute('aria-hidden', 'true');
       handle.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-grip"/></svg>';
       head.appendChild(handle);
+
+      // Number
+      const num = document.createElement('span');
+      num.className = 'rule-num';
+      num.textContent = String(i + 1).padStart(padLen, '0');
+      head.appendChild(num);
+
+      // SET
       const fLab = document.createElement('span');
       fLab.className = 'inline-lab';
-      fLab.textContent = 'set';
+      fLab.style.cssText = 'font-size:11.5px;color:var(--text-3);font-weight:600;margin-right:2px;';
+      fLab.textContent = 'SET';
       head.appendChild(fLab);
-      const fsel = select(FIELDS.map((f) => [f, fieldLabel(f)]), row.field, (v) => { row.field = v; commit(i, rows); });
+
+      // Field select
+      const fsel = select(FIELDS.map((f) => [f, fieldLabel(f)]), row.field, (v) => {
+        row.field = v;
+        const curRows = get().map(parse);
+        curRows[i].field = v;
+        set(curRows.map(build));
+      });
+      fsel.className = 'ovr-field-select';
+      fsel.style.cssText = 'min-width:140px;height:32px;padding:4px 8px;font-size:12.5px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel-2);color:var(--text);';
       fsel.setAttribute('aria-label', 'Override ' + (i + 1) + ' field');
       head.appendChild(fsel);
+
+      // TO
       const vLab = document.createElement('span');
       vLab.className = 'inline-lab';
-      vLab.textContent = 'to';
+      vLab.style.cssText = 'font-size:11.5px;color:var(--text-3);font-weight:600;margin:0 2px;';
+      vLab.textContent = 'TO';
       head.appendChild(vLab);
+
+      // Value input
       const vin = document.createElement('input');
       vin.type = 'text';
-      vin.className = 'ovr-value';
+      vin.className = 'manual-expr ovr-val-input';
       vin.placeholder = 'value';
       vin.value = row.value;
+      vin.style.cssText = 'flex:1;min-width:110px;height:32px;font-family:var(--mono);font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel-2);color:var(--text);box-sizing:border-box;';
       vin.setAttribute('aria-label', 'Override ' + (i + 1) + ' value');
-      vin.addEventListener('input', () => { row.value = vin.value; commit(i, rows); });
+      vin.addEventListener('input', () => {
+        row.value = vin.value;
+        const curRows = get().map(parse);
+        curRows[i].value = vin.value;
+        set(curRows.map(build));
+      });
       head.appendChild(vin);
-      const ops = document.createElement('div');
-      ops.className = 'rule-ops';
+
+      // Harness Target Dropdown
+      const targetWrap = createHarnessTargetDropdown(row.targets || ['all'], (newHarnesses) => {
+        const cleanHarnesses = (!newHarnesses || !newHarnesses.length || newHarnesses.includes('all')) ? null : newHarnesses;
+        row.targets = cleanHarnesses;
+        const curRows = get().map(parse);
+        if (selectedIndices.has(i)) {
+          selectedIndices.forEach(idx => {
+            if (curRows[idx]) curRows[idx].targets = cleanHarnesses;
+          });
+        } else {
+          curRows[i].targets = cleanHarnesses;
+        }
+        set(curRows.map(build));
+        if (selectedIndices.has(i)) render();
+      });
+      head.appendChild(targetWrap);
+
+      // Delete button
       const del = document.createElement('button');
       del.className = 'icon-btn';
       del.type = 'button';
       del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
       del.title = 'Remove this override';
       del.setAttribute('aria-label', 'Remove override ' + (i + 1));
-      del.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
-      ops.appendChild(del);
-      head.appendChild(ops);
-      main.appendChild(head);
-      // target harnesses
-      const target = document.createElement('div');
-      target.className = 'rule-cond ovr-targets';
-      const tLab = document.createElement('span');
-      tLab.className = 'inline-lab';
-      tLab.textContent = 'applies to';
-      tLab.title = 'Leave all unchecked to apply to every harness';
-      target.appendChild(tLab);
-      HARNESSES.forEach((h) => {
-        const ck = document.createElement('label');
-        ck.className = 'ovr-h';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = !!(row.targets && row.targets.includes(h));
-        cb.addEventListener('change', () => {
-          row.targets = row.targets || [];
-          if (cb.checked) { if (!row.targets.includes(h)) row.targets.push(h); }
-          else row.targets = row.targets.filter((x) => x !== h);
-          commit(i, rows);
-        });
-        ck.appendChild(cb); ck.appendChild(document.createTextNode(HARNESS_LABEL[h] || h));
-        target.appendChild(ck);
+      del.addEventListener('click', () => {
+        const a = get().slice();
+        a.splice(i, 1);
+        selectedIndices.delete(i);
+        set(a);
+        render();
       });
-      main.appendChild(target);
-      rbox.appendChild(main);
-      const foot = document.createElement('div');
-      foot.className = 'rule-foot';
-      const pv = document.createElement('div');
-      pv.className = 'expr-preview';
-      pv.textContent = build(row);
-      foot.appendChild(pv);
-      rbox.appendChild(foot);
-      box.appendChild(rbox);
+      head.appendChild(del);
+
+      rbox.appendChild(head);
+      listEl.appendChild(rbox);
     });
-    initDragDrop(box, rows);
-    const add = document.createElement('div');
-    add.className = 'add-row';
-    add.style.marginTop = '8px';
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn small';
-    addBtn.type = 'button';
-    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add override';
-    addBtn.addEventListener('click', () => {
-      set(get().concat([build({ field: 'input_context', value: '1000000', targets: null })]));
-      render();
-    });
-    add.appendChild(addBtn);
-    const rawBtn = document.createElement('button');
-    rawBtn.className = 'icon-btn';
-    rawBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>';
-    rawBtn.title = 'Manual mode. Type override directives by hand.';
-    rawBtn.setAttribute('aria-label', 'Switch to manual mode and type override directives by hand');
-    rawBtn.addEventListener('click', () => { wrap.dataset.mode = 'raw'; render(); });
-    add.appendChild(rawBtn);
-    wrap.appendChild(add);
-    const note = document.createElement('div');
-    note.className = 'field-note';
-    note.style.marginTop = '6px';
-    note.textContent = opts.note || '';
-    wrap.appendChild(note);
+
+    initDragDrop(listEl, rows);
   }
-  function renderRaw(rows) {
-    const label = document.createElement('div');
-    label.className = 'field-note';
-    label.style.marginBottom = '4px';
-    label.textContent = 'One directive per line: (field:value) or (field:value)->t3,dsh, e.g. (input_context:1000000)->t3,dsh';
-    wrap.appendChild(label);
-    const ta = document.createElement('textarea');
-    ta.className = 'raw-expr';
-    ta.spellcheck = false;
-    ta.setAttribute('aria-label', 'Override directives, one per line');
-    ta.value = rows.map((r) => r.raw).join('\n');
-    const guiBtn = document.createElement('button');
-    guiBtn.className = 'icon-btn';
-    guiBtn.type = 'button';
-    guiBtn.style.marginTop = '4px';
-    guiBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>';
-    guiBtn.title = 'Back to guided mode';
-    guiBtn.setAttribute('aria-label', 'Leave manual mode and go back to guided mode');
-    guiBtn.addEventListener('click', () => {
-      set(ta.value.split('\n').map((l) => l.trim()).filter(Boolean));
-      wrap.dataset.mode = 'gui';
-      render();
-    });
-    ta.addEventListener('input', () => {
-      set(ta.value.split('\n').map((l) => l.trim()).filter(Boolean));
-    });
-    wrap.appendChild(ta);
-    wrap.appendChild(guiBtn);
-  }
+
   render();
   return wrap;
 }
 
 // ===========================================================================
-// custom models table
+// custom models editor (filter-style table with scope dropdown and multi-select)
 // ===========================================================================
-function customModelsTable() {
-  const wrap = document.createElement('div');
-  wrap.style.flex = '1';
-  function render() {
-    wrap.innerHTML = '';
-    const arr = S.effective.custom_models || [];
-    if (!arr.length) {
-      const e = document.createElement('div');
-      e.className = 'list-empty';
-      e.textContent = 'No custom models yet. Add one below.';
-      wrap.appendChild(e);
+function buildCustomModelsEditor() {
+  const container = document.createElement('div');
+  container.className = 'custom-models-workspace';
+  container.style.cssText = 'margin-top: 10px;';
+
+  let currentScope = 'all';
+  let selectedIndices = new Set();
+  let lastCheckedIdx = null;
+  let isSelectionMode = false;
+
+  const commit = () => {
+    if (!Array.isArray(S.effective.custom_models)) S.effective.custom_models = [];
+    setDirty(true);
+  };
+
+  // 1. Top Scope Bar
+  const scopeBar = document.createElement('div');
+  scopeBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap';
+
+  const scopeLeft = document.createElement('div');
+  scopeLeft.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+  const scopeLabel = document.createElement('span');
+  scopeLabel.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em';
+  scopeLabel.textContent = 'Model Scope:';
+  scopeLeft.appendChild(scopeLabel);
+
+  const scopeSelect = document.createElement('select');
+  scopeSelect.id = 'custom-models-scope';
+  scopeSelect.className = 'small';
+  scopeSelect.style.cssText = 'min-width:180px;height:32px;font-weight:500;';
+
+  function populateScopeSelect() {
+    const prev = currentScope;
+    scopeSelect.innerHTML = '<option value="all">All (Global)</option>';
+
+    const providers = [];
+    if (S.meta && Array.isArray(S.meta.configuredProviders)) {
+      for (const p of S.meta.configuredProviders) {
+        if (!p || !p.provider) continue;
+        const type = (p.type || '').toLowerCase();
+        let label = p.provider;
+        if (type === 'router') label = `Router (${p.provider})`;
+        else if (type === 'solo') label = `Solo: ${p.provider}`;
+        else if (type === 'rest') label = `REST: ${p.provider}`;
+        providers.push({ id: p.provider, label });
+      }
+    } else if (typeof providersCache !== 'undefined' && Array.isArray(providersCache)) {
+      for (const p of providersCache) {
+        if (!p || !p.provider) continue;
+        const type = (p.type || '').toLowerCase();
+        let label = p.provider;
+        if (type === 'router') label = `Router (${p.provider})`;
+        else if (type === 'solo') label = `Solo: ${p.provider}`;
+        else if (type === 'rest') label = `REST: ${p.provider}`;
+        providers.push({ id: p.provider, label });
+      }
     }
-    const table = document.createElement('table');
-    table.className = 'mini';
-    table.innerHTML = '<thead><tr><th scope="col">Model ID</th><th scope="col">Input ctx</th><th scope="col">Output ctx</th><th scope="col">Vision</th><th scope="col">Reasoning</th><th scope="col">Tool use</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>';
-    if (!arr.length) table.classList.add('is-empty');
-    const tbody = table.createTBody();
-    const COL_LABEL = { vision: 'Vision', reasoning: 'Reasoning', tool: 'Tool use', in: 'Input context', out: 'Output context' };
-    arr.forEach((m, i) => {
-      const who = m.id ? '"' + m.id + '"' : 'row ' + (i + 1);
-      const tr = tbody.insertRow();
-      const tdId = tr.insertCell();
+
+    providers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      scopeSelect.appendChild(opt);
+    });
+
+    scopeSelect.value = prev;
+    if (scopeSelect.selectedIndex < 0) scopeSelect.value = 'all';
+    currentScope = scopeSelect.value;
+  }
+  populateScopeSelect();
+
+  scopeSelect.addEventListener('change', () => {
+    currentScope = scopeSelect.value;
+    selectedIndices.clear();
+    isSelectionMode = false;
+    render();
+  });
+  scopeLeft.appendChild(scopeSelect);
+  scopeBar.appendChild(scopeLeft);
+
+  const countBadge = document.createElement('div');
+  countBadge.className = 'field-note';
+  countBadge.style.cssText = 'margin:0;font-size:11.5px;font-weight:600;text-transform:uppercase;color:var(--text-3);letter-spacing:.05em';
+  scopeBar.appendChild(countBadge);
+
+  container.appendChild(scopeBar);
+
+  // 2. Permanent Table Header with zero layout shift
+  const listHeader = document.createElement('div');
+  listHeader.className = 'rule-list-header';
+  container.appendChild(listHeader);
+
+  // 3. Models list
+  const listEl = document.createElement('div');
+  listEl.className = 'rule-list has-header custom-models-list';
+  container.appendChild(listEl);
+
+  // 4. Bottom bar
+  const bottomBar = document.createElement('div');
+  bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary small';
+  addBtn.type = 'button';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Add custom model';
+
+  const countEl = document.createElement('span');
+  countEl.className = 'field-note';
+  countEl.style.cssText = 'margin:0;color:var(--text-3);font-size:12.5px';
+
+  bottomBar.appendChild(addBtn);
+  bottomBar.appendChild(countEl);
+  container.appendChild(bottomBar);
+
+  function updateHeader(visibleItems) {
+    listHeader.innerHTML = '';
+    const left = document.createElement('div');
+    left.className = 'header-left';
+
+    const cbSlot = document.createElement('div');
+    cbSlot.className = 'cb-slot';
+    const selectAllCb = document.createElement('input');
+    selectAllCb.type = 'checkbox';
+    selectAllCb.className = 'rule-select-cb';
+    selectAllCb.title = 'Select all models in scope';
+    selectAllCb.style.opacity = (isSelectionMode || selectedIndices.size > 0) ? '1' : '';
+    selectAllCb.checked = visibleItems.length > 0 && visibleItems.every(item => selectedIndices.has(item.origIdx));
+    selectAllCb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectAllCb.checked) {
+        visibleItems.forEach(item => selectedIndices.add(item.origIdx));
+        isSelectionMode = true;
+      } else {
+        selectedIndices.clear();
+        isSelectionMode = false;
+      }
+      render();
+    });
+    cbSlot.appendChild(selectAllCb);
+    left.appendChild(cbSlot);
+
+    const padLen = Math.max(2, String(visibleItems.length).length);
+    const numCol = document.createElement('span');
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;font-family:var(--mono);`;
+    numCol.textContent = '#';
+    left.appendChild(numCol);
+
+    const idCol = document.createElement('span');
+    idCol.style.cssText = 'color:var(--text);font-weight:600;font-size:12px;';
+    idCol.textContent = 'Model ID';
+    left.appendChild(idCol);
+    listHeader.appendChild(left);
+
+    const right = document.createElement('div');
+    right.className = 'header-right';
+
+    if (selectedIndices.size > 0 || isSelectionMode) {
+      listHeader.classList.add('selection-active');
+      right.innerHTML = `
+        <span style="font-weight:600;font-size:12px;color:var(--accent);margin-right:4px">${selectedIndices.size} selected</span>
+        <button type="button" class="btn small danger" id="custom-models-bulk-del">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete
+        </button>
+        <button type="button" class="btn small" id="custom-models-bulk-done">Done</button>
+      `;
+      right.querySelector('#custom-models-bulk-del').onclick = () => {
+        if (!confirm(`Delete ${selectedIndices.size} selected custom model(s)?`)) return;
+        const arr = S.effective.custom_models || [];
+        S.effective.custom_models = arr.filter((_, idx) => !selectedIndices.has(idx));
+        toast('Deleted models', `Removed ${selectedIndices.size} custom models`);
+        selectedIndices.clear();
+        isSelectionMode = false;
+        commit();
+        render();
+      };
+      right.querySelector('#custom-models-bulk-done').onclick = () => {
+        selectedIndices.clear();
+        isSelectionMode = false;
+        render();
+      };
+    } else {
+      listHeader.classList.remove('selection-active');
+      right.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">
+          <span style="width:85px;text-align:center">In Ctx</span>
+          <span style="width:85px;text-align:center">Out Ctx</span>
+          <span style="width:50px;text-align:center">Vision</span>
+          <span style="width:50px;text-align:center">Reason</span>
+          <span style="width:50px;text-align:center">Tools</span>
+        </div>
+      `;
+    }
+    listHeader.appendChild(right);
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    const allModels = S.effective.custom_models || [];
+
+    // Filter by scope
+    const visibleItems = [];
+    allModels.forEach((m, origIdx) => {
+      if (!m || typeof m !== 'object') return;
+      if (currentScope === 'all') {
+        visibleItems.push({ m, origIdx });
+      } else {
+        const mProv = (m.provider || '').toLowerCase().trim();
+        const target = currentScope.toLowerCase().trim();
+        if (mProv === target) {
+          visibleItems.push({ m, origIdx });
+        }
+      }
+    });
+
+    countBadge.textContent = `${visibleItems.length} MODEL${visibleItems.length === 1 ? '' : 'S'}`;
+    countEl.textContent = `${visibleItems.length} custom model${visibleItems.length === 1 ? '' : 's'} in scope`;
+    updateHeader(visibleItems);
+
+    if (visibleItems.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = currentScope === 'all'
+        ? 'No custom models configured yet. Click "+ Add custom model" below.'
+        : `No custom models found for scope "${currentScope}". Click "+ Add custom model" to add one.`;
+      listEl.appendChild(empty);
+      return;
+    }
+
+    visibleItems.forEach(({ m, origIdx }, rowIdx) => {
+      const row = document.createElement('div');
+      row.className = 'rule-row' + (selectedIndices.has(origIdx) ? ' selected' : '');
+      row.dataset.origIdx = origIdx;
+      row.dataset.rowIdx = rowIdx;
+
+      const head = document.createElement('div');
+      head.className = 'rule-head manual-head';
+      head.style.alignItems = 'center';
+
+      // 1. Checkbox slot
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'rule-select-cb';
+      cb.checked = selectedIndices.has(origIdx);
+      cbSlot.appendChild(cb);
+      cbSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (e.shiftKey && lastCheckedIdx !== null && lastCheckedIdx !== rowIdx) {
+          const [start, end] = [Math.min(lastCheckedIdx, rowIdx), Math.max(lastCheckedIdx, rowIdx)];
+          for (let k = start; k <= end; k++) selectedIndices.add(visibleItems[k].origIdx);
+        } else {
+          if (cb.checked) selectedIndices.add(origIdx);
+          else selectedIndices.delete(origIdx);
+        }
+        lastCheckedIdx = rowIdx;
+        if (selectedIndices.size === 0) isSelectionMode = false;
+        render();
+      });
+      head.appendChild(cbSlot);
+
+      // 2. Row number (No drag handle!)
+      const padLen = Math.max(2, String(visibleItems.length).length);
+      const num = document.createElement('span');
+      num.className = 'rule-num';
+      num.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;flex-shrink:0;margin-right:10px;font-family:var(--mono);font-variant-numeric:tabular-nums;`;
+      num.textContent = String(rowIdx + 1).padStart(padLen, '0');
+      head.appendChild(num);
+
+      // 3. Model ID input (monospace, flex: 2)
       const idIn = document.createElement('input');
       idIn.type = 'text';
+      idIn.className = 'manual-expr';
       idIn.value = m.id || '';
-      idIn.placeholder = 'provider/model';
-      idIn.style.width = '220px';
-      idIn.setAttribute('aria-label', 'Model ID, row ' + (i + 1));
-      idIn.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], id: idIn.value }; S.effective.custom_models = a; setDirty(true); });
-      tdId.appendChild(idIn);
-      for (const col of ['in', 'out']) {
-        const td = tr.insertCell();
-        const n = document.createElement('input');
-        n.type = 'number';
-        n.value = m[col] == null ? '' : m[col];
-        n.style.width = '90px';
-        n.setAttribute('aria-label', COL_LABEL[col] + ' for ' + who);
-        n.addEventListener('input', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: n.value === '' ? 0 : parseInt(n.value, 10) }; S.effective.custom_models = a; setDirty(true); });
-        td.appendChild(n);
+      idIn.placeholder = 'provider/model-id';
+      idIn.style.cssText = 'flex:2;min-width:180px;height:34px;min-height:34px;max-height:34px;padding:6px 10px;font-family:var(--mono);font-size:13px;box-sizing:border-box;';
+      idIn.addEventListener('input', () => {
+        m.id = idIn.value.trim();
+        commit();
+      });
+      head.appendChild(idIn);
+
+      // 4. In context input
+      const inIn = document.createElement('input');
+      inIn.type = 'number';
+      inIn.className = 'manual-expr';
+      inIn.value = m.in != null ? m.in : '';
+      inIn.placeholder = 'In ctx';
+      inIn.title = 'Input context size (tokens)';
+      inIn.style.cssText = 'width:85px;height:34px;min-height:34px;max-height:34px;padding:6px 8px;font-family:var(--mono);font-size:12px;box-sizing:border-box;text-align:center;flex-shrink:0;';
+      inIn.addEventListener('input', () => {
+        m.in = inIn.value === '' ? 0 : parseInt(inIn.value, 10);
+        commit();
+      });
+      head.appendChild(inIn);
+
+      // 5. Out context input
+      const outIn = document.createElement('input');
+      outIn.type = 'number';
+      outIn.className = 'manual-expr';
+      outIn.value = m.out != null ? m.out : '';
+      outIn.placeholder = 'Out ctx';
+      outIn.title = 'Output context size (tokens)';
+      outIn.style.cssText = 'width:85px;height:34px;min-height:34px;max-height:34px;padding:6px 8px;font-family:var(--mono);font-size:12px;box-sizing:border-box;text-align:center;flex-shrink:0;';
+      outIn.addEventListener('input', () => {
+        m.out = outIn.value === '' ? 0 : parseInt(outIn.value, 10);
+        commit();
+      });
+      head.appendChild(outIn);
+
+      // 6. Capability Checkboxes (Boolean: 1 = yes, 0 = no)
+      function makeCapCb(field, title) {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'width:50px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+        wrap.title = title;
+        const capCb = document.createElement('input');
+        capCb.type = 'checkbox';
+        capCb.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--accent);margin:0;';
+        const rawVal = m[field] != null ? m[field] : (field === 'tool' ? (m.tools != null ? m.tools : 1) : 1);
+        capCb.checked = (rawVal === 1 || rawVal === true || rawVal === '1');
+        capCb.addEventListener('change', () => {
+          m[field] = capCb.checked ? 1 : 0;
+          if (field === 'tool') m.tools = capCb.checked ? 1 : 0;
+          commit();
+        });
+        wrap.appendChild(capCb);
+        return wrap;
       }
-      for (const col of ['vision', 'reasoning', 'tool']) {
-        const td = tr.insertCell();
-        const sel = document.createElement('select');
-        sel.innerHTML = '<option value="1">Yes</option><option value="0">No</option><option value="-1">Unknown</option>';
-        sel.value = String(m[col] == null ? 1 : m[col]);
-        sel.setAttribute('aria-label', COL_LABEL[col] + ' for ' + who);
-        sel.addEventListener('change', () => { const a = S.effective.custom_models.slice(); a[i] = { ...a[i], [col]: parseInt(sel.value, 10) }; S.effective.custom_models = a; setDirty(true); });
-        td.appendChild(sel);
-      }
-      const tdDel = tr.insertCell();
-      tdDel.className = 'col-act';
-      const del = document.createElement('button');
-      del.className = 'del';
-      del.type = 'button';
-      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
-      del.title = 'Remove this model';
-      del.setAttribute('aria-label', 'Remove custom model ' + who);
-      del.addEventListener('click', () => { S.effective.custom_models = S.effective.custom_models.filter((_, j) => j !== i); setDirty(true); render(); });
-      tdDel.appendChild(del);
+      head.appendChild(makeCapCb('vision', 'Vision capability'));
+      head.appendChild(makeCapCb('reasoning', 'Reasoning capability'));
+      head.appendChild(makeCapCb('tool', 'Tools capability'));
+
+      row.appendChild(head);
+
+      // Context menu
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const existing = document.getElementById('rule-context-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'rule-context-menu';
+        menu.className = 'context-menu';
+        menu.style.cssText = `position:fixed;top:${e.clientY}px;left:${e.clientX}px;z-index:99999;background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,0.5);padding:4px 0;min-width:170px;display:flex;flex-direction:column;font-size:12.5px;`;
+
+        const addAction = (label, icon, onClick, isDanger = false) => {
+          const item = document.createElement('div');
+          item.className = 'context-menu-item' + (isDanger ? ' danger' : '');
+          item.style.cssText = `padding:7px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:${isDanger ? 'var(--danger)' : 'var(--text)'};`;
+          item.innerHTML = `<svg class="ic" style="width:14px;height:14px;opacity:.8" viewBox="0 0 24 24"><use href="${icon}"/></svg>${esc(label)}`;
+          item.onmouseenter = () => item.style.background = 'var(--panel-2)';
+          item.onmouseleave = () => item.style.background = 'transparent';
+          item.onclick = () => { menu.remove(); onClick(); };
+          menu.appendChild(item);
+        };
+
+        if (selectedIndices.size > 0 && selectedIndices.has(origIdx)) {
+          addAction(`Delete selected (${selectedIndices.size})`, '#i-trash', () => {
+            const arr = S.effective.custom_models || [];
+            S.effective.custom_models = arr.filter((_, i) => !selectedIndices.has(i));
+            toast('Deleted models', `Removed ${selectedIndices.size} custom models`);
+            selectedIndices.clear();
+            isSelectionMode = false;
+            commit();
+            render();
+          }, true);
+          addAction('Deselect all', '#i-x', () => {
+            selectedIndices.clear();
+            isSelectionMode = false;
+            render();
+          });
+        } else {
+          addAction('Select', '#i-check-square', () => {
+            isSelectionMode = true;
+            selectedIndices.add(origIdx);
+            render();
+          });
+          addAction('Duplicate model', '#i-copy', () => {
+            const arr = S.effective.custom_models || [];
+            const copy = JSON.parse(JSON.stringify(m));
+            if (copy.id) copy.id += '-copy';
+            arr.splice(origIdx + 1, 0, copy);
+            commit();
+            render();
+            toast('Model duplicated', 'Duplicated custom model');
+          });
+          addAction('Delete model', '#i-trash', () => {
+            const arr = S.effective.custom_models || [];
+            arr.splice(origIdx, 1);
+            selectedIndices.delete(origIdx);
+            commit();
+            render();
+            toast('Model deleted', 'Removed custom model');
+          }, true);
+          const divEnd = document.createElement('div');
+          divEnd.style.cssText = 'height:1px;background:var(--border);margin:4px 0;';
+          menu.appendChild(divEnd);
+          addAction('Select all', '#i-check-all', () => {
+            isSelectionMode = true;
+            visibleItems.forEach(item => selectedIndices.add(item.origIdx));
+            render();
+          });
+        }
+
+        document.body.appendChild(menu);
+        const closeMenu = (ev) => {
+          if (!menu.contains(ev.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+          }
+        };
+        setTimeout(() => document.addEventListener('click', closeMenu), 10);
+      });
+
+      listEl.appendChild(row);
     });
-    wrap.appendChild(table);
-    const add = document.createElement('button');
-    add.className = 'btn small table-add';
-    add.type = 'button';
-    add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add custom model';
-    add.addEventListener('click', () => {
-      S.effective.custom_models = (S.effective.custom_models || []).concat([{ id: '', in: 200000, out: 8192, vision: 1, reasoning: 1, tool: 1 }]);
-      setDirty(true); render();
-    });
-    wrap.appendChild(add);
   }
+
+  addBtn.addEventListener('click', () => {
+    const newModel = {
+      id: '',
+      in: 200000,
+      out: 8192,
+      vision: 1,
+      reasoning: 1,
+      tool: 1,
+      provider: currentScope === 'all' ? '' : currentScope
+    };
+    if (!Array.isArray(S.effective.custom_models)) S.effective.custom_models = [];
+    S.effective.custom_models.push(newModel);
+    commit();
+    render();
+    const inputs = listEl.querySelectorAll('input.manual-expr');
+    if (inputs.length) inputs[inputs.length - 3].focus();
+  });
+
   render();
-  return wrap;
+  return container;
 }
+const customModelsTable = buildCustomModelsEditor;
 
 // ===========================================================================
 // t3 drivers table
@@ -2631,7 +3822,7 @@ function driverTable(pathArr, title) {
     });
     wrap.appendChild(table);
     const add = document.createElement('button');
-    add.className = 'btn small table-add';
+    add.className = 'btn primary small table-add';
     add.type = 'button';
     add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add driver';
     add.addEventListener('click', () => { const a = (getAt(S.effective, pathArr) || []).concat([{ driver: '', '1m': false }]); setAt(pathArr, a); setDirty(true); render(); });
@@ -2685,14 +3876,22 @@ function adapterList(pathArr, harnessKey) {
     // fixed-width preset dropdown (mirrors the Capabilities add-field input's
     // ~150px footprint) with a custom… entry; picking custom reveals a text
     // input that fills the rest of the row before the Add button
+    const available = adapters.filter((a) => !arr.includes(a));
     const addSel = document.createElement('select');
-    addSel.innerHTML = adapters.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('') + '<option value="__custom">custom…</option>';
+    let opts = available.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('');
+    opts += '<option value="__custom">custom…</option>';
+    addSel.innerHTML = opts;
     addSel.setAttribute('aria-label', 'New adapter preset');
     const addInp = document.createElement('input');
     addInp.type = 'text';
     addInp.placeholder = 'adapter string';
     addInp.setAttribute('aria-label', 'New adapter custom string');
-    addInp.style.display = 'none';
+    if (!available.length) {
+      addSel.value = '__custom';
+      addInp.style.display = '';
+    } else {
+      addInp.style.display = 'none';
+    }
     const commitAdd = () => {
       const val = addSel.value === '__custom' ? addInp.value.trim() : addSel.value;
       if (!val) return;
@@ -2700,10 +3899,6 @@ function adapterList(pathArr, harnessKey) {
         set(get().concat([val]));
       }
       addInp.value = '';
-      if (addSel.value === '__custom') {
-        addSel.value = adapters[0] || '';
-        addInp.style.display = 'none';
-      }
       render();
     };
     addSel.addEventListener('change', () => {
@@ -2917,6 +4112,7 @@ function currentSection() {
   return $('#config-nav .nav-item[data-sec].active')?.dataset.sec || 'general';
 }
 function showSection(name) {
+  if (name === 'harness-filters') name = 'filters';
   $$('#config-root .section').forEach((s) => s.classList.remove('active'));
   const el = $('#sec-' + name);
   if (el) el.classList.add('active');
@@ -2932,6 +4128,238 @@ function showSection(name) {
   refreshResetState();
 }
 
+// ===========================================================================
+// spacious raw editor modal (88vh roomy mode)
+// ===========================================================================
+function openRawEditorModal(opts) {
+  const root = $('#modal-root');
+  root.innerHTML = '';
+
+  const back = document.createElement('div');
+  back.className = 'modal-backdrop';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal modal-large';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-label', opts.title || 'Direct Edit');
+
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:var(--panel)';
+
+  const left = document.createElement('div');
+  left.style.cssText = 'display:flex;align-items:center;gap:10px';
+  left.innerHTML = `
+    <span style="font-weight:600;font-size:15px;color:var(--text)">${esc(opts.title || 'Direct Edit')}</span>
+    <span class="badge" style="font-size:10.5px;text-transform:none;opacity:.85">${esc(opts.badge || 'Direct Edit')}</span>
+    <span style="font-size:11.5px;color:var(--text-3);margin-left:4px">(88vh Roomy Mode • Ctrl+S to save)</span>
+  `;
+
+  const right = document.createElement('div');
+  right.style.cssText = 'display:flex;gap:8px;align-items:center';
+
+  const isJson = opts.isJson !== false;
+  let formatBtn = null;
+  if (isJson) {
+    formatBtn = document.createElement('button');
+    formatBtn.type = 'button';
+    formatBtn.className = 'btn small';
+    formatBtn.title = 'Format JSON';
+    formatBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sliders"/></svg>Format';
+    right.appendChild(formatBtn);
+  }
+
+  const reloadBtn = document.createElement('button');
+  reloadBtn.type = 'button';
+  reloadBtn.className = 'btn small';
+  reloadBtn.title = 'Reload from current config';
+  reloadBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>Reload';
+  right.appendChild(reloadBtn);
+
+  const resetDefaultBtn = document.createElement('button');
+  resetDefaultBtn.type = 'button';
+  resetDefaultBtn.className = 'btn small';
+  resetDefaultBtn.title = 'Reset editor content to default settings';
+  resetDefaultBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>Reset to default';
+  resetDefaultBtn.addEventListener('click', () => {
+    try {
+      if (opts.getDefault) {
+        const def = opts.getDefault();
+        ta.value = typeof def === 'string' ? def : JSON.stringify(def, null, 2);
+        err.textContent = '';
+        toast('Reset to default', 'Replaced editor content with defaults. Click Save/Apply to save.');
+      } else if (opts.pathArr !== undefined) {
+        const defVal = opts.pathArr.length === 0 ? S.defaults : getAt(S.defaults, opts.pathArr);
+        if (defVal === undefined) {
+          toast('No default found', 'No default configuration found for this section', true);
+          return;
+        }
+        ta.value = JSON.stringify(defVal, null, 2);
+        err.textContent = '';
+        toast('Reset to default', 'Replaced editor content with defaults. Click Save/Apply to save.');
+      }
+    } catch (e) {
+      toast('Reset failed', e.message, true);
+    }
+  });
+  right.appendChild(resetDefaultBtn);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'btn primary small';
+  saveBtn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sync"/></svg>${esc(opts.saveLabel || 'Apply changes')}`;
+  right.appendChild(saveBtn);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'icon-btn modal-close';
+  closeBtn.title = 'Close modal (Esc)';
+  closeBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+  right.appendChild(closeBtn);
+
+  head.appendChild(left);
+  head.appendChild(right);
+
+  const body = document.createElement('div');
+  body.className = 'modal-body';
+
+  if (opts.description) {
+    const desc = document.createElement('p');
+    desc.className = 'field-note';
+    desc.style.marginBottom = '10px';
+    desc.textContent = opts.description;
+    body.appendChild(desc);
+  }
+
+  const ta = document.createElement('textarea');
+  ta.className = 'raw-expr-modal';
+  ta.spellcheck = false;
+  body.appendChild(ta);
+
+  const err = document.createElement('div');
+  err.className = 'expr-err';
+  body.appendChild(err);
+
+  modal.appendChild(head);
+  modal.appendChild(body);
+  back.appendChild(modal);
+  root.appendChild(back);
+
+  let keyHandler = null;
+  const closeModal = () => {
+    root.innerHTML = '';
+    if (keyHandler) document.removeEventListener('keydown', keyHandler);
+  };
+
+  const loadContent = async () => {
+    try {
+      err.textContent = '';
+      if (opts.getRaw) {
+        ta.value = await opts.getRaw();
+      } else if (opts.pathArr !== undefined) {
+        const val = getAt(S.effective, opts.pathArr);
+        ta.value = JSON.stringify(val, null, 2);
+      }
+    } catch (e) {
+      err.textContent = e.message;
+    }
+  };
+
+  const doSave = async () => {
+    try {
+      err.textContent = '';
+      if (opts.saveRaw) {
+        await opts.saveRaw(ta.value);
+      } else if (opts.pathArr !== undefined) {
+        const parsed = JSON.parse(ta.value);
+        setAt(opts.pathArr, parsed);
+        setDirty(true);
+      }
+      toast('Applied', (opts.title || 'Settings') + ' updated');
+      if (opts.onApplied) opts.onApplied();
+      closeModal();
+    } catch (e) {
+      err.textContent = (isJson ? 'JSON parse error: ' : 'Save error: ') + e.message;
+      toast('Failed', e.message, true);
+    }
+  };
+
+  if (formatBtn) {
+    formatBtn.addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(ta.value);
+        ta.value = JSON.stringify(parsed, null, 2);
+        err.textContent = '';
+        toast('Formatted', 'JSON formatted successfully');
+      } catch (e) {
+        err.textContent = 'JSON format error: ' + e.message;
+      }
+    });
+  }
+
+  reloadBtn.addEventListener('click', async () => {
+    await loadContent();
+    toast('Reloaded', 'Content reset to current values');
+  });
+
+  saveBtn.addEventListener('click', doSave);
+  closeBtn.addEventListener('click', closeModal);
+  back.addEventListener('click', (e) => {
+    if (e.target === back) closeModal();
+  });
+
+  keyHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      doSave();
+    }
+  };
+  document.addEventListener('keydown', keyHandler);
+
+  loadContent().then(() => {
+    ta.focus();
+  });
+}
+
+// ===========================================================================
+// reusable collapsible raw editor card
+// ===========================================================================
+function createRawEditorCard(opts) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card raw-editor-card';
+
+  const left = document.createElement('div');
+  left.className = 'raw-editor-left';
+  left.innerHTML = `
+    <div class="raw-editor-title-row">
+      <h3 class="raw-editor-title">${esc(opts.title)}</h3>
+      <span class="badge" style="font-size:10px;text-transform:none">${esc(opts.badge || 'Direct Edit')}</span>
+    </div>
+    <p class="raw-editor-desc">${esc(opts.description || 'View and edit configuration directly in a full modal dialog.')}</p>
+  `;
+
+  const right = document.createElement('div');
+  right.className = 'raw-editor-right';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'btn small raw-editor-btn';
+  editBtn.title = 'Open spacious 88vh editor modal';
+  editBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-maximize"/></svg>Direct Edit';
+  editBtn.addEventListener('click', () => {
+    openRawEditorModal(opts);
+  });
+
+  right.appendChild(editBtn);
+  cardEl.appendChild(left);
+  cardEl.appendChild(right);
+
+  return cardEl;
+}
+
 function buildGeneral() {
   const c = card('General', 'Command registration, model endpoint, cleanup, and template behavior.', 1, 'general');
   c.appendChild(fieldRow('Install as command', 'Auto-register a global command on every run', toggle(['cli', 'install_as_command']), ['cli', 'install_as_command']));
@@ -2941,6 +4369,30 @@ function buildGeneral() {
   c.appendChild(fieldRow('Cleanup by default', 'Default for the cleanup step (CLI --clean/--noclean)', toggle(['cleanup_default']), ['cleanup_default']));
   c.appendChild(fieldRow('Remove if provider disabled', 'Prune c-* keys whose provider is disabled in providers.csv', toggle(['cleanup_providers', 'remove_if_false_provider']), ['cleanup_providers', 'remove_if_false_provider']));
   c.appendChild(fieldRow('Remove if provider missing', 'Prune c-* keys whose provider no longer exists', toggle(['cleanup_providers', 'remove_if_provider_doesnt_exist']), ['cleanup_providers', 'remove_if_provider_doesnt_exist']));
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw general config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit CLI, fetch, template, and cleanup options directly as JSON.',
+    getRaw: () => JSON.stringify({
+      cli: getAt(S.effective, ['cli']) || {},
+      fetch: getAt(S.effective, ['fetch']) || {},
+      follow_hardcoded_model_template: getAt(S.effective, ['follow_hardcoded_model_template']),
+      cleanup_default: getAt(S.effective, ['cleanup_default']),
+      cleanup_providers: getAt(S.effective, ['cleanup_providers']) || {}
+    }, null, 2),
+    saveRaw: (txt) => {
+      const parsed = JSON.parse(txt);
+      if ('cli' in parsed) setAt(['cli'], parsed.cli);
+      if ('fetch' in parsed) setAt(['fetch'], parsed.fetch);
+      if ('follow_hardcoded_model_template' in parsed) setAt(['follow_hardcoded_model_template'], parsed.follow_hardcoded_model_template);
+      if ('cleanup_default' in parsed) setAt(['cleanup_default'], parsed.cleanup_default);
+      if ('cleanup_providers' in parsed) setAt(['cleanup_providers'], parsed.cleanup_providers);
+      setDirty(true);
+    },
+    saveLabel: 'Apply general JSON',
+    onApplied: () => { rebuildConfig(); showSection('general'); }
+  }));
   return c;
 }
 
@@ -2949,11 +4401,19 @@ function buildPaths() {
   for (const key of ['models_csv', 'providers_csv', 'all_models_csv', 'harness_models_file', 'opencode_file', 'kilo_file', 't3_data_dir', 't3_settings_file', 't3_logs_dir', 'dsh_settings_file', 'dsh_credentials_file', 'pi_file', 'zcode_file', 'opencodex_file']) {
     c.appendChild(fieldRow(fieldLabel(key), '', pathField(['paths', key]), ['paths', key]));
   }
+  c.appendChild(createRawEditorCard({
+    title: 'Raw paths config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit catalog and harness configuration paths directly as JSON.',
+    pathArr: ['paths'],
+    saveLabel: 'Apply paths JSON',
+    onApplied: () => { rebuildConfig(); showSection('paths'); }
+  }));
   return c;
 }
 
 function buildTargets() {
-  const c = card('Sync targets', 'Which config blocks omnilist writes on each run. Router = the gateway provider block; REST = per-provider c-* blocks.', 1, 'targets');
+  const c = card('Integrations', 'Configure which harness config blocks omnilist writes on each run (sync targets): Solo providers, Router gateway, and REST providers.', 1, 'targets');
 
   const HARNESSES = [
     ['opencode', 'OpenCode'],
@@ -2965,55 +4425,759 @@ function buildTargets() {
     ['opencodex', 'ocx'],
   ];
 
-  // 1. Router blocks
-  const subRouter = card('Router blocks', 'Gateway provider blocks written to each harness configuration.');
-  for (const [id, label] of HARNESSES) {
-    const key = id === 'opencodex' ? 'opencodex_router' : id + '_router';
-    subRouter.appendChild(fieldRow(label, 'Write ' + label + ' gateway provider block', toggle(['targets', key]), ['targets', key]));
-  }
-  c.appendChild(subRouter);
+  const subHarnesses = card('Harness sync targets', 'Toggle provider blocks written to each harness. Click Solo, Router, or REST to toggle that block type on or off.');
 
-  // 2. REST providers
-  const subRest = card('REST providers', 'Per-provider c-* instances written to each harness configuration.');
-  for (const [id, label] of HARNESSES) {
-    const key = id === 'opencodex' ? 'opencodex_rest' : id + '_rest';
-    subRest.appendChild(fieldRow(label, 'Write ' + label + ' per-provider blocks', toggle(['targets', key]), ['targets', key]));
-  }
-  c.appendChild(subRest);
+  const TYPES = [
+    ['solo', 'Solo', 'Solo provider blocks'],
+    ['router', 'Router', 'Gateway router provider block'],
+    ['rest', 'REST', 'Per-provider REST blocks'],
+  ];
+
+  HARNESSES.forEach(([id, label]) => {
+    const prefix = id === 'opencodex' ? 'opencodex' : id;
+    const row = document.createElement('div');
+    row.className = 'field-row harness-target-row';
+    row.dataset.harness = id;
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:16px;flex-wrap:wrap;min-height:50px;';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'harness-name';
+    titleEl.style.cssText = 'font-weight:600;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;';
+    titleEl.textContent = label;
+    row.appendChild(titleEl);
+
+    const toggleGroup = document.createElement('div');
+    toggleGroup.className = 'harness-pills-group';
+    toggleGroup.style.cssText = 'display:flex;gap:6px;align-items:center;';
+
+    TYPES.forEach(([typeKey, typeLabel, typeTitle]) => {
+      const fullKey = prefix + '_' + typeKey;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip';
+      btn.title = typeTitle;
+      btn.dataset.harness = id;
+      btn.dataset.type = typeKey;
+
+      function updateBtn() {
+        const val = !!getAt(S.effective, ['targets', fullKey]);
+        btn.className = 'chip' + (val ? ' on' : '');
+        btn.textContent = typeLabel;
+        btn.setAttribute('aria-pressed', val ? 'true' : 'false');
+      }
+
+      btn.addEventListener('click', () => {
+        const cur = !!getAt(S.effective, ['targets', fullKey]);
+        setAt(['targets', fullKey], !cur);
+        setDirty(true);
+        updateBtn();
+      });
+
+      updateBtn();
+      toggleGroup.appendChild(btn);
+    });
+
+    row.appendChild(toggleGroup);
+    subHarnesses.appendChild(row);
+  });
+
+  c.appendChild(subHarnesses);
 
   // 3. Extra Options
   const subOptions = card('Options', 'Additional synchronization options.');
   subOptions.appendChild(fieldRow('Kilo: Copy from OpenCode', 'Copy the full provider block from OpenCode into Kilo instead of generating it separately', toggle(['targets', 'kilo_copy_opencode_full_provider_block']), ['targets', 'kilo_copy_opencode_full_provider_block']));
   c.appendChild(subOptions);
 
+  c.appendChild(createRawEditorCard({
+    title: 'Raw integrations config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit integration toggles for all harnesses directly as JSON.',
+    pathArr: ['targets'],
+    saveLabel: 'Apply integrations JSON',
+    onApplied: () => { rebuildConfig(); showSection('targets'); }
+  }));
+
   return c;
 }
 
 function buildFilters() {
-  const c = card('Catalog & filters', 'The order of the filtered pipeline, and the fetch-time model rules.', 1, 'filters');
+  const c = card('Filters', 'Unified model filtering pipeline: global catalog rules, provider-specific rules, raw catalog harness leakage, and harness targeting.', 1, 'filters');
+
+  // 1. Raw catalog harnesses (raw leakage) right at the top
+  const rawLeakageCard = document.createElement('div');
+  rawLeakageCard.className = 'raw-leakage-card';
+  rawLeakageCard.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0;font-size:14px;font-weight:600;color:var(--text)">
+        Raw Catalog Harnesses (Raw Leakage)
+      </h3>
+    </div>
+    <p class="raw-leakage-desc">
+      Harnesses selected here bypass first-stage model filters and read the raw catalog directly (raw leakage). Second-stage harness filters below are then applied directly onto raw models.
+    </p>
+    <div id="raw-catalog-chips-container"></div>
+  `;
+  rawLeakageCard.querySelector('#raw-catalog-chips-container').appendChild(harnessChips(['raw_catalog_harnesses']));
+  c.appendChild(rawLeakageCard);
+
+  // 2. Model sort & preview list settings
   c.appendChild(fieldRow('Model sort', 'Primary sort order for models-filtered.csv and every harness config', sortBuilder(['model_sort']), ['model_sort']));
-  const fg = document.createElement('div');
-  fg.className = 'card';
-  fg.style.cssText = 'border:none;padding:0;margin-top:6px';
-  const h = document.createElement('h2');
-  h.className = 'card-h2';
-  h.textContent = 'Model filters';
-  const d = document.createElement('p');
-  d.className = 'card-desc';
-  // one sentence, said once: this used to repeat the card's own description
-  d.textContent = 'One expression per block. Drag to reorder; rules run top to bottom and the last matching rule wins.';
-  fg.appendChild(h); fg.appendChild(d);
-  fg.appendChild(manualBlockBuilder(['model_filters'], { isHarness: false, hint: '"!" blocks, "==xxx" keeps only, a bare pattern allows. $field comparisons and (topN:sort) directives also work.', emptyText: 'No rules yet. Every model passes through.', placeholder: 'e.g. !(kc/* && !*free), *glm*, !$input_context<200000' }));
-  c.appendChild(fg);
+  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'Raw catalog harnesses only'], ['all', 'Every synced harness'], ['configured', 'Only harness_filters targets'], ['none', 'Never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
+
+  // 3. Unified Filter Rules Workspace
+  const rulesWorkspace = document.createElement('div');
+  rulesWorkspace.className = 'card';
+  rulesWorkspace.style.cssText = 'border:none;padding:0;margin-top:14px';
+
+  let ruleSeq = 1;
+  function parseFilter(str) {
+    const raw = String(str == null ? '' : str).trim();
+    const disabled = raw.startsWith('#') || raw.startsWith('//');
+    let clean = disabled ? raw.replace(/^(#|\/\/)\s*/, '').trim() : raw;
+
+    let harnesses = ['all'];
+    const arrowIdx = clean.lastIndexOf('->');
+    if (arrowIdx !== -1) {
+      const hPart = clean.slice(arrowIdx + 2).trim();
+      clean = clean.slice(0, arrowIdx).trim();
+      if (hPart && hPart.toLowerCase() !== 'all') {
+        const parts = hPart.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (parts.length) harnesses = parts;
+      }
+    }
+
+    let provider = 'all';
+    const atIdx = clean.lastIndexOf('@');
+    if (atIdx !== -1) {
+      const pPart = clean.slice(atIdx + 1).trim();
+      clean = clean.slice(0, atIdx).trim();
+      if (pPart && pPart.toLowerCase() !== 'all') {
+        provider = pPart.toLowerCase();
+      }
+    }
+
+    return {
+      id: 'rf_' + (ruleSeq++),
+      raw,
+      rule: clean,
+      provider,
+      harnesses,
+      disabled
+    };
+  }
+
+  function serializeFilter(item) {
+    let s = (item.rule || '').trim();
+    if (item.provider && item.provider !== 'all') {
+      s += '@' + item.provider;
+    }
+    if (item.harnesses && item.harnesses.length && !item.harnesses.includes('all')) {
+      s += '->' + item.harnesses.join(',');
+    }
+    if (item.disabled) {
+      s = '# ' + s;
+    }
+    return s;
+  }
+
+  // Load all rules from model_filters and harness_filters
+  const modelF = (getAt(S.effective, ['model_filters']) || []).map(parseFilter);
+  const harnessF = (getAt(S.effective, ['harness_filters']) || []).map(parseFilter);
+  let allRules = [...modelF, ...harnessF];
+
+  function commitAll() {
+    const mf = [];
+    const hf = [];
+    for (const r of allRules) {
+      const serialized = serializeFilter(r);
+      if (!r.harnesses.includes('all')) {
+        hf.push(serialized);
+      } else {
+        mf.push(serialized);
+      }
+    }
+    setAt(['model_filters'], mf);
+    setAt(['harness_filters'], hf);
+    setDirty(true);
+    schedulePreview();
+  }
+
+  let currentScope = 'all';
+  const selectedIds = new Set();
+  let lastCheckedIdx = null;
+
+  // Header Bar with Scope Dropdown
+  const scopeBar = document.createElement('div');
+  scopeBar.className = 'rule-scope-bar';
+
+  const scopeLeft = document.createElement('div');
+  scopeLeft.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap';
+
+  const scopeLabel = document.createElement('label');
+  scopeLabel.style.cssText = 'font-weight:600;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px';
+  scopeLabel.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-sliders"/></svg>Filter Scope:';
+
+  const scopeSelect = document.createElement('select');
+  scopeSelect.className = 'btn';
+  scopeSelect.id = 'unified-filter-scope';
+  scopeSelect.style.cssText = 'min-width:240px;font-weight:600;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;cursor:pointer';
+
+  const pRows = (typeof providersCache !== 'undefined' && providersCache && providersCache.length)
+    ? providersCache
+    : (S.meta && S.meta.configuredProviders ? S.meta.configuredProviders : []);
+  const routerRow = pRows.find(r => r.type === 'router' || r.isRouter);
+  const routerName = routerRow ? routerRow.provider : 'Router';
+  const soloRows = pRows.filter(r => r.type === 'solo' || r.isSolo);
+
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = 'All (Global Filters)';
+  scopeSelect.appendChild(optAll);
+
+  const optRouter = document.createElement('option');
+  optRouter.value = routerName.toLowerCase();
+  optRouter.textContent = `Router (${routerName})`;
+  scopeSelect.appendChild(optRouter);
+
+  soloRows.forEach(solo => {
+    const optSolo = document.createElement('option');
+    optSolo.value = solo.provider.toLowerCase();
+    optSolo.textContent = `Solo: ${solo.provider}`;
+    scopeSelect.appendChild(optSolo);
+  });
+
+  scopeLeft.appendChild(scopeLabel);
+  scopeLeft.appendChild(scopeSelect);
+
+  const scopeRight = document.createElement('div');
+  scopeRight.style.cssText = 'display:flex;align-items:center;gap:10px';
+  scopeRight.innerHTML = `
+    <span id="scope-rule-count" class="badge" style="font-size:12px">0 rules</span>
+  `;
+
+  scopeBar.appendChild(scopeLeft);
+  scopeBar.appendChild(scopeRight);
+  rulesWorkspace.appendChild(scopeBar);
+
+  // Permanent List Header with zero layout shift
+  const listHeader = document.createElement('div');
+  listHeader.className = 'rule-list-header';
+  rulesWorkspace.appendChild(listHeader);
+
+  // Filter Rules Container
+  const rulesListContainer = document.createElement('div');
+  rulesListContainer.className = 'rule-list has-header';
+  rulesWorkspace.appendChild(rulesListContainer);
+
+  // Live preview & Add Rule Bar
+  const bottomBar = document.createElement('div');
+  bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary small';
+  addBtn.id = 'unified-add-rule-btn';
+  addBtn.type = 'button';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add rule to scope';
+
+  const prevText = document.createElement('div');
+  prevText.className = 'field-note';
+  prevText.style.cssText = 'margin:0;color:var(--text-3);font-size:12.5px';
+  prevText.innerHTML = 'Live preview: <span id="unified-preview-count">…</span>';
+
+  bottomBar.appendChild(addBtn);
+  bottomBar.appendChild(prevText);
+  rulesWorkspace.appendChild(bottomBar);
+
+  c.appendChild(rulesWorkspace);
+
+  let previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async () => {
+      const countEl = c.querySelector('#unified-preview-count');
+      if (!countEl) return;
+      const activeRules = allRules
+        .filter(r => !r.disabled && r.rule)
+        .map(r => r.rule);
+      try {
+        const r = await api('POST', '/api/preview-filters', { filters: activeRules, sort: getAt(S.effective, ['model_sort']) || 'id' });
+        if (r.available) countEl.innerHTML = '<b>' + r.kept.toLocaleString() + '</b> of ' + r.total.toLocaleString() + ' models match';
+        else countEl.textContent = r.reason || '';
+      } catch (e) { /* ignore */ }
+    }, 350);
+  }
+
+  let isSelectionMode = false;
+
+  function updateHeader(visibleRules) {
+    listHeader.innerHTML = '';
+    const left = document.createElement('div');
+    left.className = 'header-left';
+
+    const cbSlot = document.createElement('div');
+    cbSlot.className = 'cb-slot';
+    const selectAllCb = document.createElement('input');
+    selectAllCb.type = 'checkbox';
+    selectAllCb.className = 'rule-select-cb';
+    selectAllCb.title = 'Select all rules in scope';
+    selectAllCb.style.opacity = (isSelectionMode || selectedIds.size > 0) ? '1' : '';
+    selectAllCb.checked = visibleRules.length > 0 && visibleRules.every(r => selectedIds.has(r.id));
+    selectAllCb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectAllCb.checked) {
+        visibleRules.forEach(r => selectedIds.add(r.id));
+        isSelectionMode = true;
+      } else {
+        selectedIds.clear();
+        isSelectionMode = false;
+      }
+      renderRules();
+    });
+    cbSlot.appendChild(selectAllCb);
+    left.appendChild(cbSlot);
+
+    const padLen = Math.max(2, String(visibleRules.length).length);
+    const numCol = document.createElement('span');
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:20px;font-family:var(--mono);`;
+    numCol.textContent = '#';
+    left.appendChild(numCol);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.style.cssText = 'color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;';
+    titleSpan.textContent = 'Rule Expression';
+    left.appendChild(titleSpan);
+    listHeader.appendChild(left);
+
+    const right = document.createElement('div');
+    right.className = 'header-right';
+
+    if (selectedIds.size > 0 || isSelectionMode) {
+      listHeader.classList.add('selection-active');
+      right.innerHTML = `
+        <span style="font-weight:600;font-size:12px;color:var(--accent);margin-right:4px">${selectedIds.size} selected</span>
+        <button type="button" class="btn small" id="bulk-enable" title="Enable selected rules">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>Enable
+        </button>
+        <button type="button" class="btn small" id="bulk-disable" title="Disable selected rules">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>Disable
+        </button>
+        <button type="button" class="btn small danger" id="bulk-delete" title="Delete selected rules">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete
+        </button>
+        <button type="button" class="btn small" id="bulk-clear" title="Done">
+          Done
+        </button>
+      `;
+
+      right.querySelector('#bulk-enable').addEventListener('click', () => {
+        allRules.forEach(r => { if (selectedIds.has(r.id)) r.disabled = false; });
+        commitAll();
+        renderRules();
+      });
+
+      right.querySelector('#bulk-disable').addEventListener('click', () => {
+        allRules.forEach(r => { if (selectedIds.has(r.id)) r.disabled = true; });
+        commitAll();
+        renderRules();
+      });
+
+      right.querySelector('#bulk-delete').addEventListener('click', () => {
+        if (!selectedIds.size) return;
+        if (!confirm(`Delete ${selectedIds.size} selected rule(s)?`)) return;
+        allRules = allRules.filter(r => !selectedIds.has(r.id));
+        selectedIds.clear();
+        isSelectionMode = false;
+        commitAll();
+        renderRules();
+      });
+
+      right.querySelector('#bulk-clear').addEventListener('click', () => {
+        selectedIds.clear();
+        isSelectionMode = false;
+        renderRules();
+      });
+    } else {
+      listHeader.classList.remove('selection-active');
+      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">Target Harnesses</span>`;
+    }
+    listHeader.appendChild(right);
+  }
+
+  function renderRules() {
+    rulesListContainer.innerHTML = '';
+    const visibleRules = allRules.filter(r => {
+      if (currentScope === 'all') return r.provider === 'all';
+      return r.provider === currentScope;
+    });
+
+    const countBadge = scopeBar.querySelector('#scope-rule-count');
+    if (countBadge) countBadge.textContent = `${visibleRules.length} rule${visibleRules.length === 1 ? '' : 's'}`;
+
+    const inSelection = isSelectionMode || selectedIds.size > 0;
+    updateHeader(visibleRules);
+
+    if (!visibleRules.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = `No rules configured for scope: ${scopeSelect.options[scopeSelect.selectedIndex]?.text || currentScope}. Click "+ Add rule to scope" to add one.`;
+      rulesListContainer.appendChild(empty);
+      return;
+    }
+
+    visibleRules.forEach((rule, idx) => {
+      const row = document.createElement('div');
+      row.className = 'rule-row' + (rule.disabled ? ' rule-disabled' : '') + (selectedIds.has(rule.id) ? ' selected' : '');
+      row.draggable = true;
+      row.dataset.idx = idx;
+
+      const head = document.createElement('div');
+      head.className = 'rule-head manual-head';
+
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'rule-select-cb';
+      cb.checked = selectedIds.has(rule.id);
+      cbSlot.appendChild(cb);
+      cbSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (e.shiftKey && lastCheckedIdx !== null && lastCheckedIdx !== idx) {
+          const [start, end] = [Math.min(lastCheckedIdx, idx), Math.max(lastCheckedIdx, idx)];
+          for (let k = start; k <= end; k++) {
+            selectedIds.add(visibleRules[k].id);
+          }
+        } else {
+          if (cb.checked) selectedIds.add(rule.id);
+          else selectedIds.delete(rule.id);
+        }
+        lastCheckedIdx = idx;
+        if (selectedIds.size === 0) isSelectionMode = false;
+        renderRules();
+      });
+      head.appendChild(cbSlot);
+
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.title = 'Drag to reorder';
+      handle.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-grip"/></svg>';
+      head.appendChild(handle);
+
+      const padLen = Math.max(2, String(visibleRules.length).length);
+      const num = document.createElement('span');
+      num.className = 'rule-num';
+      num.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;flex-shrink:0;margin-right:10px;font-family:var(--mono);font-variant-numeric:tabular-nums;`;
+      num.textContent = String(idx + 1).padStart(padLen, '0');
+      head.appendChild(num);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'raw-expr manual-expr';
+      ta.spellcheck = false;
+      ta.rows = 1;
+      ta.value = rule.rule;
+      ta.placeholder = 'e.g. !(kc/* && !*free), *glm*, !$input_context<200000';
+      let taTimer = null;
+      ta.addEventListener('input', () => {
+        rule.rule = ta.value.trim();
+        clearTimeout(taTimer);
+        taTimer = setTimeout(() => {
+          commitAll();
+        }, 300);
+      });
+      head.appendChild(ta);
+
+      if (rule.disabled) {
+        const disTag = document.createElement('span');
+        disTag.className = 'rule-disabled-tag';
+        disTag.textContent = '# disabled';
+        disTag.title = 'Rule is commented out / disabled. Right-click or select to enable.';
+        head.appendChild(disTag);
+      }
+
+      const harnessDropdown = createHarnessTargetDropdown(rule.harnesses, (newHarnesses) => {
+        if (selectedIds.has(rule.id) && selectedIds.size > 1) {
+          allRules.forEach(r => {
+            if (selectedIds.has(r.id)) r.harnesses = newHarnesses.slice();
+          });
+          rulesListContainer.querySelectorAll('.rule-row.selected').forEach(selRow => {
+            const b = selRow.querySelector('.prov-target-btn');
+            if (b) {
+              if (!newHarnesses.length || newHarnesses.includes('all')) {
+                b.innerHTML = `<span>All harnesses</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+              } else if (newHarnesses.length === 1) {
+                b.innerHTML = `<span style="font-weight:600;color:var(--text)">${esc(newHarnesses[0])}</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+              } else {
+                b.innerHTML = `<span class="prov-count-badge">${newHarnesses.length}</span> <span>harnesses</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+              }
+            }
+          });
+          toast('Harnesses updated', `Updated target harness for ${selectedIds.size} selected rules`);
+        } else {
+          rule.harnesses = newHarnesses;
+        }
+        commitAll();
+      });
+      head.appendChild(harnessDropdown);
+
+      row.appendChild(head);
+
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openContextMenu(e, rule, visibleRules);
+      });
+
+      rulesListContainer.appendChild(row);
+    });
+
+    initDragDropScope(rulesListContainer, visibleRules);
+  }
+
+  let activeMenu = null;
+  function closeContextMenu() {
+    if (activeMenu) {
+      activeMenu.remove();
+      activeMenu = null;
+    }
+  }
+  document.addEventListener('click', closeContextMenu);
+
+  function openContextMenu(e, rule, visibleRules) {
+    closeContextMenu();
+    const menu = document.createElement('div');
+    menu.className = 'custom-ctx-menu';
+    menu.style.top = `${e.clientY}px`;
+    menu.style.left = `${e.clientX}px`;
+
+    const isMulti = selectedIds.has(rule.id) && selectedIds.size > 1;
+
+    if (isMulti) {
+      // Bulk context menu actions
+      const anyActive = allRules.some(r => selectedIds.has(r.id) && !r.disabled);
+      const toggleBulkItem = document.createElement('button');
+      toggleBulkItem.className = 'ctx-item';
+      toggleBulkItem.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>${anyActive ? 'Disable' : 'Enable'} selected (${selectedIds.size})`;
+      toggleBulkItem.onclick = () => {
+        allRules.forEach(r => { if (selectedIds.has(r.id)) r.disabled = anyActive; });
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(toggleBulkItem);
+
+      const targetBulkItem = document.createElement('button');
+      targetBulkItem.className = 'ctx-item';
+      targetBulkItem.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-target"/></svg>Target harnesses for selected (${selectedIds.size})…`;
+      targetBulkItem.onclick = () => {
+        const targetStr = prompt('Enter comma-separated harnesses (e.g. t3,dsh) or "all":', 'all');
+        if (targetStr == null) return;
+        const clean = targetStr.trim().toLowerCase();
+        const newHarnesses = (!clean || clean === 'all') ? ['all'] : clean.split(',').map(s => s.trim()).filter(Boolean);
+        allRules.forEach(r => { if (selectedIds.has(r.id)) r.harnesses = newHarnesses.slice(); });
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(targetBulkItem);
+
+      const delBulkItem = document.createElement('button');
+      delBulkItem.className = 'ctx-item danger';
+      delBulkItem.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete selected (${selectedIds.size})`;
+      delBulkItem.onclick = () => {
+        if (!confirm(`Delete ${selectedIds.size} selected rule(s)?`)) return;
+        allRules = allRules.filter(r => !selectedIds.has(r.id));
+        selectedIds.clear();
+        isSelectionMode = false;
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(delBulkItem);
+
+      const divider = document.createElement('div');
+      divider.className = 'ctx-divider';
+      menu.appendChild(divider);
+
+      const clearItem = document.createElement('button');
+      clearItem.className = 'ctx-item';
+      clearItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-x"/></svg>Deselect all';
+      clearItem.onclick = () => {
+        selectedIds.clear();
+        isSelectionMode = false;
+        renderRules();
+      };
+      menu.appendChild(clearItem);
+    } else {
+      // Single rule context menu
+      const selectItem = document.createElement('button');
+      selectItem.className = 'ctx-item';
+      selectItem.innerHTML = selectedIds.has(rule.id)
+        ? '<svg class="ic" viewBox="0 0 24 24"><use href="#i-x"/></svg>Deselect rule'
+        : '<svg class="ic" viewBox="0 0 24 24"><use href="#i-check-square"/></svg>Select';
+      selectItem.onclick = () => {
+        if (selectedIds.has(rule.id)) {
+          selectedIds.delete(rule.id);
+          if (selectedIds.size === 0) isSelectionMode = false;
+        } else {
+          selectedIds.add(rule.id);
+          isSelectionMode = true;
+        }
+        renderRules();
+      };
+      menu.appendChild(selectItem);
+
+      const toggleItem = document.createElement('button');
+      toggleItem.className = 'ctx-item';
+      toggleItem.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>${rule.disabled ? 'Enable rule' : 'Disable rule'}`;
+      toggleItem.onclick = () => {
+        rule.disabled = !rule.disabled;
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(toggleItem);
+
+      const dupItem = document.createElement('button');
+      dupItem.className = 'ctx-item';
+      dupItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-copy"/></svg>Duplicate rule';
+      dupItem.onclick = () => {
+        const idx = allRules.findIndex(r => r.id === rule.id);
+        const dup = { ...rule, id: 'rf_' + (ruleSeq++) };
+        if (idx !== -1) allRules.splice(idx + 1, 0, dup);
+        else allRules.push(dup);
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(dupItem);
+
+      const delItem = document.createElement('button');
+      delItem.className = 'ctx-item danger';
+      delItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete rule';
+      delItem.onclick = () => {
+        allRules = allRules.filter(r => r.id !== rule.id);
+        selectedIds.delete(rule.id);
+        commitAll();
+        renderRules();
+      };
+      menu.appendChild(delItem);
+
+      const divEnd = document.createElement('div');
+      divEnd.className = 'ctx-divider';
+      menu.appendChild(divEnd);
+
+      const selectAllItem = document.createElement('button');
+      selectAllItem.className = 'ctx-item';
+      selectAllItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-check-all"/></svg>Select all';
+      selectAllItem.onclick = () => {
+        isSelectionMode = true;
+        visibleRules.forEach(r => selectedIds.add(r.id));
+        renderRules();
+      };
+      menu.appendChild(selectAllItem);
+    }
+
+    document.body.appendChild(menu);
+    activeMenu = menu;
+  }
+
+  function initDragDropScope(container, visibleRules) {
+    let fromIdx = null;
+    container.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      fromIdx = parseInt(row.dataset.idx, 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) {}
+    });
+    container.addEventListener('dragend', () => {
+      const row = container.querySelector('.rule-row.dragging');
+      if (row) row.classList.remove('dragging');
+      container.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      fromIdx = null;
+    });
+    container.addEventListener('dragover', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.rule-row');
+      container.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      if (row && parseInt(row.dataset.idx, 10) !== fromIdx) row.classList.add('drag-over');
+    });
+    container.addEventListener('drop', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const toIdx = parseInt(row.dataset.idx, 10);
+      if (toIdx === fromIdx || isNaN(toIdx)) return;
+
+      const itemMoved = visibleRules[fromIdx];
+      const targetItem = visibleRules[toIdx];
+      const globalFrom = allRules.indexOf(itemMoved);
+      const globalTo = allRules.indexOf(targetItem);
+      if (globalFrom !== -1 && globalTo !== -1) {
+        allRules.splice(globalFrom, 1);
+        allRules.splice(globalTo, 0, itemMoved);
+        commitAll();
+        renderRules();
+      }
+    });
+  }
+
+  scopeSelect.addEventListener('change', () => {
+    currentScope = scopeSelect.value;
+    selectedIds.clear();
+    lastCheckedIdx = null;
+    renderRules();
+  });
+
+  addBtn.addEventListener('click', () => {
+    const newRule = {
+      id: 'rf_' + (ruleSeq++),
+      rule: '',
+      provider: currentScope,
+      harnesses: ['all'],
+      disabled: false
+    };
+    allRules.push(newRule);
+    commitAll();
+    renderRules();
+    setTimeout(() => {
+      const inputs = rulesListContainer.querySelectorAll('textarea.manual-expr');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 50);
+  });
+
+  renderRules();
+  schedulePreview();
+
+  // 4. Raw Editor Card at the bottom with 88vh Roomy Mode Launcher
+  c.appendChild(createRawEditorCard({
+    title: 'Raw filters configuration (JSON)',
+    badge: 'Direct Edit',
+    description: 'Directly view and edit model_filters, harness_filters, raw_catalog_harnesses, and sort options as JSON.',
+    getRaw: () => JSON.stringify({
+      model_filters: getAt(S.effective, ['model_filters']) || [],
+      harness_filters: getAt(S.effective, ['harness_filters']) || [],
+      raw_catalog_harnesses: getAt(S.effective, ['raw_catalog_harnesses']) || [],
+      model_sort: getAt(S.effective, ['model_sort']) || 'id',
+      show_harness_model_list: getAt(S.effective, ['show_harness_model_list'])
+    }, null, 2),
+    saveRaw: (txt) => {
+      const parsed = JSON.parse(txt);
+      if ('model_filters' in parsed) setAt(['model_filters'], parsed.model_filters);
+      if ('harness_filters' in parsed) setAt(['harness_filters'], parsed.harness_filters);
+      if ('raw_catalog_harnesses' in parsed) setAt(['raw_catalog_harnesses'], parsed.raw_catalog_harnesses);
+      if ('model_sort' in parsed) setAt(['model_sort'], parsed.model_sort);
+      if ('show_harness_model_list' in parsed) setAt(['show_harness_model_list'], parsed.show_harness_model_list);
+      setDirty(true);
+    },
+    saveLabel: 'Apply filters JSON',
+    onApplied: () => { rebuildConfig(); showSection('filters'); }
+  }));
+
   return c;
 }
 
 function buildHarnessFilters() {
-  const c = card('Harness filters', 'Second-stage filters applied at sync time on top of models-filtered.csv.', 1, 'harness-filters');
-  c.appendChild(manualBlockBuilder(['harness_filters'], { isHarness: true, hint: 'One expression per block. Drag to reorder. Suffix "->t3,dsh" targets only those harnesses; a bare rule applies to all.', emptyText: 'No harness filters yet.', placeholder: 'e.g. !(kc/* && !*free)->t3,dsh or (top100:-input_context)->dsh' }));
-  c.appendChild(fieldRow('Raw catalog harnesses', 'These harnesses read models-all.csv (raw, unfiltered) instead of models-filtered.csv', harnessChips(['raw_catalog_harnesses']), ['raw_catalog_harnesses']));
-  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'Raw catalog harnesses only'], ['all', 'Every synced harness'], ['configured', 'Only harness_filters targets'], ['none', 'Never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
-  return c;
+  return buildFilters();
 }
 
 function harnessChips(pathArr) {
@@ -3055,6 +5219,25 @@ function buildOverrides() {
   const g2 = card('Always overrides', 'Rewrite the field unconditionally.');
   g2.appendChild(overrideBuilder(['always_overrides'], { emptyText: 'No always-overrides.' }));
   c.appendChild(g2);
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw field overrides config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit invalid_value_overrides and always_overrides directly as JSON.',
+    getRaw: () => JSON.stringify({
+      invalid_value_overrides: getAt(S.effective, ['invalid_value_overrides']) || [],
+      always_overrides: getAt(S.effective, ['always_overrides']) || []
+    }, null, 2),
+    saveRaw: (txt) => {
+      const parsed = JSON.parse(txt);
+      if ('invalid_value_overrides' in parsed) setAt(['invalid_value_overrides'], parsed.invalid_value_overrides);
+      if ('always_overrides' in parsed) setAt(['always_overrides'], parsed.always_overrides);
+      setDirty(true);
+    },
+    saveLabel: 'Apply overrides JSON',
+    onApplied: () => { rebuildConfig(); showSection('overrides'); }
+  }));
+
   return c;
 }
 
@@ -3069,6 +5252,16 @@ function buildCapabilities() {
   for (const cap of ['vision', 'reasoning', 'tool']) {
     c.appendChild(fieldRow('Assume ' + CAP_NAME[cap].toLowerCase() + ' when unknown', 'Used when the router reports no data for this capability', toggle(['capabilities', 'n_a_defaults', cap]), ['capabilities', 'n_a_defaults', cap]));
   }
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw capabilities config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit capabilities probing fields and unknown defaults directly as JSON.',
+    pathArr: ['capabilities'],
+    saveLabel: 'Apply capabilities JSON',
+    onApplied: () => { rebuildConfig(); showSection('capabilities'); }
+  }));
+
   return c;
 }
 
@@ -3086,6 +5279,29 @@ function buildAdapters() {
     }
     c.appendChild(sub);
   }
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw adapters config (JSON)',
+    badge: 'Direct Edit',
+    description: 'View and edit router and REST adapters for all harnesses directly as JSON.',
+    getRaw: () => {
+      const obj = {};
+      for (const h of ['opencode', 'kilo', 'pi', 'zcode', 'opencodex', 'dsh']) {
+        obj[h] = getAt(S.effective, [h]) || {};
+      }
+      return JSON.stringify(obj, null, 2);
+    },
+    saveRaw: (txt) => {
+      const parsed = JSON.parse(txt);
+      for (const [h, val] of Object.entries(parsed)) {
+        setAt([h], val);
+      }
+      setDirty(true);
+    },
+    saveLabel: 'Apply adapters JSON',
+    onApplied: () => { rebuildConfig(); showSection('adapters'); }
+  }));
+
   return c;
 }
 
@@ -3097,51 +5313,486 @@ function buildT3() {
   const subRest = card('REST provider drivers', '');
   subRest.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
   c.appendChild(subRest);
-  const subStrat = card('Driver strategy', 'How each driver receives its key/URL');
-  subStrat.appendChild(rawJson(['t3', 'driver_strategy'], 'Show raw JSON'));
-  c.appendChild(subStrat);
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw T3 drivers & strategy (JSON)',
+    badge: 'Direct Edit',
+    description: 'Edit T3 router drivers, REST provider drivers, and driver strategy directly as JSON. Changes reflect across T3 tables above.',
+    pathArr: ['t3'],
+    saveLabel: 'Apply T3 JSON',
+    onApplied: () => { rebuildConfig(); showSection('t3'); }
+  }));
   return c;
 }
 
 function buildCustomModels() {
   const c = card('Custom models', 'Models injected into the pipeline that are never filtered out. in/out are context sizes; capabilities: 1 = yes, 0 = no, -1 = unknown.', 1, 'custom-models');
   c.appendChild(customModelsTable());
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw custom models (JSON)',
+    badge: 'Direct Edit',
+    description: 'View, edit, or paste custom models array directly as JSON.',
+    pathArr: ['custom_models'],
+    saveLabel: 'Apply custom models JSON',
+    onApplied: () => { rebuildConfig(); showSection('custom-models'); }
+  }));
+
   return c;
+}
+
+function buildCustomCommandsEditor() {
+  const container = document.createElement('div');
+  container.className = 'custom-commands-workspace';
+  container.style.cssText = 'margin-top: 10px;';
+
+  let commands = (getAt(S.effective, ['custom_commands']) || []).slice();
+  let selectedIndices = new Set();
+  let lastCheckedIdx = null;
+  let isSelectionMode = false;
+
+  const commit = () => {
+    setAt(['custom_commands'], commands.filter(c => typeof c === 'string' && c.trim()));
+    setDirty(true);
+  };
+
+  // Permanent List Header with zero layout shift
+  const listHeader = document.createElement('div');
+  listHeader.className = 'rule-list-header';
+  container.appendChild(listHeader);
+
+  const listEl = document.createElement('div');
+  listEl.className = 'rule-list has-header';
+  container.appendChild(listEl);
+
+  const bottomBar = document.createElement('div');
+  bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px';
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary small';
+  addBtn.type = 'button';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Add command';
+
+  const countEl = document.createElement('span');
+  countEl.className = 'field-note';
+  countEl.style.cssText = 'margin:0;color:var(--text-3);font-size:12.5px';
+
+  bottomBar.appendChild(addBtn);
+  bottomBar.appendChild(countEl);
+  container.appendChild(bottomBar);
+
+  function updateHeader() {
+    listHeader.innerHTML = '';
+    const left = document.createElement('div');
+    left.className = 'header-left';
+
+    const cbSlot = document.createElement('div');
+    cbSlot.className = 'cb-slot';
+    const selectAllCb = document.createElement('input');
+    selectAllCb.type = 'checkbox';
+    selectAllCb.className = 'rule-select-cb';
+    selectAllCb.title = 'Select all commands';
+    selectAllCb.style.opacity = (isSelectionMode || selectedIndices.size > 0) ? '1' : '';
+    selectAllCb.checked = commands.length > 0 && commands.every((_, i) => selectedIndices.has(i));
+    selectAllCb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectAllCb.checked) {
+        commands.forEach((_, i) => selectedIndices.add(i));
+        isSelectionMode = true;
+      } else {
+        selectedIndices.clear();
+        isSelectionMode = false;
+      }
+      render();
+    });
+    cbSlot.appendChild(selectAllCb);
+    left.appendChild(cbSlot);
+
+    const padLen = Math.max(2, String(commands.length).length);
+    const numCol = document.createElement('span');
+    numCol.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;color:var(--text-3);font-weight:600;font-size:11.5px;margin-right:10px;margin-left:20px;font-family:var(--mono);`;
+    numCol.textContent = '#';
+    left.appendChild(numCol);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.style.cssText = 'color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;';
+    titleSpan.textContent = 'Command Expression';
+    left.appendChild(titleSpan);
+    listHeader.appendChild(left);
+
+    const right = document.createElement('div');
+    right.className = 'header-right';
+
+    if (selectedIndices.size > 0 || isSelectionMode) {
+      listHeader.classList.add('selection-active');
+      right.innerHTML = `
+        <span style="font-weight:600;font-size:12px;color:var(--accent);margin-right:4px">${selectedIndices.size} selected</span>
+        <button type="button" class="btn small" id="cmd-bulk-enable" title="Enable selected commands">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>Enable
+        </button>
+        <button type="button" class="btn small" id="cmd-bulk-disable" title="Disable selected commands">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>Disable
+        </button>
+        <button type="button" class="btn small danger" id="cmd-bulk-delete" title="Delete selected commands">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete
+        </button>
+        <button type="button" class="btn small" id="cmd-bulk-clear" title="Done">
+          Done
+        </button>
+      `;
+      right.querySelector('#cmd-bulk-enable').onclick = () => {
+        commands = commands.map((c, i) => selectedIndices.has(i) ? c.replace(/^#\s*/, '') : c);
+        commit(); render();
+      };
+      right.querySelector('#cmd-bulk-disable').onclick = () => {
+        commands = commands.map((c, i) => selectedIndices.has(i) ? (c.startsWith('#') ? c : '# ' + c) : c);
+        commit(); render();
+      };
+      right.querySelector('#cmd-bulk-delete').onclick = () => {
+        if (!selectedIndices.size) return;
+        if (!confirm(`Delete ${selectedIndices.size} selected command(s)?`)) return;
+        commands = commands.filter((_, idx) => !selectedIndices.has(idx));
+        selectedIndices.clear(); isSelectionMode = false;
+        commit(); render();
+      };
+      right.querySelector('#cmd-bulk-clear').onclick = () => {
+        selectedIndices.clear(); isSelectionMode = false; render();
+      };
+    } else {
+      listHeader.classList.remove('selection-active');
+      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">${commands.length} command(s)</span>`;
+    }
+    listHeader.appendChild(right);
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    countEl.textContent = `${commands.length} command${commands.length === 1 ? '' : 's'}`;
+    const inSelection = isSelectionMode || selectedIndices.size > 0;
+    listEl.classList.toggle('selection-mode', inSelection);
+
+    updateHeader();
+
+    if (!commands.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = 'No custom commands configured. Click "+ Add command" to add one.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    commands.forEach((cmd, idx) => {
+      const isDis = cmd.trim().startsWith('#') || cmd.trim().startsWith('//');
+      const row = document.createElement('div');
+      row.className = 'rule-row' + (isDis ? ' rule-disabled' : '') + (selectedIndices.has(idx) ? ' selected' : '');
+      row.draggable = true;
+      row.dataset.idx = idx;
+
+      const head = document.createElement('div');
+      head.className = 'rule-head manual-head';
+
+      const cbSlot = document.createElement('div');
+      cbSlot.className = 'cb-slot';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'rule-select-cb';
+      cb.checked = selectedIndices.has(idx);
+      cbSlot.appendChild(cb);
+      cbSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (e.shiftKey && lastCheckedIdx !== null && lastCheckedIdx !== idx) {
+          const [start, end] = [Math.min(lastCheckedIdx, idx), Math.max(lastCheckedIdx, idx)];
+          for (let k = start; k <= end; k++) selectedIndices.add(k);
+        } else {
+          if (cb.checked) selectedIndices.add(idx);
+          else selectedIndices.delete(idx);
+        }
+        lastCheckedIdx = idx;
+        if (selectedIndices.size === 0) isSelectionMode = false;
+        render();
+      });
+      head.appendChild(cbSlot);
+
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.title = 'Drag to reorder';
+      handle.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-grip"/></svg>';
+      head.appendChild(handle);
+
+      const padLen = Math.max(2, String(commands.length).length);
+      const num = document.createElement('span');
+      num.className = 'rule-num';
+      num.style.cssText = `min-width:${padLen * 9 + 4}px;text-align:right;flex-shrink:0;margin-right:10px;font-family:var(--mono);font-variant-numeric:tabular-nums;`;
+      num.textContent = String(idx + 1).padStart(padLen, '0');
+      head.appendChild(num);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'raw-expr manual-expr';
+      ta.spellcheck = false;
+      ta.rows = 1;
+      ta.value = cmd;
+      ta.placeholder = 'e.g. ocx sync, bg:cmd, sleep 5';
+      let timer = null;
+      ta.addEventListener('input', () => {
+        commands[idx] = ta.value;
+        clearTimeout(timer);
+        timer = setTimeout(commit, 300);
+      });
+      head.appendChild(ta);
+
+      if (isDis) {
+        const disTag = document.createElement('span');
+        disTag.className = 'rule-disabled-tag';
+        disTag.textContent = '# disabled';
+        disTag.title = 'Command is commented out / disabled. Right-click or select to enable.';
+        head.appendChild(disTag);
+      }
+
+      row.appendChild(head);
+
+      // Context Menu for command
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openCmdContextMenu(e, idx);
+      });
+
+      listEl.appendChild(row);
+    });
+
+    initCmdDragDrop(listEl);
+  }
+
+  let activeCmdMenu = null;
+  function closeCmdContextMenu() {
+    if (activeCmdMenu) {
+      activeCmdMenu.remove();
+      activeCmdMenu = null;
+    }
+  }
+  document.addEventListener('click', closeCmdContextMenu);
+
+  function openCmdContextMenu(e, idx) {
+    closeCmdContextMenu();
+    const menu = document.createElement('div');
+    menu.className = 'custom-ctx-menu';
+    menu.style.top = `${e.clientY}px`;
+    menu.style.left = `${e.clientX}px`;
+
+    const isMulti = selectedIndices.has(idx) && selectedIndices.size > 1;
+
+    if (isMulti) {
+      const anyActive = commands.some((c, i) => selectedIndices.has(i) && !c.trim().startsWith('#') && !c.trim().startsWith('//'));
+      const toggleBulk = document.createElement('button');
+      toggleBulk.className = 'ctx-item';
+      toggleBulk.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>${anyActive ? 'Disable' : 'Enable'} selected (${selectedIndices.size})`;
+      toggleBulk.onclick = () => {
+        commands = commands.map((c, i) => {
+          if (!selectedIndices.has(i)) return c;
+          return anyActive ? (c.startsWith('#') ? c : '# ' + c) : c.replace(/^#\s*/, '');
+        });
+        commit(); render();
+      };
+      menu.appendChild(toggleBulk);
+
+      const delBulk = document.createElement('button');
+      delBulk.className = 'ctx-item danger';
+      delBulk.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete selected (${selectedIndices.size})`;
+      delBulk.onclick = () => {
+        if (!confirm(`Delete ${selectedIndices.size} selected command(s)?`)) return;
+        commands = commands.filter((_, i) => !selectedIndices.has(i));
+        selectedIndices.clear();
+        isSelectionMode = false;
+        commit();
+        render();
+      };
+      menu.appendChild(delBulk);
+
+      const divider = document.createElement('div');
+      divider.className = 'ctx-divider';
+      menu.appendChild(divider);
+
+      const clearItem = document.createElement('button');
+      clearItem.className = 'ctx-item';
+      clearItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-x"/></svg>Deselect all';
+      clearItem.onclick = () => {
+        selectedIndices.clear();
+        isSelectionMode = false;
+        render();
+      };
+      menu.appendChild(clearItem);
+    } else {
+      const curCmd = commands[idx] || '';
+      const isDis = curCmd.trim().startsWith('#') || curCmd.trim().startsWith('//');
+
+      const selectItem = document.createElement('button');
+      selectItem.className = 'ctx-item';
+      selectItem.innerHTML = selectedIndices.has(idx)
+        ? '<svg class="ic" viewBox="0 0 24 24"><use href="#i-x"/></svg>Deselect command'
+        : '<svg class="ic" viewBox="0 0 24 24"><use href="#i-check-square"/></svg>Select';
+      selectItem.onclick = () => {
+        if (selectedIndices.has(idx)) {
+          selectedIndices.delete(idx);
+          if (selectedIndices.size === 0) isSelectionMode = false;
+        } else {
+          selectedIndices.add(idx);
+          isSelectionMode = true;
+        }
+        render();
+      };
+      menu.appendChild(selectItem);
+
+      const toggleItem = document.createElement('button');
+      toggleItem.className = 'ctx-item';
+      toggleItem.innerHTML = `<svg class="ic" viewBox="0 0 24 24"><use href="#i-power"/></svg>${isDis ? 'Enable command' : 'Disable command'}`;
+      toggleItem.onclick = () => {
+        commands[idx] = isDis ? curCmd.replace(/^#\s*/, '') : '# ' + curCmd;
+        commit();
+        render();
+      };
+      menu.appendChild(toggleItem);
+
+      const dupItem = document.createElement('button');
+      dupItem.className = 'ctx-item';
+      dupItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-copy"/></svg>Duplicate command';
+      dupItem.onclick = () => {
+        commands.splice(idx + 1, 0, commands[idx]);
+        commit();
+        render();
+      };
+      menu.appendChild(dupItem);
+
+      const delItem = document.createElement('button');
+      delItem.className = 'ctx-item danger';
+      delItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete command';
+      delItem.onclick = () => {
+        commands.splice(idx, 1);
+        selectedIndices.delete(idx);
+        commit();
+        render();
+      };
+      menu.appendChild(delItem);
+
+      const divEnd = document.createElement('div');
+      divEnd.className = 'ctx-divider';
+      menu.appendChild(divEnd);
+
+      const selectAllItem = document.createElement('button');
+      selectAllItem.className = 'ctx-item';
+      selectAllItem.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-check-all"/></svg>Select all';
+      selectAllItem.onclick = () => {
+        isSelectionMode = true;
+        commands.forEach((_, i) => selectedIndices.add(i));
+        render();
+      };
+      menu.appendChild(selectAllItem);
+    }
+
+    document.body.appendChild(menu);
+    activeCmdMenu = menu;
+  }
+
+  function initCmdDragDrop(container) {
+    let fromIdx = null;
+    container.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      fromIdx = parseInt(row.dataset.idx, 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(fromIdx)); } catch (err) {}
+    });
+    container.addEventListener('dragend', () => {
+      const row = container.querySelector('.rule-row.dragging');
+      if (row) row.classList.remove('dragging');
+      container.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+      fromIdx = null;
+    });
+    container.addEventListener('dragover', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const overIdx = parseInt(row.dataset.idx, 10);
+      if (overIdx !== fromIdx) {
+        container.querySelectorAll('.rule-row.drag-over').forEach((r) => r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      }
+    });
+    container.addEventListener('drop', (e) => {
+      if (fromIdx == null) return;
+      e.preventDefault();
+      const row = e.target.closest('.rule-row');
+      if (!row) return;
+      const toIdx = parseInt(row.dataset.idx, 10);
+      if (fromIdx !== toIdx && !isNaN(fromIdx) && !isNaN(toIdx)) {
+        const itemMoved = commands.splice(fromIdx, 1)[0];
+        commands.splice(toIdx, 0, itemMoved);
+        commit();
+        render();
+      }
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    commands.push('');
+    commit();
+    render();
+    setTimeout(() => {
+      const inputs = listEl.querySelectorAll('textarea.manual-expr');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 50);
+  });
+
+  render();
+  return container;
 }
 
 function buildCommands() {
   const c = card('Commands & advanced', 'Post-sync commands, plus the raw JSON escape hatch for the entire config.', 1, 'commands');
-  c.appendChild(fieldRow('Custom commands', 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.', listEditor(['custom_commands'], { placeholder: 'e.g. ocx sync', emptyText: 'No custom commands.' }), ['custom_commands']));
-  c.appendChild(fieldRow('Entire config (raw JSON)', 'Anything the forms don’t cover can be edited here as JSON', rawJson([], 'Show raw JSON'), null));
+
+  const cmdField = document.createElement('div');
+  cmdField.style.cssText = 'padding:14px 0;border-top:1px solid var(--border-2)';
+  const cmdTitle = document.createElement('h3');
+  cmdTitle.className = 'card-h2';
+  cmdTitle.textContent = 'Custom commands';
+  const cmdDesc = document.createElement('p');
+  cmdDesc.className = 'field-note';
+  cmdDesc.textContent = 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.';
+  cmdField.appendChild(cmdTitle);
+  cmdField.appendChild(cmdDesc);
+  cmdField.appendChild(buildCustomCommandsEditor());
+  c.appendChild(cmdField);
+
+  c.appendChild(createRawEditorCard({
+    title: 'Raw custom commands (JSON)',
+    badge: 'Direct Edit',
+    description: 'Directly view and edit the custom_commands array as JSON.',
+    pathArr: ['custom_commands'],
+    saveLabel: 'Apply custom commands',
+    onApplied: () => { rebuildConfig(); showSection('commands'); }
+  }));
+
+  c.appendChild(createRawEditorCard({
+    title: 'Entire config (raw JSON)',
+    badge: 'Direct Edit',
+    description: 'Directly view and edit the entire effective configuration as JSON. Any valid JSON overrides will be applied.',
+    pathArr: [],
+    saveLabel: 'Apply entire config',
+    onApplied: () => { rebuildConfig(); showSection('commands'); }
+  }));
+
   return c;
 }
 
 function rawJson(pathArr, title) {
-  const wrap = document.createElement('details');
-  wrap.style.cssText = 'flex:1;width:100%';
-  const summary = document.createElement('summary');
-  summary.className = 'raw-summary';
-  summary.textContent = title;
-  wrap.appendChild(summary);
-  const ta = document.createElement('textarea');
-  ta.value = JSON.stringify(getAt(S.effective, pathArr), null, 2);
-  ta.spellcheck = false;
-  ta.className = 'raw-json';
-  ta.setAttribute('aria-label', title);
-  const err = document.createElement('div');
-  err.className = 'raw-json-err';
-  err.setAttribute('role', 'alert');
-  wrap.appendChild(ta);
-  wrap.appendChild(err);
-  ta.addEventListener('input', () => {
-    try {
-      const v = JSON.parse(ta.value);
-      setAt(pathArr, v);
-      err.textContent = '';
-      setDirty(true);
-    } catch (e) { err.textContent = e.message; }
+  return createRawEditorCard({
+    title: title || 'Raw JSON',
+    pathArr,
+    description: 'Directly edit this configuration block as JSON.',
+    saveLabel: 'Apply JSON'
   });
-  return wrap;
 }
 
 // ===========================================================================
@@ -3158,6 +5809,7 @@ function showView(name) {
   $('#config-content').style.display = name === 'config' ? '' : 'none';
   $('#tab-run').style.display = name === 'run' ? '' : 'none';
   $('#tab-models').style.display = name === 'models' ? '' : 'none';
+  $('#tab-providers').style.display = name === 'providers' ? '' : 'none';
   $$('#config-nav .nav-item[data-view]').forEach((b) => {
     const on = b.dataset.view === name;
     b.classList.toggle('active', on);
@@ -3174,6 +5826,7 @@ function showView(name) {
     closeDrawer();
   }
   if (name === 'models') loadModels();
+  if (name === 'providers') loadProviders();
 }
 
 // ===========================================================================
@@ -3351,30 +6004,376 @@ function renderModelsTable(rows) {
   tbody.appendChild(frag);
   wrap.appendChild(table);
 }
+let providersCache = [];
+
+function openProviderModal(existing = null) {
+  const root = $('#modal-root');
+  root.innerHTML = '';
+  const back = document.createElement('div');
+  back.className = 'modal-backdrop';
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.maxWidth = '520px';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-label', existing ? 'Edit provider' : 'Add provider');
+
+  const isEdit = existing !== null && existing !== undefined;
+  const initType = isEdit ? (existing.type || (existing.isRouter ? 'router' : (existing.isSolo ? 'solo' : 'rest'))) : 'rest';
+
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  head.innerHTML = `
+    <span style="font-weight:600;font-size:15px;color:var(--text);flex:1">${isEdit ? 'Edit Provider: ' + esc(existing.provider) : 'Add New Provider'}</span>
+    <button class="icon-btn modal-close" aria-label="Close modal"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button>
+  `;
+
+  const body = document.createElement('div');
+  body.className = 'modal-body';
+  body.style.minHeight = 'auto';
+
+  const form = document.createElement('form');
+  form.className = 'modal-form';
+  form.onsubmit = (e) => { e.preventDefault(); };
+  form.innerHTML = `
+    <div class="form-group">
+      <label for="p-form-name">Provider Name <span class="req">*</span></label>
+      <input type="text" id="p-form-name" placeholder="e.g. groq, openrouter, deepseek" value="${isEdit ? esc(existing.provider) : ''}" required autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="p-form-url">Base URL <span class="req">*</span></label>
+      <input type="url" id="p-form-url" placeholder="https://api.groq.com/openai/v1" value="${isEdit ? esc(existing.base_url) : ''}" required autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="p-form-key">API Key</label>
+      <div class="input-with-action">
+        <input type="password" id="p-form-key" placeholder="${isEdit ? (existing.api_key || 'Leave blank or masked to keep current key') : 'API key / bearer token'}" value="${isEdit ? esc(existing.raw_key || '') : ''}" autocomplete="off">
+        <button type="button" class="inline-action-btn" id="p-form-toggle-key" title="Toggle visibility" aria-label="Toggle visibility"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-eye"/></svg></button>
+      </div>
+      <span class="field-note">${isEdit ? 'Leave blank or masked to retain current key.' : 'Saved securely in providers.csv.'}</span>
+    </div>
+    <div class="form-group">
+      <label>Provider Type <span class="req">*</span></label>
+      <div class="radio-cards">
+        <label class="radio-card ${initType === 'rest' ? 'selected' : ''}">
+          <input type="radio" name="prov-type-radio" value="rest" ${initType === 'rest' ? 'checked' : ''}>
+          <div class="radio-card-title">REST <span class="badge badge-rest">Prefix</span></div>
+          <div class="radio-card-desc">Prefix-matched against Router catalog (e.g. <code>groq/*</code>)</div>
+        </label>
+        <label class="radio-card ${initType === 'solo' ? 'selected' : ''}">
+          <input type="radio" name="prov-type-radio" value="solo" ${initType === 'solo' ? 'checked' : ''}>
+          <div class="radio-card-title">Solo <span class="badge badge-solo">Dedicated</span></div>
+          <div class="radio-card-desc">Independent catalog fetched from its own Base URL</div>
+        </label>
+        <label class="radio-card ${initType === 'router' ? 'selected' : ''}">
+          <input type="radio" name="prov-type-radio" value="router" ${initType === 'router' ? 'checked' : ''}>
+          <div class="radio-card-title">Router <span class="badge badge-router">Gateway</span></div>
+          <div class="radio-card-desc">Primary gateway catalog. Exactly one allowed.</div>
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="p-form-desc">Description / Notes <span class="opt" style="font-weight:normal;color:var(--text-3);font-size:12px">(Optional)</span></label>
+      <input type="text" id="p-form-desc" placeholder="e.g. fast inference, personal account, notes" value="${isEdit ? esc(existing.description) : ''}" autocomplete="off">
+    </div>
+  `;
+  body.appendChild(form);
+
+  const foot = document.createElement('div');
+  foot.className = 'modal-foot';
+  foot.style.justifyContent = 'flex-end';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn primary';
+  saveBtn.type = 'button';
+  saveBtn.textContent = isEdit ? 'Save Changes' : 'Add Provider';
+
+  foot.appendChild(cancelBtn);
+  foot.appendChild(saveBtn);
+  modal.appendChild(head);
+  modal.appendChild(body);
+  modal.appendChild(foot);
+  back.appendChild(modal);
+  root.appendChild(back);
+
+  const close = () => { root.innerHTML = ''; };
+  head.querySelector('.modal-close').addEventListener('click', close);
+  cancelBtn.addEventListener('click', close);
+  back.addEventListener('click', (e) => { if (e.target === back) close(); });
+
+  const cards = form.querySelectorAll('.radio-card');
+  form.querySelectorAll('input[name="prov-type-radio"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      cards.forEach((c) => c.classList.remove('selected'));
+      radio.closest('.radio-card').classList.add('selected');
+    });
+  });
+
+  let keyVisible = false;
+  const keyInput = form.querySelector('#p-form-key');
+  const toggleKeyBtn = form.querySelector('#p-form-toggle-key');
+  toggleKeyBtn.addEventListener('click', () => {
+    keyVisible = !keyVisible;
+    keyInput.type = keyVisible ? 'text' : 'password';
+    toggleKeyBtn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${keyVisible ? 'eye-off' : 'eye'}"/></svg>`;
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    const provider = form.querySelector('#p-form-name').value.trim();
+    const base_url = form.querySelector('#p-form-url').value.trim();
+    const api_key = keyInput.value.trim();
+    const type = (form.querySelector('input[name="prov-type-radio"]:checked')?.value || 'rest');
+    const description = form.querySelector('#p-form-desc').value.trim();
+
+    if (!provider) {
+      toast('Validation Error', 'Provider name is required', true);
+      form.querySelector('#p-form-name').focus();
+      return;
+    }
+    if (!base_url) {
+      toast('Validation Error', 'Base URL is required', true);
+      form.querySelector('#p-form-url').focus();
+      return;
+    }
+
+    try {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      if (isEdit) {
+        await api('PUT', '/api/providers', { index: existing.index, provider, base_url, api_key, type, description });
+        toast('Provider updated', provider + ' updated successfully');
+      } else {
+        await api('POST', '/api/providers', { provider, base_url, api_key, type, description });
+        toast('Provider added', provider + ' added successfully');
+      }
+      close();
+      await loadProviders();
+      const meta = await api('GET', '/api/meta');
+      S.meta = meta;
+      updateModelsWhichDropdown();
+    } catch (e) {
+      toast('Save Failed', e.message, true);
+      saveBtn.disabled = false;
+      saveBtn.textContent = isEdit ? 'Save Changes' : 'Add Provider';
+    }
+  });
+
+  setTimeout(() => { form.querySelector('#p-form-name').focus(); }, 50);
+}
+
+function updateModelsWhichDropdown() {
+  const sel = $('#models-which');
+  if (!sel) return;
+  const curVal = sel.value;
+  sel.innerHTML = `
+    <option value="filtered">models-filtered.csv (Router)</option>
+    <option value="all">models-all.csv (Router Raw)</option>
+  `;
+  const soloProviders = (providersCache || []).filter(p => p.type === 'solo');
+  if (soloProviders.length) {
+    const optGroup = document.createElement('optgroup');
+    optGroup.label = 'Solo Providers';
+    for (const p of soloProviders) {
+      const optF = document.createElement('option');
+      optF.value = 'filtered-' + p.provider;
+      optF.textContent = `${p.provider} - Filtered (models-filtered-${p.provider}.csv)`;
+      optGroup.appendChild(optF);
+      const optA = document.createElement('option');
+      optA.value = 'all-' + p.provider;
+      optA.textContent = `${p.provider} - Raw (models-all-${p.provider}.csv)`;
+      optGroup.appendChild(optA);
+    }
+    sel.appendChild(optGroup);
+  }
+  const hGroup = document.createElement('optgroup');
+  hGroup.label = 'Harness Previews';
+  for (const h of ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx']) {
+    const opt = document.createElement('option');
+    opt.value = 'harness-' + h;
+    opt.textContent = `models-${h}.csv`;
+    hGroup.appendChild(opt);
+  }
+  sel.appendChild(hGroup);
+
+  if (Array.from(sel.options).some(o => o.value === curVal)) {
+    sel.value = curVal;
+  }
+}
+
 async function loadProviders() {
   try {
     const r = await api('GET', '/api/providers');
-    const wrap = $('#providers-table-wrap');
-    wrap.innerHTML = '';
+    providersCache = r.rows || [];
     setSourcePath($('#providers-path'), r.path, 'Source');
-    if (!r.exists) {
-      wrap.innerHTML = '<p class="missing-note">providers.csv not found. The first terminal run will prompt you for the Router URL and key.</p>';
-      return;
-    }
-    const table = document.createElement('table');
-    table.className = 'mini providers';
-    table.innerHTML = '<thead><tr><th>Provider</th><th>Base URL</th><th>API key</th><th></th></tr></thead>';
-    const tbody = table.createTBody();
-    for (const p of r.rows) {
-      const tr = tbody.insertRow();
-      tr.insertCell().textContent = p.provider;
-      tr.insertCell().textContent = p.base_url;
-      tr.insertCell().textContent = p.api_key;
-      const td = tr.insertCell();
-      if (p.isRouter) td.innerHTML = '<span class="router-tag">Router</span>';
-    }
-    wrap.appendChild(table);
-  } catch (e) { /* optional */ }
+
+    const total = providersCache.length;
+    const routerCount = providersCache.filter((p) => p.type === 'router').length;
+    const soloCount = providersCache.filter((p) => p.type === 'solo').length;
+    const restCount = providersCache.filter((p) => p.type === 'rest').length;
+
+    const totalEl = $('#provider-count-total');
+    if (totalEl) totalEl.innerHTML = `<b>${total}</b> provider${total === 1 ? '' : 's'}`;
+    const badgeRouter = $('#badge-count-router');
+    if (badgeRouter) badgeRouter.textContent = `${routerCount} Router`;
+    const badgeSolo = $('#badge-count-solo');
+    if (badgeSolo) badgeSolo.textContent = `${soloCount} Solo`;
+    const badgeRest = $('#badge-count-rest');
+    if (badgeRest) badgeRest.textContent = `${restCount} REST`;
+
+    renderProvidersTable(providersCache);
+    updateModelsWhichDropdown();
+  } catch (e) {
+    toast('Failed to load providers', e.message, true);
+  }
+}
+
+function renderProvidersTable(rows) {
+  const wrap = $('#providers-table-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  const searchInput = $('#providers-search');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const filtered = query
+    ? rows.filter(p =>
+        (p.provider || '').toLowerCase().includes(query) ||
+        (p.base_url || '').toLowerCase().includes(query) ||
+        (p.description || '').toLowerCase().includes(query) ||
+        (p.type || '').toLowerCase().includes(query)
+      )
+    : rows;
+
+  const countEl = $('#providers-search-count');
+  if (countEl) countEl.textContent = query ? `${filtered.length} of ${rows.length}` : '';
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<p class="missing-note">' + (query ? 'No matching providers found.' : 'No providers configured yet. Click "+ Add provider" to get started.') + '</p>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'providers-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width:90px">Type</th>
+        <th style="width:140px">Provider</th>
+        <th>Base URL</th>
+        <th style="width:200px">API Key</th>
+        <th>Description</th>
+        <th style="width:90px;text-align:right">Actions</th>
+      </tr>
+    </thead>
+  `;
+  const tbody = table.createTBody();
+
+  filtered.forEach((p) => {
+    const tr = tbody.insertRow();
+
+    const tdType = tr.insertCell();
+    const type = p.type || (p.isRouter ? 'router' : (p.isSolo ? 'solo' : 'rest'));
+    tdType.innerHTML = `<span class="badge badge-${type}">${type}</span>`;
+
+    const tdName = tr.insertCell();
+    tdName.className = 'mono-cell';
+    tdName.style.fontWeight = '600';
+    tdName.textContent = p.provider;
+
+    const tdUrl = tr.insertCell();
+    tdUrl.className = 'mono-cell';
+    const urlSpan = document.createElement('span');
+    urlSpan.className = 'url-cell';
+    urlSpan.title = p.base_url;
+    urlSpan.textContent = p.base_url;
+    const copyUrlBtn = document.createElement('button');
+    copyUrlBtn.className = 'icon-btn';
+    copyUrlBtn.title = 'Copy Base URL';
+    copyUrlBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+    copyUrlBtn.onclick = () => {
+      navigator.clipboard.writeText(p.base_url).then(() => toast('Copied', 'Base URL copied to clipboard'));
+    };
+    const urlFlex = document.createElement('div');
+    urlFlex.style.display = 'flex';
+    urlFlex.style.alignItems = 'center';
+    urlFlex.style.gap = '6px';
+    urlFlex.appendChild(urlSpan);
+    urlFlex.appendChild(copyUrlBtn);
+    tdUrl.appendChild(urlFlex);
+
+    const tdKey = tr.insertCell();
+    tdKey.className = 'mono-cell';
+    let keyRevealed = false;
+    const keySpan = document.createElement('span');
+    keySpan.textContent = p.api_key;
+    const revealKeyBtn = document.createElement('button');
+    revealKeyBtn.className = 'icon-btn';
+    revealKeyBtn.title = 'Reveal / Hide key';
+    revealKeyBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-eye"/></svg>';
+    revealKeyBtn.onclick = () => {
+      keyRevealed = !keyRevealed;
+      keySpan.textContent = keyRevealed ? (p.raw_key || p.api_key) : p.api_key;
+      revealKeyBtn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${keyRevealed ? 'eye-off' : 'eye'}"/></svg>`;
+    };
+    const copyKeyBtn = document.createElement('button');
+    copyKeyBtn.className = 'icon-btn';
+    copyKeyBtn.title = 'Copy API Key';
+    copyKeyBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+    copyKeyBtn.onclick = () => {
+      const val = p.raw_key || p.api_key;
+      navigator.clipboard.writeText(val).then(() => toast('Copied', 'API Key copied to clipboard'));
+    };
+    const keyFlex = document.createElement('div');
+    keyFlex.style.display = 'flex';
+    keyFlex.style.alignItems = 'center';
+    keyFlex.style.gap = '4px';
+    keyFlex.appendChild(keySpan);
+    keyFlex.appendChild(revealKeyBtn);
+    keyFlex.appendChild(copyKeyBtn);
+    tdKey.appendChild(keyFlex);
+
+    const tdDesc = tr.insertCell();
+    tdDesc.textContent = p.description || '';
+    tdDesc.style.color = 'var(--text-2)';
+
+    const tdActions = tr.insertCell();
+    tdActions.style.textAlign = 'right';
+    const actWrap = document.createElement('div');
+    actWrap.className = 'table-actions';
+    actWrap.style.justifyContent = 'flex-end';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn';
+    editBtn.title = 'Edit provider';
+    editBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>';
+    editBtn.onclick = () => openProviderModal(p);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icon-btn';
+    delBtn.title = 'Delete provider';
+    delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash"/></svg>';
+    delBtn.onclick = async () => {
+      if (!confirm(`Delete provider "${p.provider}"? This will remove it from providers.csv.`)) return;
+      try {
+        await api('DELETE', '/api/providers', { index: p.index });
+        toast('Provider deleted', p.provider + ' removed');
+        await loadProviders();
+        const meta = await api('GET', '/api/meta');
+        S.meta = meta;
+        updateModelsWhichDropdown();
+      } catch (e) {
+        toast('Delete failed', e.message, true);
+      }
+    };
+
+    actWrap.appendChild(editBtn);
+    actWrap.appendChild(delBtn);
+    tdActions.appendChild(actWrap);
+  });
+
+  wrap.appendChild(table);
 }
 
 // ===========================================================================
@@ -3427,6 +6426,35 @@ $('#stop-btn').addEventListener('click', async () => { try { await api('POST', '
 $('#models-which').addEventListener('change', loadModels);
 $('#models-search').addEventListener('input', () => { if (modelsCache) renderModelsTable(modelsCache); });
 $('#models-refresh').addEventListener('click', loadModels);
+
+const addProvBtn = $('#add-provider-btn');
+if (addProvBtn) addProvBtn.addEventListener('click', () => openProviderModal(null));
+const provRefreshBtn = $('#providers-refresh-btn');
+if (provRefreshBtn) provRefreshBtn.addEventListener('click', loadProviders);
+const provSearchInput = $('#providers-search');
+if (provSearchInput) provSearchInput.addEventListener('input', () => { if (providersCache) renderProvidersTable(providersCache); });
+
+const rawModalBtn = $('#raw-providers-modal-btn');
+if (rawModalBtn) {
+  rawModalBtn.addEventListener('click', () => {
+    openRawEditorModal({
+      title: 'Raw providers.csv',
+      badge: 'Direct Edit',
+      isJson: false,
+      description: 'Edit providers.csv directly. Columns: provider,base_url,api_key,type,description',
+      getDefault: () => 'provider,base_url,api_key,type,description\n',
+      getRaw: async () => (await api('GET', '/api/providers/raw')).content,
+      saveRaw: async (content) => {
+        await api('POST', '/api/providers/raw', { content });
+        await loadProviders();
+        const meta = await api('GET', '/api/meta');
+        S.meta = meta;
+        updateModelsWhichDropdown();
+      },
+      saveLabel: 'Save raw CSV'
+    });
+  });
+}
 
 $('#save-btn').addEventListener('click', async () => {
   try {

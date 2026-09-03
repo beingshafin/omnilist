@@ -191,19 +191,26 @@
 
   // targets
   "targets": {
+    "opencode_solo": true,
     "opencode_router": true,
     "opencode_rest": false,
-    "t3_router": true,
-    "t3_rest": true,
+    "kilo_solo": true,
     "kilo_router": true,
     "kilo_rest": false,
     "kilo_copy_opencode_full_provider_block": false,
+    "t3_solo": true,
+    "t3_router": true,
+    "t3_rest": true,
+    "dsh_solo": true,
     "dsh_router": true,
     "dsh_rest": true,
+    "pi_solo": true,
     "pi_router": true,
     "pi_rest": true,
+    "zcode_solo": false,
     "zcode_router": false,
     "zcode_rest": false,
+    "opencodex_solo": true,
     "opencodex_router": true,
     "opencodex_rest": true
   },

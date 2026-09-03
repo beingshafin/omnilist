@@ -171,19 +171,26 @@ const DEFAULTS = {
   follow_hardcoded_model_template: true,
 
   targets: {
+    opencode_solo: true,
     opencode_router: true,
     opencode_rest: false,
-    t3_router: true,
-    t3_rest: true,
+    kilo_solo: true,
     kilo_router: true,
     kilo_rest: false,
     kilo_copy_opencode_full_provider_block: false,
+    t3_solo: true,
+    t3_router: true,
+    t3_rest: true,
+    dsh_solo: true,
     dsh_router: false,
     dsh_rest: false,
+    pi_solo: true,
     pi_router: false,
     pi_rest: false,
+    zcode_solo: false,
     zcode_router: false,
     zcode_rest: false,
+    opencodex_solo: true,
     opencodex_router: false,
     opencodex_rest: false,
   },
@@ -312,6 +319,16 @@ const ZCODE_FILE = process.env.ZCODE_FILE || resolvePath(cfg.paths.zcode_file);
 const OPENCODEX_FILE = process.env.OPENCODEX_FILE || process.env.OCX_FILE || resolvePath(cfg.paths.opencodex_file);
 const ALL_MODELS_CSV = process.env.ALL_MODELS_TEST || resolveCatalogPath(cfg.paths.all_models_csv) || path.join(path.dirname(MODELS_CSV), 'models-all.csv');
 
+function soloAllCsvPath(provider) {
+  const simp = simplifyName(provider);
+  return path.join(path.dirname(ALL_MODELS_CSV), `models-all-${simp}.csv`);
+}
+
+function soloFilteredCsvPath(provider) {
+  const simp = simplifyName(provider);
+  return path.join(path.dirname(MODELS_CSV), `models-filtered-${simp}.csv`);
+}
+
 // ---------- config shortcuts ----------
 const INSTALL_AS_COMMAND = cfg.cli.install_as_command;
 const CLI_COMMAND_NAME = cfg.cli.command_name;
@@ -374,19 +391,26 @@ function sortModels(rows, sortSpec) {
   return list;
 }
 
-const OPENCODE_ROUTER = cfg.targets.opencode_router;
-const OPENCODE_REST = cfg.targets.opencode_rest;
-const T3_ROUTER = cfg.targets.t3_router;
-const T3_REST = cfg.targets.t3_rest;
-const KILO_ROUTER = cfg.targets.kilo_router;
-const KILO_REST = cfg.targets.kilo_rest;
-const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = cfg.targets.kilo_copy_opencode_full_provider_block;
+const OPENCODE_SOLO = cfg.targets.opencode_solo !== undefined ? !!cfg.targets.opencode_solo : true;
+const OPENCODE_ROUTER = !!cfg.targets.opencode_router;
+const OPENCODE_REST = !!cfg.targets.opencode_rest;
+const KILO_SOLO = cfg.targets.kilo_solo !== undefined ? !!cfg.targets.kilo_solo : true;
+const KILO_ROUTER = !!cfg.targets.kilo_router;
+const KILO_REST = !!cfg.targets.kilo_rest;
+const KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK = !!cfg.targets.kilo_copy_opencode_full_provider_block;
+const T3_SOLO = cfg.targets.t3_solo !== undefined ? !!cfg.targets.t3_solo : true;
+const T3_ROUTER = !!cfg.targets.t3_router;
+const T3_REST = !!cfg.targets.t3_rest;
+const DSH_SOLO = cfg.targets.dsh_solo !== undefined ? !!cfg.targets.dsh_solo : true;
 const DSH_ROUTER = !!cfg.targets.dsh_router;
 const DSH_REST = !!cfg.targets.dsh_rest;
+const PI_SOLO = cfg.targets.pi_solo !== undefined ? !!cfg.targets.pi_solo : true;
 const PI_ROUTER = !!cfg.targets.pi_router;
 const PI_REST = !!cfg.targets.pi_rest;
+const ZCODE_SOLO = !!cfg.targets.zcode_solo;
 const ZCODE_ROUTER = !!cfg.targets.zcode_router;
 const ZCODE_REST = !!cfg.targets.zcode_rest;
+const OPENCODEX_SOLO = cfg.targets.opencodex_solo !== undefined ? !!cfg.targets.opencodex_solo : true;
 const OPENCODEX_ROUTER = !!cfg.targets.opencodex_router;
 const OPENCODEX_REST = !!cfg.targets.opencodex_rest;
 
@@ -437,18 +461,50 @@ function instancePart(idx, totalForProvider) { return (totalForProvider <= 1 || 
 // Managed router keys for a provider: `c-<simplified router>[-<simplified adapter>]` (no instance part).
 function routerKeyBase(routerName) { return PREFIX + simplifyName(routerName); }
 
-// ---------- router detection ----------
-// A provider is special ("the Router") when its whitespace-trimmed `description`
-// column equals exactly "Router". Only the first such row is honored.
+// ---------- router & solo provider detection ----------
+function providerTypeOf(r) {
+  if (!r) return 'rest';
+  const t = (r.type || '').trim().toLowerCase();
+  if (t === 'router') return 'router';
+  if (t === 'solo') return 'solo';
+  if (t === 'rest') return 'rest';
+  const desc = (r.description || '').trim();
+  if (desc === 'Router' || desc.toLowerCase() === 'router') return 'router';
+  if (desc.toLowerCase() === 'solo') return 'solo';
+  return 'rest';
+}
+
+function isRouterRow(r) {
+  return providerTypeOf(r) === 'router';
+}
+
+function isSoloRow(r) {
+  return providerTypeOf(r) === 'solo';
+}
+
+function isRestRow(r) {
+  return providerTypeOf(r) === 'rest';
+}
+
 function getRouterRow(rows) {
   if (!rows || !rows.length) return null;
-  const routers = rows.filter((r) => (r.description || '').trim() === 'Router');
+  const routers = rows.filter(isRouterRow);
   if (routers.length > 1) {
     console.error('[error] Multiple providers have description "Router": ' +
       routers.map((r) => r.provider).join(', ') +
       '. Keeping "' + routers[0].provider + '" as the Router and ignoring the rest.');
   }
   return routers[0] || null;
+}
+
+function getSoloRows(rows) {
+  if (!rows || !rows.length) return [];
+  return rows.filter(isSoloRow);
+}
+
+function getRestRows(rows) {
+  if (!rows || !rows.length) return [];
+  return rows.filter(isRestRow);
 }
 
 function requireRouterRow(rows) {
@@ -577,6 +633,7 @@ function readProvidersCsv() {
     const vals = line.split(',');
     const row = {};
     headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
+    if (!row.type) row.type = providerTypeOf(row);
     return row;
   }).filter((r) => r.provider);
 }
@@ -612,8 +669,12 @@ function csvRowsToText(rows) {
 // result, even when a filter (model_filters / harness_filters / keep-only)
 // would otherwise exclude them. On an id collision with a fetched model, the
 // custom entry is authoritative and replaces the fetched copy.
-function mergeCustomModels(rows) {
-  const customs = CUSTOM_MODELS || [];
+function mergeCustomModels(rows, providerName) {
+  const customs = (CUSTOM_MODELS || []).filter((c) => {
+    if (!c.provider || c.provider === 'all' || c.provider === '') return true;
+    if (!providerName) return false;
+    return simplifyName(c.provider) === simplifyName(providerName);
+  });
   const out = rows.filter((r) => !customs.some((c) => c.id === r.id));
   for (const c of customs) {
     out.push({
@@ -963,15 +1024,49 @@ function parseRule(rule) {
   return { action, fn: compileExpr(parseTokens(tokenize(src))) };
 }
 
+// Parse a model_filters entry: "expr" or "expr@provider1,provider2".
+// If @targets is omitted (or @all), applies to every provider (providers: null).
+// Lines prefixed with '#' or '//' are treated as comments/disabled.
+function parseModelFilterEntry(entry) {
+  if (typeof entry !== 'string') return { rule: '', providers: null, disabled: false };
+  const raw = entry.trim();
+  if (raw.startsWith('#') || raw.startsWith('//')) {
+    return { rule: '', providers: null, disabled: true, raw };
+  }
+  const atIdx = raw.lastIndexOf('@');
+  if (atIdx === -1) {
+    return { rule: raw, providers: null, disabled: false };
+  }
+  const rulePart = raw.slice(0, atIdx).trim();
+  const provPart = raw.slice(atIdx + 1).trim();
+  if (!rulePart || !provPart || provPart.toLowerCase() === 'all') {
+    return { rule: rulePart || raw, providers: null, disabled: false };
+  }
+  const provs = provPart.split(',').map((p) => simplifyName(p.trim())).filter(Boolean);
+  if (!provs.length) return { rule: rulePart, providers: null, disabled: false };
+  return { rule: rulePart, providers: new Set(provs), disabled: false };
+}
+
 // applyModelFilters returns the models that are KEPT.
 // Top-down: LAST matching rule wins (later rules override earlier ones).
 //   "!expr"  block    "expr"/"=expr"  include    "==expr"  only-include
-function applyModelFilters(candidates, filters) {
+// If providerName is given, rules targeted to other providers are skipped.
+function applyModelFilters(candidates, filters, providerName = null) {
   if (!filters || !filters.length) return candidates;
-  const rules = filters.map((rule) => {
-    try { return parseRule(rule); }
-    catch (e) { throw new Error(`bad model_filters rule "${rule}": ${e.message}`); }
-  });
+  const targetSimp = providerName ? simplifyName(providerName) : null;
+  const rules = [];
+  for (const entry of filters) {
+    const { rule, providers, disabled } = parseModelFilterEntry(entry);
+    if (disabled || !rule) continue;
+    if (targetSimp && providers && !providers.has(targetSimp)) {
+      continue;
+    }
+    try {
+      rules.push(parseRule(rule));
+    } catch (e) {
+      throw new Error(`bad model_filters rule "${rule}": ${e.message}`);
+    }
+  }
   return candidates.filter((model) => {
     let keep = true;
     for (const r of rules) {
@@ -1006,15 +1101,20 @@ function normalizeHarnessId(s) {
   return k;
 }
 function parseHarnessFilterEntry(entry) {
-  const idx = entry.lastIndexOf('->');
-  if (idx === -1) return { rule: entry, targets: null };
-  const rulePart = entry.slice(0, idx);
-  const targetPart = entry.slice(idx + 2).trim();
-  if (!targetPart) return { rule: entry, targets: null };
+  if (typeof entry !== 'string') return { rule: '', targets: null, disabled: false };
+  const raw = entry.trim();
+  if (raw.startsWith('#') || raw.startsWith('//')) {
+    return { rule: '', targets: null, disabled: true, raw };
+  }
+  const idx = raw.lastIndexOf('->');
+  if (idx === -1) return { rule: raw, targets: null, disabled: false };
+  const rulePart = raw.slice(0, idx).trim();
+  const targetPart = raw.slice(idx + 2).trim();
+  if (!targetPart) return { rule: raw, targets: null, disabled: false };
   const parts = targetPart.split(',').map((p) => normalizeHarnessId(p.trim())).filter(Boolean);
   const valid = parts.filter((p) => VALID_HARNESSES.has(p));
-  if (!valid.length) return { rule: entry, targets: null };
-  return { rule: rulePart, targets: new Set(valid) };
+  if (!valid.length) return { rule: raw, targets: null, disabled: false };
+  return { rule: rulePart, targets: new Set(valid), disabled: false };
 }
 // ---------- sync-time field overrides ----------
 // Directive: "(field:value)" or "(field:value)->t3,dsh". field is a
@@ -1078,7 +1178,7 @@ function getHarnessFilters(harnessId) {
   const norm = normalizeHarnessId(harnessId);
   return HARNESS_FILTERS_RAW
     .map((e) => parseHarnessFilterEntry(e))
-    .filter((e) => !e.targets || e.targets.has(norm))
+    .filter((e) => !e.disabled && (!e.targets || e.targets.has(norm)))
     .map((e) => e.rule)
     .filter((rule) => !parseTopNDirective(rule)); // top-N directives are handled separately
 }
@@ -1106,7 +1206,8 @@ function getHarnessTopN(harnessId) {
   const norm = normalizeHarnessId(harnessId);
   let result = null;
   for (const entry of HARNESS_FILTERS_RAW) {
-    const { rule, targets } = parseHarnessFilterEntry(entry);
+    const { rule, targets, disabled } = parseHarnessFilterEntry(entry);
+    if (disabled || !rule) continue;
     const directive = parseTopNDirective(rule);
     if (!directive) continue;
     if (!targets || targets.has(norm)) result = directive;
@@ -1366,22 +1467,99 @@ async function fetchRawModels(minInput = 0, minOutput = 0) {
   return results;
 }
 
+// Raw dedup'd catalog from a Solo provider (calls row.base_url + '/models').
+async function fetchSoloRawModels(row, minInput = 0, minOutput = 0) {
+  const base = (row.base_url || '').trim().replace(/\/+$/, '');
+  const modelsUrl = base.toLowerCase().endsWith('/models') ? base : base + '/models';
+  if (!row.api_key) {
+    throw new Error(`Solo provider "${row.provider}" has no api_key in ${PROVIDERS_CSV}`);
+  }
+  console.log(`[solo:${row.provider}] Fetching models from: ${modelsUrl}`);
+  const json = await getJSON(modelsUrl, { Authorization: 'Bearer ' + row.api_key });
+  const rawList = Array.isArray(json) ? json : (json.data || json.models || []);
+  const seen = new Set();
+  const results = [];
+  for (const m of rawList) {
+    let id = m.id || m.name;
+    if (!id) continue;
+    if (m.parent != null) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const ctxIn = (m.max_input_tokens != null) ? m.max_input_tokens : (m.context_length != null ? m.context_length : (m.context_window != null ? m.context_window : 0));
+    const ctxOut = (m.max_output_tokens != null) ? m.max_output_tokens : (m.max_tokens != null ? m.max_tokens : 0);
+    if (minInput > 0 && ctxIn < minInput) continue;
+    if (minOutput > 0 && ctxOut < minOutput) continue;
+    results.push({
+      id,
+      in: ctxIn,
+      out: ctxOut,
+      vision: detectCapability(m, 'vision'),
+      reasoning: detectCapability(m, 'reasoning'),
+      tool: detectCapability(m, 'tool'),
+    });
+  }
+  return results;
+}
+
+async function fetchSoloModels(row, minInput = 0, minOutput = 0) {
+  try {
+    const raw = await fetchSoloRawModels(row, minInput, minOutput);
+    const sortedRaw = raw.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const allFile = soloAllCsvPath(row.provider);
+    fs.mkdirSync(path.dirname(allFile), { recursive: true });
+    fs.writeFileSync(allFile, csvRowsToText(sortedRaw), 'utf8');
+    console.log(`[solo:${row.provider}] Wrote raw catalog to ${allFile}`);
+
+    // Filter rules targeted to this provider or all
+    const exprRules = (MODEL_FILTERS || []).filter((rule) => {
+      const parsed = parseModelFilterEntry(rule);
+      return !parsed.disabled && !parseTopNDirective(parsed.rule);
+    });
+    let directive = null;
+    for (const rule of MODEL_FILTERS || []) {
+      const { rule: rRule, providers, disabled } = parseModelFilterEntry(rule);
+      if (disabled) continue;
+      const d = parseTopNDirective(rRule);
+      if (d && (!providers || providers.has(simplifyName(row.provider)))) {
+        directive = d;
+      }
+    }
+    let filtered = applyModelFilters(sortedRaw, exprRules, row.provider);
+    filtered = mergeCustomModels(filtered, row.provider);
+    filtered = applyTopNDirective(sortModels(filtered), directive);
+    const filteredFile = soloFilteredCsvPath(row.provider);
+    fs.mkdirSync(path.dirname(filteredFile), { recursive: true });
+    fs.writeFileSync(filteredFile, csvRowsToText(filtered), 'utf8');
+    console.log(`[solo:${row.provider}] Wrote ${filtered.length} models to ${filteredFile}`);
+    return filtered.length;
+  } catch (e) {
+    console.error(`[solo:${row.provider}] Failed to fetch models: ${e.message}`);
+    return 0;
+  }
+}
+
 // ---------- fetchModels: fetch + build models-filtered.csv (DEFAULT target) ----------
 // Each line written as:  model-id,context-input,context-output,vision,reasoning,tool
 // Fetches the special "Router" provider's OpenAI-compatible {base_url}/models
 // (or a full models_endpoint from config) using the api_key as a Bearer token.
+// Also fetches any Solo providers marked in providers.csv.
 // Writes:
 //   models-all.csv — raw dedup'd catalog + custom_models (no model_filters)
 //   models-filtered.csv     — model_filters applied on top of models-all.csv
+//   models-all-<solo>.csv   — raw dedup'd catalog for solo provider
+//   models-filtered-<solo>.csv — model_filters applied for solo provider
 //
 // Filters:
 //   --min-input-context N : skip models with input context < N (0 = no filter)
 //   --min-output-limit N   : skip models with output < N (0 = no filter)
 async function fetchModels(minInput = 0, minOutput = 0) {
   const raw = await fetchRawModels(minInput, minOutput);
+  const rows = readProvidersCsv();
+  const router = getRouterRow(rows);
+  const routerName = router ? router.provider : null;
   // custom_models are authoritative: they override any colliding fetched model
   // and are always present in every catalog file, regardless of filters.
-  const rawWithCustom = mergeCustomModels(raw);
+  const rawWithCustom = mergeCustomModels(raw, routerName);
 
   // 1) raw catalog + custom_models -> models-all.csv (before model_filters)
   const sortedRaw = rawWithCustom.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -1391,16 +1569,30 @@ async function fetchModels(minInput = 0, minOutput = 0) {
 
   // 2) model_filters + top-N -> models-filtered.csv (custom_models re-added so they always appear).
   //    top-N directives are sliced off the SORTED list: top = first N, bottom = last N.
-  const exprRules = (MODEL_FILTERS || []).filter((rule) => !parseTopNDirective(rule));
+  const exprRules = (MODEL_FILTERS || []).filter((rule) => {
+    const parsed = parseModelFilterEntry(rule);
+    return !parsed.disabled && !parseTopNDirective(parsed.rule);
+  });
   let directive = null;
   for (const rule of MODEL_FILTERS || []) {
-    const d = parseTopNDirective(rule);
-    if (d) directive = d;
+    const { rule: rRule, providers, disabled } = parseModelFilterEntry(rule);
+    if (disabled) continue;
+    const d = parseTopNDirective(rRule);
+    if (d && (!providers || (routerName && providers.has(simplifyName(routerName))))) {
+      directive = d;
+    }
   }
-  let filtered = mergeCustomModels(applyModelFilters(sortedRaw, exprRules));
+  let filtered = mergeCustomModels(applyModelFilters(sortedRaw, exprRules, routerName));
   filtered = applyTopNDirective(sortModels(filtered), directive);
   fs.mkdirSync(path.dirname(MODELS_CSV), { recursive: true });
   fs.writeFileSync(MODELS_CSV, csvRowsToText(filtered), 'utf8');
+
+  // 3) Solo providers: fetch each solo provider's catalog independently
+  const soloRows = getSoloRows(rows);
+  for (const solo of soloRows) {
+    await fetchSoloModels(solo, minInput, minOutput);
+  }
+
   return filtered.length;
 }
 
@@ -1519,15 +1711,25 @@ async function syncT3Providers() {
   let count = 0;
   for (const [provider, keys] of Object.entries(byProvider)) {
     if (routerName && provider === routerName) continue;
-    const withPrefix = modelRows
-      .filter((m) => m.id.startsWith(provider + '/'))
-      .map((m) => ({ ...m, fullId: m.id }));
-    const filtered = getHarnessFilters('t3').length ? applyModelFilters(withPrefix, getHarnessFilters('t3')) : withPrefix;
-    // top/bottom-N applies per provider subset (before [1m] variants inflate the count)
-    const topNFiltered = applyHarnessTopN(filtered, 't3');
+    const isSolo = isSoloRow(keys[0]);
+    if (isSolo && !T3_SOLO) continue;
+    if (!isSolo && !T3_REST) continue;
+    let topNFiltered;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(provider);
+      const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+      const filtered = getHarnessFilters('t3').length ? applyModelFilters(soloRows, getHarnessFilters('t3'), provider) : soloRows;
+      topNFiltered = applyHarnessTopN(filtered, 't3');
+    } else {
+      const withPrefix = modelRows
+        .filter((m) => m.id.startsWith(provider + '/'))
+        .map((m) => ({ ...m, fullId: m.id }));
+      const filtered = getHarnessFilters('t3').length ? applyModelFilters(withPrefix, getHarnessFilters('t3'), provider) : withPrefix;
+      topNFiltered = applyHarnessTopN(filtered, 't3');
+    }
     const providerModelsAll = [];
     for (const m of topNFiltered) {
-      const name = m.id.slice(provider.length + 1);
+      const name = isSolo ? m.id : m.id.slice(provider.length + 1);
       providerModelsAll.push(name);
       if (m.in >= 1000000) providerModelsAll.push(name + '[1m]');
     }
@@ -1733,11 +1935,21 @@ async function syncOpencodeRestProviders() {
 
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     if (routerName && providerName === routerName) continue;
-    const prefix = providerName + '/';
+    const isSolo = isSoloRow(providerRows[0]);
+    if (isSolo && !OPENCODE_SOLO) continue;
+    if (!isSolo && !OPENCODE_REST) continue;
+    let candidateModels;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(providerName);
+      candidateModels = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+    } else {
+      const prefix = providerName + '/';
+      candidateModels = modelLines.filter(m => m.id.startsWith(prefix));
+    }
     providerRows.forEach((row, idx) => {
-      const providerModels = applyHarnessTopN(modelLines.filter(m => m.id.startsWith(prefix)), 'opencode')
+      const providerModels = applyHarnessTopN(candidateModels, 'opencode')
         .map(m => {
-          const modelId = m.id.slice(prefix.length);
+          const modelId = isSolo ? m.id : m.id.slice(providerName.length + 1);
           return FOLLOW_HARDCODED_MODEL_TEMPLATE
             ? templateModelEntry(modelId, m.in, m.out)
             : {
@@ -1800,11 +2012,21 @@ async function syncKiloRestProviders() {
 
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     if (routerName && providerName === routerName) continue;
-    const prefix = providerName + '/';
+    const isSolo = isSoloRow(providerRows[0]);
+    if (isSolo && !KILO_SOLO) continue;
+    if (!isSolo && !KILO_REST) continue;
+    let candidateModels;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(providerName);
+      candidateModels = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+    } else {
+      const prefix = providerName + '/';
+      candidateModels = modelLines.filter(m => m.id.startsWith(prefix));
+    }
     providerRows.forEach((row, idx) => {
-      const providerModels = applyHarnessTopN(modelLines.filter(m => m.id.startsWith(prefix)), 'kilo')
+      const providerModels = applyHarnessTopN(candidateModels, 'kilo')
         .map(m => {
-          const modelId = m.id.slice(prefix.length);
+          const modelId = isSolo ? m.id : m.id.slice(providerName.length + 1);
           return FOLLOW_HARDCODED_MODEL_TEMPLATE
             ? templateModelEntry(modelId, m.in, m.out)
             : {
@@ -2834,8 +3056,18 @@ async function syncDSHRestProviders() {
   let count = 0;
   const restAdapters = getAdapters('dsh', 'rest');
   for (const [provider, providerRows] of Object.entries(byProvider)) {
-    const prefix = provider + '/';
-    const providerModelCandidates = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]')), 'dsh');
+    const isSolo = isSoloRow(providerRows[0]);
+    if (isSolo && !DSH_SOLO) continue;
+    if (!isSolo && !DSH_REST) continue;
+    let providerModelCandidates;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(provider);
+      const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+      providerModelCandidates = applyHarnessTopN(soloRows.filter(m => !m.id.endsWith('[1m]')), 'dsh');
+    } else {
+      const prefix = provider + '/';
+      providerModelCandidates = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]')), 'dsh');
+    }
     const simp = simplifyName(provider);
     providerRows.forEach((row, idx) => {
       for (const api of restAdapters) {
@@ -2843,7 +3075,8 @@ async function syncDSHRestProviders() {
         const envVar = PREFIX_UPPER + (providerRows.length > 1 ? simp.toUpperCase() + '_' + (idx + 1) : simp.toUpperCase()) + '_API_KEY';
         creds.refs[envVar] = row.api_key;
         const dshModels = providerModelCandidates.map(m => {
-          const entry = { id: m.id.slice(prefix.length), contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
+          const modelId = isSolo ? m.id : m.id.slice(provider.length + 1);
+          const entry = { id: modelId, contextWindow: m.in, maxTokens: m.out, input: dshModelInputs(m) };
           if (!m.out) delete entry.maxTokens;
           return entry;
         });
@@ -2901,18 +3134,31 @@ async function syncPiRestProviders() {
   }
   const restAdapters = getAdapters('pi', 'rest');
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
-    const prefix = providerName + '/';
-    const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'pi');
+    const isSolo = isSoloRow(providerRows[0]);
+    if (isSolo && !PI_SOLO) continue;
+    if (!isSolo && !PI_REST) continue;
+    let providerModels;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(providerName);
+      const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+      providerModels = applyHarnessTopN(soloRows.filter(m => !m.id.endsWith('[1m]')), 'pi');
+    } else {
+      const prefix = providerName + '/';
+      providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'pi');
+    }
     providerRows.forEach((row, idx) => {
-      const models = providerModels.map(m => ({
-        id: m.id.slice(prefix.length),
-        name: m.id.slice(prefix.length),
-        reasoning: true,
-        input: ['text', 'image'],
-        cost: { input: 0, output: 0, cacheRead: 1, cacheWrite: 1 },
-        contextWindow: m.in,
-        maxTokens: m.out
-      }));
+      const models = providerModels.map(m => {
+        const modelId = isSolo ? m.id : m.id.slice(providerName.length + 1);
+        return {
+          id: modelId,
+          name: modelId,
+          reasoning: true,
+          input: ['text', 'image'],
+          cost: { input: 0, output: 0, cacheRead: 1, cacheWrite: 1 },
+          contextWindow: m.in,
+          maxTokens: m.out
+        };
+      });
       for (const adapter of restAdapters) {
         const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: adapter, models };
@@ -2993,13 +3239,23 @@ async function syncOpencodexRestProviders() {
   const restAdapters = getAdapters('opencodex', 'rest');
   // create/update providers c_* keys for rest — instance outer, adapter inner
   for (const [provider, providerRows] of Object.entries(byProvider)) {
-    const prefix = provider + '/';
-    const providerModels = applyHarnessTopN(modelRows.filter((m) => m.id.startsWith(prefix)), 'ocx');
+    const isSolo = isSoloRow(providerRows[0]);
+    if (isSolo && !OPENCODEX_SOLO) continue;
+    if (!isSolo && !OPENCODEX_REST) continue;
+    let providerModels;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(provider);
+      const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+      providerModels = applyHarnessTopN(soloRows.filter((m) => !m.id.endsWith('[1m]')), 'ocx');
+    } else {
+      const prefix = provider + '/';
+      providerModels = applyHarnessTopN(modelRows.filter((m) => m.id.startsWith(prefix)), 'ocx');
+    }
     providerRows.forEach((row, idx) => {
       for (const adapter of restAdapters) {
         const key = `${PREFIX}${simplifyName(provider)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
         doc.providers[key] = ocxProviderEntry(row, adapter);
-        const modelIds = new Set(providerModels.map((m) => m.id.slice(prefix.length)));
+        const modelIds = new Set(providerModels.map((m) => isSolo ? m.id : m.id.slice(provider.length + 1)));
         doc.customModels = doc.customModels.filter((e) => {
           if (!e || e.provider !== key) return true;
           return modelIds.has(e.modelId);
@@ -3162,11 +3418,21 @@ async function syncZcodeRestProviders() {
     if (routerSimp && base === routerSimp) continue;
     const group = byProvider[base]; if (!group) continue;
     const row = group[idx - 1]; if (!row) continue;
-    const prefix = base + '/';
-    const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
+    const isSolo = isSoloRow(row);
+    if (isSolo && !ZCODE_SOLO) continue;
+    if (!isSolo && !ZCODE_REST) continue;
+    let providerModels;
+    if (isSolo) {
+      const soloCsv = soloFilteredCsvPath(row.provider);
+      const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+      providerModels = applyHarnessTopN(soloRows.filter(m => !m.id.endsWith('[1m]')), 'zcode');
+    } else {
+      const prefix = base + '/';
+      providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
+    }
     const models = {};
     for (const m of providerModels) {
-      const bare = m.id.slice(prefix.length);
+      const bare = isSolo ? m.id : m.id.slice(base.length + 1);
       const dictKey = bare.includes('/') ? bare.split('/').pop() : bare;
       models[dictKey] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
     }
@@ -3195,11 +3461,19 @@ async function syncZcodeRestProviders() {
         const suffix = restAdapters.length > 1 ? '-' + simplifyName(adapter) : '';
         const logical = withoutAdapter + suffix;
         if (existingLogicals.has(logical)) continue;
-        const prefix = base + '/';
-        const providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
+        const isSolo = isSoloRow(row);
+        let providerModels;
+        if (isSolo) {
+          const soloCsv = soloFilteredCsvPath(row.provider);
+          const soloRows = fs.existsSync(soloCsv) ? readModelsCsv(soloCsv) : [];
+          providerModels = applyHarnessTopN(soloRows.filter(m => !m.id.endsWith('[1m]')), 'zcode');
+        } else {
+          const prefix = base + '/';
+          providerModels = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix)), 'zcode');
+        }
         const models = {};
         for (const m of providerModels) {
-          const bare = m.id.slice(prefix.length);
+          const bare = isSolo ? m.id : m.id.slice(base.length + 1);
           const dictKey = bare.includes('/') ? bare.split('/').pop() : bare;
           models[dictKey] = { limit: zcodeSanitizeLimit(m.in, m.out), modalities: { input: ['text', 'image', 'video'], output: ['text'] }, zcode: { modalitiesConfigured: true } };
         }
@@ -3620,13 +3894,24 @@ async function cleanAllModels() {
     }
   }
 
-  // 9. Remove previews and filtered CSV
+  // 9. Remove previews, filtered CSV, and any solo catalog CSVs
   cleanupHarnessPreviews();
   if (fs.existsSync(MODELS_CSV)) {
     try {
       fs.unlinkSync(MODELS_CSV);
       console.log(`Removed filtered catalog CSV: ${MODELS_CSV}`);
     } catch (_) {}
+  }
+  const csvDir = path.dirname(MODELS_CSV);
+  if (fs.existsSync(csvDir)) {
+    for (const f of fs.readdirSync(csvDir)) {
+      if (/^models-(all|filtered)-.+\.csv$/.test(f)) {
+        try {
+          fs.unlinkSync(path.join(csvDir, f));
+          console.log(`Removed solo catalog CSV: ${f}`);
+        } catch (_) {}
+      }
+    }
   }
 
   console.log('Finished cleaning all script-added models across harnesses.');
@@ -3643,6 +3928,11 @@ async function runCustomCommands() {
   const sleepMatch = /^sleep\s+([0-9]+(?:\.[0-9]+)?)$/i;
   const bgMatch = /^bg:\s*(.+)$/i;
   for (const entry of list) {
+    const trimmed = entry.trim();
+    if (trimmed.startsWith('#') || trimmed.startsWith('//')) {
+      console.log(`[custom_commands] Skipped disabled command: ${trimmed}`);
+      continue;
+    }
     try {
       const m = sleepMatch.exec(entry);
       if (m) {
@@ -3782,7 +4072,7 @@ Examples:
 function buildOrder() {
   const order = ['fetch', 'cleanup'];
   if (OPENCODE_ROUTER) order.splice(1, 0, 'opencode');
-  if (OPENCODE_REST) {
+  if (OPENCODE_SOLO || OPENCODE_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'opencoderest');
   }
@@ -3790,7 +4080,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'kilo');
   }
-  if (KILO_REST) {
+  if (KILO_SOLO || KILO_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'kilorest');
   }
@@ -3802,7 +4092,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 't3models');
   }
-  if (T3_REST) {
+  if (T3_SOLO || T3_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 't3rest');
   }
@@ -3810,7 +4100,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'dsh');
   }
-  if (DSH_REST) {
+  if (DSH_SOLO || DSH_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'dshrest');
   }
@@ -3818,7 +4108,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'pi');
   }
-  if (PI_REST) {
+  if (PI_SOLO || PI_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'pirest');
   }
@@ -3826,7 +4116,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'zcode');
   }
-  if (ZCODE_REST) {
+  if (ZCODE_SOLO || ZCODE_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'zcoderest');
   }
@@ -3834,7 +4124,7 @@ function buildOrder() {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'opencodex');
   }
-  if (OPENCODEX_REST) {
+  if (OPENCODEX_SOLO || OPENCODEX_REST) {
     const idx = order.indexOf('cleanup');
     order.splice(idx, 0, 'opencodexrest');
   }
@@ -4048,11 +4338,22 @@ module.exports = {
   resolvePath,
   parseModelSort,
   parseRule,
+  parseModelFilterEntry,
   parseHarnessFilterEntry,
   parseOverrideEntry,
   applyModelFilters,
   parseTopNDirective,
   sortModels,
+  providerTypeOf,
+  isRouterRow,
+  isSoloRow,
+  isRestRow,
+  getRouterRow,
+  getSoloRows,
+  getRestRows,
+  readProvidersCsv,
+  soloAllCsvPath,
+  soloFilteredCsvPath,
 };
 
 // The CLI entry runs only when the script is invoked directly. gui.js requires

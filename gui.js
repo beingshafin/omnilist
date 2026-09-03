@@ -15,6 +15,7 @@ const {
   stripJsoncComments,
   parseModelSort,
   parseRule,
+  parseModelFilterEntry,
   parseHarnessFilterEntry,
   parseOverrideEntry,
   resolvePath,
@@ -300,9 +301,21 @@ function parseCsv(text) {
 
 function readModelsCsv(which) {
   const cfg = loadConfig();
-  const file = which === 'all'
-    ? (resolveish(cfg.paths.all_models_csv) || path.join(__dirname, 'models-all.csv'))
-    : (resolveish(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv'));
+  const allBase = resolveish(cfg.paths.all_models_csv) || path.join(__dirname, 'models-all.csv');
+  const filteredBase = resolveish(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv');
+  let file = filteredBase;
+  if (which === 'all') {
+    file = allBase;
+  } else if (which && which.startsWith('all-')) {
+    const prov = which.slice(4);
+    file = path.join(path.dirname(allBase), `models-all-${prov}.csv`);
+  } else if (which && which.startsWith('filtered-')) {
+    const prov = which.slice(9);
+    file = path.join(path.dirname(filteredBase), `models-filtered-${prov}.csv`);
+  } else if (which && which.startsWith('harness-')) {
+    const h = which.slice(8);
+    file = path.join(path.dirname(filteredBase), `models-${h}.csv`);
+  }
   if (!fs.existsSync(file)) return { exists: false, path: file, rows: [] };
   const rows = parseCsv(fs.readFileSync(file, 'utf8'));
   const header = rows.shift() || [];
@@ -333,19 +346,56 @@ function maskKey(k) {
 function readProviders() {
   const cfg = loadConfig();
   const file = resolveish(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
-  if (!fs.existsSync(file)) return { exists: false, path: file, rows: [] };
-  const rows = parseCsv(fs.readFileSync(file, 'utf8'));
-  rows.shift(); // header
+  if (!fs.existsSync(file)) return { exists: false, path: file, rows: [], raw: '' };
+  const rawData = fs.readFileSync(file, 'utf8');
+  const rows = parseCsv(rawData);
+  if (!rows.length) return { exists: true, path: file, rows: [], raw: rawData };
+  const headerRow = rows.shift() || [];
+  const headerMap = {};
+  headerRow.forEach((h, i) => { headerMap[h.trim().toLowerCase()] = i; });
+  const hasTypeCol = 'type' in headerMap;
+
   const out = rows
     .filter((r) => r.length >= 2)
-    .map((r) => ({
-      provider: r[0] || '',
-      base_url: r[1] || '',
-      api_key: maskKey(r[2]),
-      description: r[3] || '',
-      isRouter: (r[3] || '').trim() === 'Router',
-    }));
-  return { exists: true, path: file, rows: out };
+    .map((r, idx) => {
+      let type = hasTypeCol && headerMap['type'] !== undefined ? (r[headerMap['type']] || '').trim().toLowerCase() : '';
+      let desc = hasTypeCol && headerMap['description'] !== undefined ? (r[headerMap['description']] || '').trim() : (r[3] || '').trim();
+      if (!type) {
+        if (desc === 'Router' || desc.toLowerCase() === 'router') type = 'router';
+        else if (desc.toLowerCase() === 'solo') type = 'solo';
+        else type = 'rest';
+      }
+      const isRouter = type === 'router';
+      const isSolo = type === 'solo';
+      return {
+        index: idx,
+        provider: (hasTypeCol && headerMap['provider'] !== undefined ? r[headerMap['provider']] : r[0]) || '',
+        base_url: (hasTypeCol && headerMap['base_url'] !== undefined ? r[headerMap['base_url']] : r[1]) || '',
+        api_key: maskKey(hasTypeCol && headerMap['api_key'] !== undefined ? r[headerMap['api_key']] : r[2]),
+        raw_key: (hasTypeCol && headerMap['api_key'] !== undefined ? r[headerMap['api_key']] : r[2]) || '',
+        type,
+        description: desc,
+        isRouter,
+        isSolo,
+      };
+    });
+  return { exists: true, path: file, rows: out, raw: rawData };
+}
+
+function writeProvidersCsv(rows) {
+  const cfg = loadConfig();
+  const file = resolveish(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
+  const header = 'provider,base_url,api_key,type,description\n';
+  const csvEscape = (val) => {
+    const s = String(val == null ? '' : val);
+    if (/[",\n\r]/.test(s)) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  const body = rows.map((r) => [r.provider, r.base_url, r.api_key, r.type || 'rest', r.description || ''].map(csvEscape).join(',')).join('\n') + '\n';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, header + body, 'utf8');
 }
 
 // ---------------------------------------------------------------------------
@@ -497,12 +547,120 @@ function handleApi(req, res, url) {
   }
 
   if (req.method === 'GET' && route === '/api/models') {
-    const which = url.searchParams.get('file') === 'all' ? 'all' : 'filtered';
+    const which = url.searchParams.get('file') || 'filtered';
     return sendJson(res, 200, readModelsCsv(which));
   }
 
   if (req.method === 'GET' && route === '/api/providers') {
     return sendJson(res, 200, readProviders());
+  }
+
+  if (req.method === 'GET' && route === '/api/providers/raw') {
+    const cfg = loadConfig();
+    const file = resolveish(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
+    const content = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    return sendJson(res, 200, { path: file, content });
+  }
+
+  if (req.method === 'POST' && route === '/api/providers/raw') {
+    return readBody(req).then((body) => {
+      const content = String(body.content || '');
+      const cfg = loadConfig();
+      const file = resolveish(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
+      const parsed = parseCsv(content);
+      if (!parsed.length) throw new Error('CSV cannot be empty');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, content.endsWith('\n') ? content : content + '\n', 'utf8');
+      return sendJson(res, 200, { ok: true, message: 'providers.csv saved successfully' });
+    }).catch((e) => sendJson(res, 400, { error: e.message }));
+  }
+
+  if (req.method === 'POST' && route === '/api/providers') {
+    return readBody(req).then((body) => {
+      const current = readProviders();
+      const rows = current.rows.map(r => ({
+        provider: r.provider,
+        base_url: r.base_url,
+        api_key: r.raw_key,
+        type: r.type,
+        description: r.description,
+      }));
+
+      const provider = (body.provider || '').trim();
+      const base_url = (body.base_url || '').trim();
+      const api_key = (body.api_key || '').trim();
+      const type = (body.type || 'rest').toLowerCase();
+      const description = (body.description || '').trim();
+
+      if (!provider) throw new Error('Provider name is required');
+      if (!base_url) throw new Error('Base URL is required');
+
+      if (type === 'router') {
+        const existingRouter = rows.find(r => r.type === 'router');
+        if (existingRouter) throw new Error(`A Router provider already exists (${existingRouter.provider}). OmniList only supports one Router.`);
+      }
+
+      rows.push({ provider, base_url, api_key, type, description });
+      writeProvidersCsv(rows);
+      return sendJson(res, 200, { ok: true, message: 'Provider added' });
+    }).catch((e) => sendJson(res, 400, { error: e.message }));
+  }
+
+  if (req.method === 'PUT' && route === '/api/providers') {
+    return readBody(req).then((body) => {
+      const current = readProviders();
+      const rows = current.rows.map(r => ({
+        provider: r.provider,
+        base_url: r.base_url,
+        api_key: r.raw_key,
+        type: r.type,
+        description: r.description,
+      }));
+
+      const index = parseInt(body.index, 10);
+      if (isNaN(index) || index < 0 || index >= rows.length) throw new Error('Invalid provider index');
+
+      const provider = (body.provider || '').trim();
+      const base_url = (body.base_url || '').trim();
+      let api_key = (body.api_key !== undefined) ? String(body.api_key).trim() : '';
+      if (!api_key || api_key.includes('…') || api_key === '***') {
+        api_key = rows[index].api_key;
+      }
+      const type = (body.type || 'rest').toLowerCase();
+      const description = (body.description || '').trim();
+
+      if (!provider) throw new Error('Provider name is required');
+      if (!base_url) throw new Error('Base URL is required');
+
+      if (type === 'router') {
+        const otherRouter = rows.find((r, i) => i !== index && r.type === 'router');
+        if (otherRouter) throw new Error(`Another Router already exists (${otherRouter.provider}). Only one Router allowed.`);
+      }
+
+      rows[index] = { provider, base_url, api_key, type, description };
+      writeProvidersCsv(rows);
+      return sendJson(res, 200, { ok: true, message: 'Provider updated' });
+    }).catch((e) => sendJson(res, 400, { error: e.message }));
+  }
+
+  if (req.method === 'DELETE' && route === '/api/providers') {
+    return readBody(req).then((body) => {
+      const current = readProviders();
+      const rows = current.rows.map(r => ({
+        provider: r.provider,
+        base_url: r.base_url,
+        api_key: r.raw_key,
+        type: r.type,
+        description: r.description,
+      }));
+
+      const index = parseInt(body.index, 10);
+      if (isNaN(index) || index < 0 || index >= rows.length) throw new Error('Invalid provider index');
+
+      rows.splice(index, 1);
+      writeProvidersCsv(rows);
+      return sendJson(res, 200, { ok: true, message: 'Provider deleted' });
+    }).catch((e) => sendJson(res, 400, { error: e.message }));
   }
 
   if (req.method === 'POST' && route === '/api/validate') {
@@ -568,6 +726,7 @@ function handleApi(req, res, url) {
       overrideFields: ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool'],
       providers: byCount(prefixCount),
       families: byCount(familyCount),
+      configuredProviders: readProviders().rows,
       catalogSize: raw.rows.length,
       scriptDir: __dirname.replace(/\\/g, '/'),
       home: (process.env.USERPROFILE || process.env.HOME || '').replace(/\\/g, '/'),
@@ -688,4 +847,4 @@ function start(opts) {
   return new Promise((resolve) => server.on('listening', () => resolve({ port: server.address().port })));
 }
 
-module.exports = { start };
+module.exports = { start, readProviders, writeProvidersCsv, readModelsCsv };
