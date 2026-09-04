@@ -49,16 +49,16 @@
     --s-5: 24px; --s-6: 32px; --s-7: 48px;
     /* measure caps */
     --measure: 68ch;
-    --measure-page: 1080px;
+    --measure-page: 100%;
     /* one elevation scale */
     --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
     --shadow-md: 0 4px 16px rgba(0,0,0,.08);
     --shadow-lg: 0 18px 48px rgba(0,0,0,.14);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
-    --btn-primary-bg: #000;
+    --btn-primary-bg: #1f2328;
     --btn-primary-fg: #fff;
-    --btn-primary-hover: #1a1a1a;
+    --btn-primary-hover: #2f343c;
     --btn-hover-border: #d4d4d4;
     --danger-border: #f1c0c2;
     --toggle-off: #d0d0d0;
@@ -101,9 +101,9 @@
     --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
     --shadow-md: 0 4px 16px rgba(0,0,0,.5);
     --shadow-lg: 0 18px 48px rgba(0,0,0,.6);
-    --btn-primary-bg: #fff;
-    --btn-primary-fg: #0a0a0a;
-    --btn-primary-hover: #e6e6e6;
+    --btn-primary-bg: #2a2a2a;
+    --btn-primary-fg: #f5f5f5;
+    --btn-primary-hover: #383838;
     --btn-hover-border: #404040;
     --danger-border: rgba(255,99,105,.45);
     --toggle-off: #3a3a3a;
@@ -229,7 +229,8 @@
   .content > #config-root,
   .content > .loading,
   #tab-run > *,
-  #tab-models > * { max-width: var(--measure-page); margin-inline: auto; }
+  #tab-models > *,
+  #tab-providers > * { width: 100%; max-width: 100%; margin-inline: auto; }
   .card-desc, .page-head p { max-width: var(--measure); }
   /* the drawer hamburger only exists below the drawer breakpoint; it is a
      floating button since there is no header to hold it. Needs the element+class
@@ -564,6 +565,7 @@
 
   .field { display: grid; grid-template-columns: 260px 1fr; gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--border-2); align-items: start; }
   .field:first-of-type { border-top: none; }
+
   /* the label column: label text first, the per-field reset icon immediately
      after it (<label> <reset> <flex space> <controls>). Top-aligned so the
      icon reads as sitting on the label's first line, never centered against
@@ -1214,6 +1216,11 @@
     max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .table-actions { display: inline-flex; gap: 4px; align-items: center; }
+  table.providers-table tr.rule-disabled td { opacity: 0.52; }
+  table.providers-table tr.rule-disabled .mono-cell:not(.url-cell) { text-decoration: line-through; color: var(--text-3); }
+  table.providers-table tr.rule-disabled .table-actions { opacity: 1; }
+  .icon-btn.disabled-state { color: var(--text-3); }
+  .icon-btn.disabled-state:hover { color: var(--success); }
 
   /* Adapter & T3 Table Layout Styles */
   .table-adapter-cell {
@@ -1539,7 +1546,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn small" id="providers-refresh-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg>Refresh</button>
-          <button class="btn primary small" id="add-provider-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add provider</button>
+          <button class="btn small" id="add-provider-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add provider</button>
         </div>
       </div>
       <div class="provider-stats-bar" id="provider-stats-bar">
@@ -1547,6 +1554,7 @@
         <span class="badge badge-router" id="badge-count-router">1 Router</span>
         <span class="badge badge-solo" id="badge-count-solo">0 Solo</span>
         <span class="badge badge-rest" id="badge-count-rest">0 REST</span>
+        <span class="badge" id="badge-count-disabled" style="display:none;background:var(--panel-2);color:var(--text-3);border:1px solid var(--border)">0 Disabled</span>
       </div>
       <div class="models-toolbar" style="margin-bottom:14px">
         <input type="text" id="providers-search" placeholder="Search provider name, URL, or notes..." aria-label="Search providers">
@@ -3248,7 +3256,7 @@ function overrideBuilder(pathArr, opts = {}) {
   bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 2px;';
 
   const addBtn = document.createElement('button');
-  addBtn.className = 'btn primary small';
+  addBtn.className = 'btn small';
   addBtn.type = 'button';
   addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add override';
   addBtn.addEventListener('click', () => {
@@ -3603,7 +3611,7 @@ function buildCustomModelsEditor() {
   bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px';
 
   const addBtn = document.createElement('button');
-  addBtn.className = 'btn primary small';
+  addBtn.className = 'btn small';
   addBtn.type = 'button';
   addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Add custom model';
 
@@ -4056,7 +4064,7 @@ function driverTable(pathArr, title) {
     bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 2px;';
 
     const add = document.createElement('button');
-    add.className = 'btn primary small';
+    add.className = 'btn small';
     add.type = 'button';
     add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add driver';
     add.addEventListener('click', () => {
@@ -5100,6 +5108,7 @@ function buildPaths() {
   for (const key of ['models_csv', 'providers_csv', 'all_models_csv', 'harness_models_file', 'opencode_file', 'kilo_file', 't3_data_dir', 't3_settings_file', 't3_logs_dir', 'dsh_settings_file', 'dsh_credentials_file', 'pi_file', 'zcode_file', 'opencodex_file']) {
     c.appendChild(fieldRow(fieldLabel(key), '', pathField(['paths', key]), ['paths', key]));
   }
+
   c.appendChild(createRawEditorCard({
     title: 'Raw paths config (JSON)',
     badge: 'Direct Edit',
@@ -5133,7 +5142,7 @@ function buildTargets() {
   ];
 
   const listWrap = document.createElement('div');
-  listWrap.style.cssText = 'background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;';
+  listWrap.style.cssText = 'border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;background:transparent;';
 
   HARNESSES.forEach(([id, label], idx) => {
     const prefix = id === 'opencodex' ? 'opencodex' : id;
@@ -5190,7 +5199,7 @@ function buildTargets() {
   // 3. Extra Options
   const subOptions = subSection('Options', 'Additional synchronization options.');
   const optWrap = document.createElement('div');
-  optWrap.style.cssText = 'background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;';
+  optWrap.style.cssText = 'border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;background:transparent;';
 
   const optRow = document.createElement('div');
   optRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:16px 20px;gap:20px;';
@@ -5398,7 +5407,7 @@ function buildFilters() {
   bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px';
 
   const addBtn = document.createElement('button');
-  addBtn.className = 'btn primary small';
+  addBtn.className = 'btn small';
   addBtn.id = 'unified-add-rule-btn';
   addBtn.type = 'button';
   addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add rule to scope';
@@ -5971,9 +5980,8 @@ function buildOverrides() {
 
 function buildCapabilities() {
   const c = card('Capabilities', 'Which router model fields are checked for each capability, and what to assume when a router reports no data.', 1, 'capabilities');
-  // "vision" / "reasoning" / "tool" were rendered lowercase, the only
-  // lowercase labels in the app. Display names, raw keys unchanged.
   const CAP_NAME = { vision: 'Vision', reasoning: 'Reasoning', tool: 'Tool use' };
+
   for (const cap of ['vision', 'reasoning', 'tool']) {
     c.appendChild(fieldRow(CAP_NAME[cap], 'Fields probed on each router model', listEditor(['capabilities', 'fields', cap], { placeholder: 'field name', emptyText: '(no fields probed)' }), ['capabilities', 'fields', cap]));
   }
@@ -6289,7 +6297,7 @@ function buildCustomCommandsEditor() {
   bottomBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px';
 
   const addBtn = document.createElement('button');
-  addBtn.className = 'btn primary small';
+  addBtn.className = 'btn small';
   addBtn.type = 'button';
   addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Add command';
 
@@ -6676,18 +6684,9 @@ function buildCustomCommandsEditor() {
 function buildCommands() {
   const c = card('Commands & advanced', 'Post-sync commands, plus the raw JSON escape hatch for the entire config.', 1, 'commands');
 
-  const cmdField = document.createElement('div');
-  cmdField.style.cssText = 'padding:14px 0;border-top:1px solid var(--border-2)';
-  const cmdTitle = document.createElement('h3');
-  cmdTitle.className = 'card-h2';
-  cmdTitle.textContent = 'Custom commands';
-  const cmdDesc = document.createElement('p');
-  cmdDesc.className = 'field-note';
-  cmdDesc.textContent = 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.';
-  cmdField.appendChild(cmdTitle);
-  cmdField.appendChild(cmdDesc);
-  cmdField.appendChild(buildCustomCommandsEditor());
-  c.appendChild(cmdField);
+  const subCmd = subSection('Custom commands', 'Run after all sync targets, in order. "sleep 5" pauses; "bg:cmd" launches detached for servers.');
+  subCmd.appendChild(buildCustomCommandsEditor());
+  c.appendChild(subCmd);
 
   c.appendChild(createRawEditorCard({
     title: 'Raw custom commands (JSON)',
@@ -7009,6 +7008,13 @@ function openProviderModal(existing = null) {
       <label for="p-form-desc">Description / Notes <span class="opt" style="font-weight:normal;color:var(--text-3);font-size:12px">(Optional)</span></label>
       <input type="text" id="p-form-desc" placeholder="e.g. fast inference, personal account, notes" value="${isEdit ? esc(existing.description) : ''}" autocomplete="off">
     </div>
+    <div class="form-group" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+        <input type="checkbox" id="p-form-enabled" ${(!isEdit || !existing.disabled) ? 'checked' : ''} style="accent-color:var(--toggle-on);width:16px;height:16px;margin:0;cursor:pointer">
+        <span>Enabled</span>
+      </label>
+      <span class="field-note" style="margin-left:24px">When disabled, this provider is commented out with # and excluded from sync, catalog generation, and model lists.</span>
+    </div>
   `;
   body.appendChild(form);
 
@@ -7060,6 +7066,8 @@ function openProviderModal(existing = null) {
     const api_key = keyInput.value.trim();
     const type = (form.querySelector('input[name="prov-type-radio"]:checked')?.value || 'rest');
     const description = form.querySelector('#p-form-desc').value.trim();
+    const isEnabled = form.querySelector('#p-form-enabled')?.checked ?? true;
+    const disabled = !isEnabled;
 
     if (!provider) {
       toast('Validation Error', 'Provider name is required', true);
@@ -7076,10 +7084,10 @@ function openProviderModal(existing = null) {
       saveBtn.disabled = true;
       saveBtn.textContent = 'Saving…';
       if (isEdit) {
-        await api('PUT', '/api/providers', { index: existing.index, provider, base_url, api_key, type, description });
+        await api('PUT', '/api/providers', { index: existing.index, provider, base_url, api_key, type, description, disabled });
         toast('Provider updated', provider + ' updated successfully');
       } else {
-        await api('POST', '/api/providers', { provider, base_url, api_key, type, description });
+        await api('POST', '/api/providers', { provider, base_url, api_key, type, description, disabled });
         toast('Provider added', provider + ' added successfully');
       }
       close();
@@ -7111,7 +7119,7 @@ async function updateModelsWhichDropdown() {
     filesInfo = await api('GET', '/api/models/files');
   } catch (e) {}
 
-  const soloProviders = (providersCache || []).filter(p => p.type === 'solo');
+  const soloProviders = (providersCache || []).filter(p => p.type === 'solo' && !p.disabled);
   if (soloProviders.length) {
     const optGroup = document.createElement('optgroup');
     optGroup.label = 'Solo Providers';
@@ -7163,18 +7171,29 @@ async function loadProviders() {
     setSourcePath($('#providers-path'), r.path, 'Source');
 
     const total = providersCache.length;
-    const routerCount = providersCache.filter((p) => p.type === 'router').length;
-    const soloCount = providersCache.filter((p) => p.type === 'solo').length;
-    const restCount = providersCache.filter((p) => p.type === 'rest').length;
+    const disabledCount = providersCache.filter((p) => p.disabled).length;
+    const enabledCount = total - disabledCount;
+    const routerCount = providersCache.filter((p) => p.type === 'router' && !p.disabled).length;
+    const soloCount = providersCache.filter((p) => p.type === 'solo' && !p.disabled).length;
+    const restCount = providersCache.filter((p) => p.type === 'rest' && !p.disabled).length;
 
     const totalEl = $('#provider-count-total');
-    if (totalEl) totalEl.innerHTML = `<b>${total}</b> provider${total === 1 ? '' : 's'}`;
+    if (totalEl) totalEl.innerHTML = `<b>${total}</b> provider${total === 1 ? '' : 's'}${disabledCount > 0 ? ` (${enabledCount} active)` : ''}`;
     const badgeRouter = $('#badge-count-router');
     if (badgeRouter) badgeRouter.textContent = `${routerCount} Router`;
     const badgeSolo = $('#badge-count-solo');
     if (badgeSolo) badgeSolo.textContent = `${soloCount} Solo`;
     const badgeRest = $('#badge-count-rest');
     if (badgeRest) badgeRest.textContent = `${restCount} REST`;
+    const badgeDisabled = $('#badge-count-disabled');
+    if (badgeDisabled) {
+      if (disabledCount > 0) {
+        badgeDisabled.style.display = 'inline-block';
+        badgeDisabled.textContent = `${disabledCount} Disabled`;
+      } else {
+        badgeDisabled.style.display = 'none';
+      }
+    }
 
     renderProvidersTable(providersCache);
     updateModelsWhichDropdown();
@@ -7213,11 +7232,11 @@ function renderProvidersTable(rows) {
     <thead>
       <tr>
         <th style="width:90px">Type</th>
-        <th style="width:140px">Provider</th>
+        <th style="width:160px">Provider</th>
         <th>Base URL</th>
         <th style="width:200px">API Key</th>
         <th>Description</th>
-        <th style="width:90px;text-align:right">Actions</th>
+        <th style="width:110px;text-align:right">Actions</th>
       </tr>
     </thead>
   `;
@@ -7225,6 +7244,9 @@ function renderProvidersTable(rows) {
 
   filtered.forEach((p) => {
     const tr = tbody.insertRow();
+    if (p.disabled) {
+      tr.className = 'rule-disabled';
+    }
 
     const tdType = tr.insertCell();
     const type = p.type || (p.isRouter ? 'router' : (p.isSolo ? 'solo' : 'rest'));
@@ -7234,6 +7256,14 @@ function renderProvidersTable(rows) {
     tdName.className = 'mono-cell';
     tdName.style.fontWeight = '600';
     tdName.textContent = p.provider;
+    if (p.disabled) {
+      const disTag = document.createElement('span');
+      disTag.className = 'rule-disabled-tag';
+      disTag.style.marginLeft = '8px';
+      disTag.textContent = '# disabled';
+      disTag.title = 'Provider is commented out / disabled in providers.csv.';
+      tdName.appendChild(disTag);
+    }
 
     const tdUrl = tr.insertCell();
     tdUrl.className = 'mono-cell';
@@ -7297,15 +7327,35 @@ function renderProvidersTable(rows) {
     actWrap.className = 'table-actions';
     actWrap.style.justifyContent = 'flex-end';
 
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'icon-btn' + (p.disabled ? ' disabled-state' : '');
+    toggleBtn.title = p.disabled ? 'Enable provider' : 'Disable provider';
+    toggleBtn.setAttribute('aria-label', p.disabled ? 'Enable provider' : 'Disable provider');
+    toggleBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-power"/></svg>';
+    toggleBtn.onclick = async () => {
+      try {
+        await api('POST', '/api/providers/toggle', { index: p.index });
+        toast(p.disabled ? 'Provider enabled' : 'Provider disabled', `${p.provider} is now ${p.disabled ? 'enabled' : 'disabled'}`);
+        await loadProviders();
+        const meta = await api('GET', '/api/meta');
+        S.meta = meta;
+        updateModelsWhichDropdown();
+      } catch (e) {
+        toast('Toggle failed', e.message, true);
+      }
+    };
+
     const editBtn = document.createElement('button');
     editBtn.className = 'icon-btn';
     editBtn.title = 'Edit provider';
+    editBtn.setAttribute('aria-label', 'Edit provider');
     editBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>';
     editBtn.onclick = () => openProviderModal(p);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
     delBtn.title = 'Delete provider';
+    delBtn.setAttribute('aria-label', 'Delete provider');
     delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash"/></svg>';
     delBtn.onclick = async () => {
       if (!confirm(`Delete provider "${p.provider}"? This will remove it from providers.csv.`)) return;
@@ -7321,6 +7371,7 @@ function renderProvidersTable(rows) {
       }
     };
 
+    actWrap.appendChild(toggleBtn);
     actWrap.appendChild(editBtn);
     actWrap.appendChild(delBtn);
     tdActions.appendChild(actWrap);

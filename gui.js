@@ -358,6 +358,11 @@ function readProviders() {
   const out = rows
     .filter((r) => r.length >= 2)
     .map((r, idx) => {
+      let rawProvider = (hasTypeCol && headerMap['provider'] !== undefined ? r[headerMap['provider']] : r[0]) || '';
+      const trimmedProv = rawProvider.trim();
+      const disabled = trimmedProv.startsWith('#') || trimmedProv.startsWith('//');
+      const provider = disabled ? trimmedProv.replace(/^(#|\/\/)\s*/, '') : rawProvider.trim();
+
       let type = hasTypeCol && headerMap['type'] !== undefined ? (r[headerMap['type']] || '').trim().toLowerCase() : '';
       let desc = hasTypeCol && headerMap['description'] !== undefined ? (r[headerMap['description']] || '').trim() : (r[3] || '').trim();
       if (!type) {
@@ -369,7 +374,7 @@ function readProviders() {
       const isSolo = type === 'solo';
       return {
         index: idx,
-        provider: (hasTypeCol && headerMap['provider'] !== undefined ? r[headerMap['provider']] : r[0]) || '',
+        provider,
         base_url: (hasTypeCol && headerMap['base_url'] !== undefined ? r[headerMap['base_url']] : r[1]) || '',
         api_key: maskKey(hasTypeCol && headerMap['api_key'] !== undefined ? r[headerMap['api_key']] : r[2]),
         raw_key: (hasTypeCol && headerMap['api_key'] !== undefined ? r[headerMap['api_key']] : r[2]) || '',
@@ -377,6 +382,7 @@ function readProviders() {
         description: desc,
         isRouter,
         isSolo,
+        disabled,
       };
     });
   return { exists: true, path: file, rows: out, raw: rawData };
@@ -393,7 +399,10 @@ function writeProvidersCsv(rows) {
     }
     return s;
   };
-  const body = rows.map((r) => [r.provider, r.base_url, r.api_key, r.type || 'rest', r.description || ''].map(csvEscape).join(',')).join('\n') + '\n';
+  const body = rows.map((r) => {
+    const line = [r.provider, r.base_url, r.api_key, r.type || 'rest', r.description || ''].map(csvEscape).join(',');
+    return r.disabled ? `# ${line}` : line;
+  }).join('\n') + '\n';
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, header + body, 'utf8');
 }
@@ -614,6 +623,7 @@ function handleApi(req, res, url) {
         api_key: r.raw_key,
         type: r.type,
         description: r.description,
+        disabled: Boolean(r.disabled),
       }));
 
       const provider = (body.provider || '').trim();
@@ -621,16 +631,17 @@ function handleApi(req, res, url) {
       const api_key = (body.api_key || '').trim();
       const type = (body.type || 'rest').toLowerCase();
       const description = (body.description || '').trim();
+      const disabled = Boolean(body.disabled);
 
       if (!provider) throw new Error('Provider name is required');
       if (!base_url) throw new Error('Base URL is required');
 
-      if (type === 'router') {
-        const existingRouter = rows.find(r => r.type === 'router');
-        if (existingRouter) throw new Error(`A Router provider already exists (${existingRouter.provider}). OmniList only supports one Router.`);
+      if (type === 'router' && !disabled) {
+        const existingRouter = rows.find(r => r.type === 'router' && !r.disabled);
+        if (existingRouter) throw new Error(`An active Router provider already exists (${existingRouter.provider}). OmniList only supports one active Router.`);
       }
 
-      rows.push({ provider, base_url, api_key, type, description });
+      rows.push({ provider, base_url, api_key, type, description, disabled });
       writeProvidersCsv(rows);
       return sendJson(res, 200, { ok: true, message: 'Provider added' });
     }).catch((e) => sendJson(res, 400, { error: e.message }));
@@ -645,6 +656,7 @@ function handleApi(req, res, url) {
         api_key: r.raw_key,
         type: r.type,
         description: r.description,
+        disabled: Boolean(r.disabled),
       }));
 
       const index = parseInt(body.index, 10);
@@ -658,18 +670,48 @@ function handleApi(req, res, url) {
       }
       const type = (body.type || 'rest').toLowerCase();
       const description = (body.description || '').trim();
+      const disabled = body.disabled !== undefined ? Boolean(body.disabled) : Boolean(rows[index].disabled);
 
       if (!provider) throw new Error('Provider name is required');
       if (!base_url) throw new Error('Base URL is required');
 
-      if (type === 'router') {
-        const otherRouter = rows.find((r, i) => i !== index && r.type === 'router');
-        if (otherRouter) throw new Error(`Another Router already exists (${otherRouter.provider}). Only one Router allowed.`);
+      if (type === 'router' && !disabled) {
+        const otherRouter = rows.find((r, i) => i !== index && r.type === 'router' && !r.disabled);
+        if (otherRouter) throw new Error(`Another active Router already exists (${otherRouter.provider}). Only one active Router allowed.`);
       }
 
-      rows[index] = { provider, base_url, api_key, type, description };
+      rows[index] = { provider, base_url, api_key, type, description, disabled };
       writeProvidersCsv(rows);
       return sendJson(res, 200, { ok: true, message: 'Provider updated' });
+    }).catch((e) => sendJson(res, 400, { error: e.message }));
+  }
+
+  if (req.method === 'POST' && route === '/api/providers/toggle') {
+    return readBody(req).then((body) => {
+      const current = readProviders();
+      const rows = current.rows.map(r => ({
+        provider: r.provider,
+        base_url: r.base_url,
+        api_key: r.raw_key,
+        type: r.type,
+        description: r.description,
+        disabled: Boolean(r.disabled),
+      }));
+
+      const index = parseInt(body.index, 10);
+      if (isNaN(index) || index < 0 || index >= rows.length) throw new Error('Invalid provider index');
+
+      const target = rows[index];
+      const willBeDisabled = !target.disabled;
+
+      if (!willBeDisabled && target.type === 'router') {
+        const otherRouter = rows.find((r, i) => i !== index && r.type === 'router' && !r.disabled);
+        if (otherRouter) throw new Error(`Another active Router already exists (${otherRouter.provider}). Only one active Router allowed.`);
+      }
+
+      target.disabled = willBeDisabled;
+      writeProvidersCsv(rows);
+      return sendJson(res, 200, { ok: true, message: `Provider ${willBeDisabled ? 'disabled' : 'enabled'}`, disabled: willBeDisabled });
     }).catch((e) => sendJson(res, 400, { error: e.message }));
   }
 
@@ -682,6 +724,7 @@ function handleApi(req, res, url) {
         api_key: r.raw_key,
         type: r.type,
         description: r.description,
+        disabled: Boolean(r.disabled),
       }));
 
       const index = parseInt(body.index, 10);

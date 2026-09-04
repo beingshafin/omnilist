@@ -696,18 +696,25 @@ async function ensureRouterProvider() {
 
 // ---------- helpers ----------
 // Read providers.csv into an array of row objects (skips the header).
-function readProvidersCsv() {
-  if (!fs.existsSync(PROVIDERS_CSV)) return [];
-  const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
-  if (csvLines.length < 2) return [];
-  const headers = csvLines[0].split(',').map((h) => h.trim());
-  return csvLines.slice(1).map((line) => {
+function readProvidersCsv(file) {
+  const p = file || PROVIDERS_CSV;
+  if (!fs.existsSync(p)) return [];
+  const rawLines = fs.readFileSync(p, 'utf8').split('\n');
+  const headerIdx = rawLines.findIndex((l) => {
+    const t = l.trim();
+    return t && !t.startsWith('#') && !t.startsWith('//');
+  });
+  if (headerIdx === -1) return [];
+  const headers = rawLines[headerIdx].split(',').map((h) => h.trim());
+  return rawLines.slice(headerIdx + 1).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) return null;
     const vals = line.split(',');
     const row = {};
     headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
     if (!row.type) row.type = providerTypeOf(row);
     return row;
-  }).filter((r) => r.provider);
+  }).filter((r) => r && r.provider);
 }
 
 // Read models-filtered.csv (header: id,input_context,output_context,vision,reasoning,tool)
@@ -2159,11 +2166,13 @@ function cleanupProviders() {
   const csvLines = fs.readFileSync(PROVIDERS_CSV, 'utf8').trim().split('\n');
   const headers = csvLines[0].split(',').map(h => h.trim());
   const rows = csvLines.slice(1).map(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) return null;
     const vals = line.split(',');
     const row = {};
     headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
     return row;
-  }).filter(r => r.provider);
+  }).filter(r => r && r.provider);
   const routerName = routerNameOf(rows);
   const routerSimp = routerName ? simplifyName(routerName) : null;
 
