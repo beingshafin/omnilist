@@ -227,6 +227,9 @@
       { "driver": "claudeAgent", "1m": true },
       { "driver": "codex", "1m": false }
     ],
+    "solo_provider_drivers": [
+      { "driver": "claudeAgent", "1m": true }
+    ],
     "rest_provider_drivers": [
       { "driver": "claudeAgent", "1m": true }
     ],
@@ -237,7 +240,7 @@
   },
 
   // adapters — uniform shape for every harness: opencode/kilo npm, dsh api, pi api, zcode kind, opencodex adapter.
-  // Each harness gets { router_adapters: [...], rest_adapters: [...] } (free-form strings, verbatim into that harness's field).
+  // Each harness gets { router_adapters: [...], solo_adapters: [...], rest_adapters: [...] } (free-form strings, verbatim into that harness's field).
   // Single adapter -> bare key c_<provider> (no __<adapter>, no _1); multi-adapter -> key = c_<provider>[_<N>]__<adapter> (verbatim __ raw string, instance outer).
   // DSH legacy keys dsh.router_apis / rest_apis are still accepted as fallback.
 
@@ -245,6 +248,9 @@
   "opencode": {
     "router_adapters": [
       "@ai-sdk/anthropic"
+    ],
+    "solo_adapters": [
+      "@ai-sdk/openai-compatible"
     ],
     "rest_adapters": [
       "@ai-sdk/anthropic"
@@ -255,6 +261,9 @@
     "router_adapters": [
       "@ai-sdk/anthropic"
     ],
+    "solo_adapters": [
+      "@ai-sdk/openai-compatible"
+    ],
     "rest_adapters": [
       "@ai-sdk/anthropic"
     ]
@@ -263,6 +272,9 @@
   "pi": {
     "router_adapters": [
       "anthropic-messages"
+    ],
+    "solo_adapters": [
+      "openai-completions"
     ],
     "rest_adapters": [
       "anthropic-messages"
@@ -273,6 +285,9 @@
     "router_adapters": [
       "anthropic"
     ],
+    "solo_adapters": [
+      "openai-compatible"
+    ],
     "rest_adapters": [
       "anthropic"
     ]
@@ -282,6 +297,9 @@
     "router_adapters": [
       "anthropic"
     ],
+    "solo_adapters": [
+      "openai-chat"
+    ],
     "rest_adapters": [
       "anthropic"
     ]
@@ -290,6 +308,9 @@
   "dsh": {
     "router_adapters": [
       "anthropic-messages"
+    ],
+    "solo_adapters": [
+      "openai-completions"
     ],
     "rest_adapters": [
       "anthropic-messages"

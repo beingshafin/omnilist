@@ -35,6 +35,9 @@
     --warning: #f5a524;
     --warning-weak: #fdf2e3;
     --purple: #8a4baf;
+    --table-th-bg: var(--panel);
+    --table-th-color: var(--text-2);
+    --table-row-hover: var(--panel-2);
     /* one radius scale: 4/6/8/10/12/20px chaos collapses onto these four */
     --r-sm: 6px;
     --r-md: 10px;
@@ -92,6 +95,9 @@
     --warning: #f5a524;
     --warning-weak: rgba(245,165,36,.15);
     --purple: #a78bfa;
+    --table-th-bg: var(--panel);
+    --table-th-color: var(--text-2);
+    --table-row-hover: var(--panel-2);
     --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
     --shadow-md: 0 4px 16px rgba(0,0,0,.5);
     --shadow-lg: 0 18px 48px rgba(0,0,0,.6);
@@ -394,34 +400,32 @@
      Collapsible group headers were the alternative, but rule order is semantic
      and the numbering is on screen, so hiding any row would lose meaning. */
   .rule-list {
-    background: var(--panel-2);
+    background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
-    overflow: visible !important;
+    overflow: hidden;
   }
   .rule-list.has-header {
+    border-top: none;
     border-top-left-radius: 0 !important;
     border-top-right-radius: 0 !important;
   }
   .rule-list > .rule-row {
-    background: none;
+    background: var(--panel);
     border: none;
-    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     border-radius: 0;
-    padding: 7px 10px;
+    padding: 10px 14px;
     margin-bottom: 0;
     cursor: default !important;
-  }
-  .rule-list > .rule-row:first-child:not(.has-header *) {
-    border-top: none;
-    border-top-left-radius: var(--r-md);
-    border-top-right-radius: var(--r-md);
+    box-sizing: border-box;
   }
   .rule-list > .rule-row:last-child {
+    border-bottom: none;
     border-bottom-left-radius: var(--r-md);
     border-bottom-right-radius: var(--r-md);
   }
-  .rule-list > .rule-row:hover { background: var(--panel); }
+  .rule-list > .rule-row:hover { background: var(--panel-2); }
   /* needs to outrank `.rule-list > .rule-row`'s hairline, which is declared above
      it at equal specificity, or the drop indicator disappears */
   .rule-list > .rule-row.drag-over { border-top: 2px solid var(--accent); }
@@ -674,21 +678,26 @@
   .field-note + .field-note { margin-top: 4px; }
 
   /* ---------- raw editor direct edit card ---------- */
+  .card .card.raw-editor-card,
   .raw-editor-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
     padding: 16px 20px !important;
-    margin-top: 20px;
+    margin-top: 24px;
     margin-bottom: 18px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    transition: border-color .15s ease;
+    background: var(--panel-2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--r-md) !important;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
   }
+  .card .card.raw-editor-card:hover,
   .raw-editor-card:hover {
-    border-color: var(--border-2);
+    border-color: var(--btn-hover-border, #ccc) !important;
+    background: var(--panel) !important;
+    box-shadow: var(--shadow-md);
   }
   .raw-editor-left {
     display: flex;
@@ -1049,18 +1058,12 @@
   .models-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .models-toolbar input[type="text"] { max-width: 260px; }
   .models-toolbar .count { color: var(--text-3); font-size: 13px; }
-  table.models { border-collapse: collapse; width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
   table.models th {
-    text-align: left; padding: 10px 12px; font-size: 12px; color: var(--text-2);
-    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.03em;
-    background: var(--panel);
+    cursor: pointer; user-select: none;
   }
   table.models th.num-col { text-align: right; }
   table.models th:hover { color: var(--text); }
-  table.models td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); font-size: 13.5px; }
   table.models td.num { font-family: var(--mono); text-align: right; font-size: 13px; }
-  table.models tr:hover td { background: rgba(255, 255, 255, 0.03); }
   .cap { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); }
   .cap.y { background: var(--success-weak); color: var(--success); }
   .cap.n { background: var(--border-2); color: var(--text-3); }
@@ -1152,27 +1155,126 @@
     display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2);
   }
 
-  table.providers-table {
-    width: 100%; border-collapse: collapse; font-size: 13.5px;
-    background: var(--panel-2);
+  .table-wrap {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     overflow: hidden;
+    overflow-x: auto;
+    margin: 12px 0 20px 0;
   }
-  table.providers-table th {
-    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border);
-    color: var(--text-2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
+  .table-wrap > table,
+  table.models, table.providers-table, table.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
     background: var(--panel);
+    border: none;
+    font-size: 13.5px;
   }
-  table.providers-table td {
-    padding: 10px 12px; border-bottom: 1px solid var(--border-2); vertical-align: middle;
+  .table-wrap th,
+  table.models th, table.providers-table th, table.config-table th {
+    height: 44px;
+    padding: 0 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+    text-align: left;
+    box-sizing: border-box;
   }
-  table.providers-table tr:hover td { background: var(--panel); }
-  table.providers-table .mono-cell { font-family: var(--mono); font-size: 12.5px; }
-  table.providers-table .url-cell {
+  .table-wrap td,
+  table.models td, table.providers-table td, table.config-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+  .table-wrap tr:last-child td,
+  table.models tr:last-child td, table.providers-table tr:last-child td, table.config-table tr:last-child td {
+    border-bottom: none;
+  }
+  .table-wrap tr:hover td,
+  table.models tr:hover td, table.providers-table tr:hover td, table.config-table tr:hover td {
+    background: var(--panel-2);
+  }
+  .table-wrap .mono-cell, table.providers-table .mono-cell, table.config-table .mono-cell {
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  .table-wrap .url-cell, table.providers-table .url-cell {
     max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .table-actions { display: inline-flex; gap: 4px; align-items: center; }
+
+  /* Adapter & T3 Table Layout Styles */
+  .table-adapter-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 190px;
+  }
+  .t3-drivers-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 210px;
+  }
+  .t3-drivers-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* 1M Pill Toggle Badge (matching screenshot 4) */
+  .pill-1m {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-pill);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    line-height: 1.3;
+    user-select: none;
+    transition: all 0.15s ease;
+  }
+  .pill-1m:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .pill-1m.active {
+    border: 1.5px solid #3b82f6;
+    color: #2563eb;
+    background: rgba(59, 130, 246, 0.12);
+    font-weight: 700;
+  }
+  :root[data-theme="dark"] .pill-1m.active {
+    border-color: #3b82f6;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.18);
+  }
+  .chip .pill-1m {
+    margin-left: 2px;
+    margin-right: 2px;
+    height: 19px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
 
   /* Modal Form Controls */
   .modal-form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -1400,9 +1502,20 @@
 
   <div class="content" id="tab-models" style="display:none">
     <div class="card depth-1">
-      <div class="page-head">
-        <h1>Model catalog</h1>
-        <p class="card-desc" id="models-path"></p>
+      <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1>Model catalog</h1>
+          <p class="card-desc" id="models-path"></p>
+        </div>
+        <div class="harness-previews-setting" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)">
+          <span style="font-weight:500">Show harness model list:</span>
+          <select id="models-harness-previews-select" aria-label="Which per-harness preview CSVs to write" style="padding:6px 10px;font-size:12.5px;min-width:180px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--panel-2);color:var(--text)">
+            <option value="raw">Raw catalog harnesses only</option>
+            <option value="all">Every synced harness</option>
+            <option value="configured">Only harness_filters targets</option>
+            <option value="none">Never write</option>
+          </select>
+        </div>
       </div>
       <div class="models-toolbar">
         <select id="models-which" aria-label="Which catalog file to show">
@@ -1445,7 +1558,6 @@
         <div class="raw-editor-left">
           <div class="raw-editor-title-row">
             <h3 class="raw-editor-title">Raw providers.csv</h3>
-            <span class="badge" style="font-size:10px;text-transform:none">Direct Edit</span>
           </div>
           <p class="raw-editor-desc">Edit <code>providers.csv</code> directly in modal dialog. Columns: <code>provider,base_url,api_key,type,description</code></p>
         </div>
@@ -1486,6 +1598,7 @@ const S = {
   modelsSort: { key: 'id', dir: 1 },
 };
 let dirty = false;
+let providersCache = [];
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -3226,7 +3339,7 @@ function overrideBuilder(pathArr, opts = {}) {
       };
     } else {
       listHeader.classList.remove('selection-active');
-      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">Target Harnesses</span>`;
+      right.innerHTML = `<span class="header-col-title">Target Harnesses</span>`;
     }
     listHeader.appendChild(right);
   }
@@ -3540,7 +3653,7 @@ function buildCustomModelsEditor() {
     left.appendChild(numCol);
 
     const idCol = document.createElement('span');
-    idCol.style.cssText = 'color:var(--text);font-weight:600;font-size:12px;';
+    idCol.className = 'header-col-title';
     idCol.textContent = 'Model ID';
     left.appendChild(idCol);
     listHeader.appendChild(left);
@@ -3575,7 +3688,7 @@ function buildCustomModelsEditor() {
     } else {
       listHeader.classList.remove('selection-active');
       right.innerHTML = `
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);font-weight:600;text-transform:uppercase;letter-spacing:.03em">
           <span style="width:85px;text-align:center">In Ctx</span>
           <span style="width:85px;text-align:center">Out Ctx</span>
           <span style="width:50px;text-align:center">Vision</span>
@@ -4056,6 +4169,454 @@ function adapterList(pathArr, harnessKey) {
 }
 
 // ===========================================================================
+// providers helper for table overrides
+// ===========================================================================
+async function ensureProvidersLoaded(cb) {
+  if (providersCache && providersCache.length > 0) {
+    if (cb) cb(providersCache);
+    return providersCache;
+  }
+  try {
+    const r = await api('GET', '/api/providers');
+    providersCache = r.rows || [];
+  } catch (e) {
+    console.error('Failed to load providers:', e);
+  }
+  if (cb) cb(providersCache);
+  return providersCache;
+}
+
+function createT3DriverCell(pathArr, title) {
+  const wrap = document.createElement('div');
+  wrap.className = 'adapter-wrap';
+  wrap.style.flex = '1';
+
+  const drivers = ['claudeAgent', 'codex', 'geminiAgent', 'opencode'];
+  const get = () => getAt(S.effective, pathArr) || [];
+  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+
+  function render() {
+    wrap.innerHTML = '';
+    const arr = get();
+
+    if (!arr.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = '(none)';
+      wrap.appendChild(empty);
+    } else {
+      arr.forEach((item, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.cssText = 'padding: 3px 6px 3px 10px; gap: 6px;';
+
+        const txt = document.createElement('span');
+        txt.className = 'chip-txt';
+        txt.style.fontFamily = 'var(--mono)';
+        txt.style.fontSize = '12.5px';
+        txt.textContent = item.driver || 'unnamed';
+        chip.appendChild(txt);
+
+        // 1M toggle pill button matching screenshot 4
+        const mBtn = document.createElement('button');
+        mBtn.type = 'button';
+        mBtn.className = 'pill-1m' + (item['1m'] ? ' active' : '');
+        mBtn.textContent = '1M';
+        mBtn.title = item['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
+        mBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const list = get().slice();
+          list[i] = { ...list[i], '1m': !list[i]['1m'] };
+          set(list);
+          render();
+        });
+        chip.appendChild(mBtn);
+
+        // Standard chip remove button with SVG icon
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'x';
+        del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+        del.title = 'Remove ' + (item.driver || 'driver');
+        del.setAttribute('aria-label', 'Remove ' + (item.driver || 'driver'));
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const list = get().slice();
+          list.splice(i, 1);
+          set(list);
+          render();
+        });
+        chip.appendChild(del);
+
+        wrap.appendChild(chip);
+      });
+    }
+
+    // Add Driver row matching adapterList layout
+    const add = document.createElement('div');
+    add.className = 'add-row';
+    add.style.cssText = 'margin-top: 4px; display: flex; gap: 4px; align-items: center; flex-wrap: nowrap;';
+
+    const available = drivers.filter((d) => !arr.some((item) => item.driver === d));
+    const addSel = document.createElement('select');
+    addSel.style.cssText = 'flex: 1 1 110px; min-width: 90px; max-width: 130px; font-size: 12.5px; padding: 2px 4px;';
+    let opts = available.map((d) => '<option value="' + esc(d) + '">' + esc(d) + '</option>').join('');
+    opts += '<option value="__custom">custom…</option>';
+    addSel.innerHTML = opts;
+    addSel.setAttribute('aria-label', (title || 'Driver') + ' preset');
+
+    const addInp = document.createElement('input');
+    addInp.type = 'text';
+    addInp.placeholder = 'driver name';
+    addInp.style.cssText = 'flex: 1 1 110px; min-width: 80px; max-width: 120px; font-size: 12px; padding: 2px 6px;';
+    addInp.setAttribute('aria-label', (title || 'Driver') + ' custom name');
+    if (!available.length) {
+      addSel.value = '__custom';
+      addInp.style.display = '';
+    } else {
+      addInp.style.display = 'none';
+    }
+
+    addSel.addEventListener('change', () => {
+      const custom = addSel.value === '__custom';
+      addInp.style.display = custom ? '' : 'none';
+      if (custom) addInp.focus();
+    });
+
+    let newDriver1m = true;
+    const add1mBtn = document.createElement('button');
+    add1mBtn.type = 'button';
+    add1mBtn.className = 'pill-1m active';
+    add1mBtn.textContent = '1M';
+    add1mBtn.style.flexShrink = '0';
+    add1mBtn.title = 'Toggle 1M context for new driver';
+    add1mBtn.addEventListener('click', () => {
+      newDriver1m = !newDriver1m;
+      add1mBtn.className = 'pill-1m' + (newDriver1m ? ' active' : '');
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn small';
+    addBtn.style.cssText = 'flex-shrink: 0; padding: 2px 7px; font-size: 12px; white-space: nowrap;';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
+
+    const commitAdd = () => {
+      const val = addSel.value === '__custom' ? addInp.value.trim() : addSel.value;
+      if (!val) return;
+      const list = get().slice();
+      if (!list.some(item => item.driver === val)) {
+        list.push({ driver: val, '1m': newDriver1m });
+        set(list);
+      }
+      addInp.value = '';
+      render();
+    };
+
+    addBtn.addEventListener('click', commitAdd);
+    addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
+
+    add.appendChild(addSel);
+    add.appendChild(addInp);
+    add.appendChild(add1mBtn);
+    add.appendChild(addBtn);
+    wrap.appendChild(add);
+  }
+
+  render();
+  return wrap;
+}
+
+function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNESS_NAME) {
+  container.innerHTML = '';
+  const filtered = (rows || []).filter(r => {
+    const t = (r.type || '').toLowerCase();
+    if (filter === 'solo') return t === 'solo';
+    if (filter === 'rest') return t === 'rest';
+    if (filter === 'both') return t === 'solo' || t === 'rest';
+    return false;
+  });
+
+  if (!filtered.length) {
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+    empty.style.cssText = 'padding: 18px; text-align: center; border: 1px dashed var(--border); border-radius: var(--r-md); margin-bottom: 18px; color: var(--text-3);';
+    empty.textContent = `No ${filter === 'both' ? 'solo or REST' : filter} providers found in providers.csv.`;
+    container.appendChild(empty);
+    return;
+  }
+
+  // Ensure datalists for autocomplete
+  harnesses.forEach(h => {
+    let dl = document.getElementById('dl-adapter-' + h);
+    if (!dl) {
+      dl = document.createElement('datalist');
+      dl.id = 'dl-adapter-' + h;
+      const list = HARNESS_ADAPTERS[h] || [];
+      dl.innerHTML = list.map(a => '<option value="' + esc(a) + '"></option>').join('');
+      document.body.appendChild(dl);
+    }
+  });
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.style.cssText = 'overflow-x: auto; margin: 10px 0 20px 0; border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const table = document.createElement('table');
+  table.className = 'config-table individual-adapters-table';
+  table.style.margin = '0';
+  table.style.minWidth = '920px';
+
+  let ths = '<th style="width: 38px; text-align: right;">#</th><th style="width: 150px; text-align: left;">Provider</th><th style="width: 80px; text-align: center;">Type</th>';
+  harnesses.forEach(h => {
+    ths += '<th style="text-align: left; min-width: 140px;">' + (HARNESS_NAME[h] || h) + '</th>';
+  });
+
+  table.innerHTML = '<thead><tr>' + ths + '</tr></thead><tbody></tbody>';
+  const tbody = table.querySelector('tbody');
+
+  filtered.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    const isSolo = (p.type || '').toLowerCase() === 'solo';
+
+    // Index
+    const tdNum = document.createElement('td');
+    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px;';
+    tdNum.textContent = String(idx + 1);
+    tr.appendChild(tdNum);
+
+    // Provider
+    const tdProv = document.createElement('td');
+    tdProv.style.cssText = 'font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text);';
+    tdProv.textContent = p.provider;
+    tr.appendChild(tdProv);
+
+    // Type Badge
+    const tdType = document.createElement('td');
+    tdType.style.textAlign = 'center';
+    tdType.innerHTML = '<span class="badge ' + (isSolo ? 'badge-solo' : 'badge-rest') + '">' + (p.type || '').toUpperCase() + '</span>';
+    tr.appendChild(tdType);
+
+    // Harness columns
+    harnesses.forEach(h => {
+      const tdH = document.createElement('td');
+      tdH.style.padding = '8px 10px';
+
+      const customOverride = getAt(S.effective, [h, 'provider_adapters', p.provider]);
+      let valStr = '';
+      if (Array.isArray(customOverride)) {
+        valStr = customOverride.join(', ');
+      } else if (typeof customOverride === 'string') {
+        valStr = customOverride;
+      }
+
+      const defAdapters = isSolo
+        ? (getAt(S.effective, [h, 'solo_adapters']) || getAt(S.effective, [h, 'rest_adapters']) || [])
+        : (getAt(S.effective, [h, 'rest_adapters']) || []);
+      const defStr = defAdapters.length ? defAdapters[0] : 'default';
+
+      const hasVal = Boolean(valStr);
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.setAttribute('list', 'dl-adapter-' + h);
+      inp.value = valStr;
+      inp.placeholder = '(default: ' + defStr + ')';
+      inp.style.cssText = 'width: 100%; height: 28px; padding: 2px 8px; font-family: var(--mono); font-size: 11.5px; border-radius: var(--r-sm); border: 1px solid ' + (hasVal ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasVal ? 'rgba(59,130,246,0.06)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
+
+      inp.addEventListener('input', () => {
+        const v = inp.value.trim();
+        if (v) {
+          const arr = v.split(',').map(s => s.trim()).filter(Boolean);
+          setAt([h, 'provider_adapters', p.provider], arr);
+          inp.style.borderColor = 'var(--accent)';
+          inp.style.background = 'rgba(59,130,246,0.06)';
+        } else {
+          const blk = getAt(S.effective, [h, 'provider_adapters']);
+          if (blk && p.provider in blk) {
+            delete blk[p.provider];
+          }
+          inp.style.borderColor = 'var(--border)';
+          inp.style.background = 'var(--input-bg)';
+        }
+        setDirty(true);
+      });
+
+      tdH.appendChild(inp);
+      tr.appendChild(tdH);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  tableWrap.appendChild(table);
+  container.appendChild(tableWrap);
+}
+
+function renderIndividualT3Table(container, filter, rows) {
+  container.innerHTML = '';
+  const filtered = (rows || []).filter(r => {
+    const t = (r.type || '').toLowerCase();
+    if (filter === 'solo') return t === 'solo';
+    if (filter === 'rest') return t === 'rest';
+    if (filter === 'both') return t === 'solo' || t === 'rest';
+    return false;
+  });
+
+  if (!filtered.length) {
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+    empty.style.cssText = 'padding: 18px; text-align: center; border: 1px dashed var(--border); border-radius: var(--r-md); margin-bottom: 18px; color: var(--text-3);';
+    empty.textContent = `No ${filter === 'both' ? 'solo or REST' : filter} providers found in providers.csv.`;
+    container.appendChild(empty);
+    return;
+  }
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.style.cssText = 'overflow-x: auto; margin: 10px 0 20px 0; border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const table = document.createElement('table');
+  table.className = 'config-table individual-t3-table';
+  table.style.margin = '0';
+  table.style.minWidth = '720px';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width: 38px; text-align: right;">#</th>
+        <th style="width: 170px; text-align: left;">Provider</th>
+        <th style="width: 80px; text-align: center;">Type</th>
+        <th style="text-align: left;">Custom Driver</th>
+        <th style="width: 120px; text-align: center;">1M Context</th>
+        <th style="width: 90px; text-align: center;">Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  filtered.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    const isSolo = (p.type || '').toLowerCase() === 'solo';
+
+    // Index
+    const tdNum = document.createElement('td');
+    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px;';
+    tdNum.textContent = String(idx + 1);
+    tr.appendChild(tdNum);
+
+    // Provider
+    const tdProv = document.createElement('td');
+    tdProv.style.cssText = 'font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text);';
+    tdProv.textContent = p.provider;
+    tr.appendChild(tdProv);
+
+    // Type
+    const tdType = document.createElement('td');
+    tdType.style.textAlign = 'center';
+    tdType.innerHTML = '<span class="badge ' + (isSolo ? 'badge-solo' : 'badge-rest') + '">' + (p.type || '').toUpperCase() + '</span>';
+    tr.appendChild(tdType);
+
+    // Determine default driver for placeholder
+    const defDrivers = isSolo
+      ? (getAt(S.effective, ['t3', 'solo_provider_drivers']) || getAt(S.effective, ['t3', 'rest_provider_drivers']) || [])
+      : (getAt(S.effective, ['t3', 'rest_provider_drivers']) || []);
+    const defDriver = defDrivers.length ? defDrivers[0] : { driver: 'claudeAgent', '1m': true };
+
+    const customDrivers = getAt(S.effective, ['t3', 'provider_drivers', p.provider]);
+    const hasCustom = Array.isArray(customDrivers) && customDrivers.length > 0;
+    const currentItem = hasCustom ? customDrivers[0] : null;
+
+    // Driver input
+    const tdDriver = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.setAttribute('list', 'dl-t3-common-drivers');
+    inp.value = currentItem ? (currentItem.driver || '') : '';
+    inp.placeholder = '(default: ' + (defDriver.driver || 'claudeAgent') + ')';
+    inp.style.cssText = 'width: 100%; height: 28px; padding: 2px 8px; font-family: var(--mono); font-size: 12px; border-radius: var(--r-sm); border: 1px solid ' + (hasCustom ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasCustom ? 'rgba(59,130,246,0.06)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
+    tdDriver.appendChild(inp);
+    tr.appendChild(tdDriver);
+
+    // 1M Context toggle
+    const td1m = document.createElement('td');
+    td1m.style.textAlign = 'center';
+    const toggle1m = document.createElement('button');
+    toggle1m.type = 'button';
+    const is1mActive = currentItem ? Boolean(currentItem['1m']) : Boolean(defDriver['1m']);
+    toggle1m.className = 'pill-1m' + (is1mActive ? ' active' : '');
+    toggle1m.textContent = '1M';
+    toggle1m.title = is1mActive ? '1M Context enabled' : '1M Context disabled';
+    td1m.appendChild(toggle1m);
+    tr.appendChild(td1m);
+
+    // Action (Revert)
+    const tdAction = document.createElement('td');
+    tdAction.style.textAlign = 'center';
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'btn small';
+    resetBtn.textContent = 'Revert';
+    resetBtn.style.padding = '2px 8px';
+    resetBtn.style.fontSize = '11px';
+    resetBtn.disabled = !hasCustom;
+    tdAction.appendChild(resetBtn);
+    tr.appendChild(tdAction);
+
+    const saveOverride = (dName, mVal) => {
+      if (!dName) {
+        const blk = getAt(S.effective, ['t3', 'provider_drivers']);
+        if (blk && p.provider in blk) {
+          delete blk[p.provider];
+        }
+        inp.style.borderColor = 'var(--border)';
+        inp.style.background = 'var(--input-bg)';
+        resetBtn.disabled = true;
+      } else {
+        setAt(['t3', 'provider_drivers', p.provider], [{ driver: dName, '1m': mVal }]);
+        inp.style.borderColor = 'var(--accent)';
+        inp.style.background = 'rgba(59,130,246,0.06)';
+        resetBtn.disabled = false;
+      }
+      setDirty(true);
+    };
+
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim();
+      const cur1m = toggle1m.classList.contains('active');
+      saveOverride(v, cur1m);
+    });
+
+    toggle1m.addEventListener('click', () => {
+      const nowActive = !toggle1m.classList.contains('active');
+      toggle1m.className = 'pill-1m' + (nowActive ? ' active' : '');
+      toggle1m.title = nowActive ? '1M Context enabled' : '1M Context disabled';
+      const dName = inp.value.trim() || defDriver.driver || 'claudeAgent';
+      inp.value = dName;
+      saveOverride(dName, nowActive);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      inp.value = '';
+      const blk = getAt(S.effective, ['t3', 'provider_drivers']);
+      if (blk && p.provider in blk) {
+        delete blk[p.provider];
+      }
+      inp.style.borderColor = 'var(--border)';
+      inp.style.background = 'var(--input-bg)';
+      const def1m = Boolean(defDriver['1m']);
+      toggle1m.className = 'pill-1m' + (def1m ? ' active' : '');
+      resetBtn.disabled = true;
+      setDirty(true);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  tableWrap.appendChild(table);
+  container.appendChild(tableWrap);
+}
+
+// ===========================================================================
 // path field with file browser
 // ===========================================================================
 function pathField(pathArr) {
@@ -4196,7 +4757,7 @@ const SECTION_KEYS = {
   paths: [['paths']],
   targets: [['targets']],
   filters: [['model_sort'], ['model_filters']],
-  'harness-filters': [['harness_filters'], ['raw_catalog_harnesses'], ['show_harness_model_list']],
+  'harness-filters': [['harness_filters'], ['raw_catalog_harnesses']],
   overrides: [['invalid_value_overrides'], ['always_overrides']],
   capabilities: [['capabilities']],
   adapters: [['opencode'], ['kilo'], ['pi'], ['zcode'], ['opencodex'], ['dsh']],
@@ -4286,7 +4847,7 @@ function openRawEditorModal(opts) {
   left.style.cssText = 'display:flex;align-items:center;gap:10px';
   left.innerHTML = `
     <span style="font-weight:600;font-size:15px;color:var(--text)">${esc(opts.title || 'Direct Edit')}</span>
-    <span class="badge" style="font-size:10.5px;text-transform:none;opacity:.85">${esc(opts.badge || 'Direct Edit')}</span>
+    ${opts.badge && opts.badge !== 'Direct Edit' ? `<span class="badge" style="font-size:10.5px;text-transform:none;opacity:.85">${esc(opts.badge)}</span>` : ''}
     <span style="font-size:11.5px;color:var(--text-3);margin-left:4px">(88vh Roomy Mode • Ctrl+S to save)</span>
   `;
 
@@ -4465,12 +5026,16 @@ function createRawEditorCard(opts) {
   const cardEl = document.createElement('div');
   cardEl.className = 'card raw-editor-card';
 
+  const badgeHtml = (opts.badge && opts.badge !== 'Direct Edit')
+    ? `<span class="badge" style="font-size:10px;text-transform:none">${esc(opts.badge)}</span>`
+    : '';
+
   const left = document.createElement('div');
   left.className = 'raw-editor-left';
   left.innerHTML = `
     <div class="raw-editor-title-row">
       <h3 class="raw-editor-title">${esc(opts.title)}</h3>
-      <span class="badge" style="font-size:10px;text-transform:none">${esc(opts.badge || 'Direct Edit')}</span>
+      ${badgeHtml}
     </div>
     <p class="raw-editor-desc">${esc(opts.description || 'View and edit configuration directly in a full modal dialog.')}</p>
   `;
@@ -4626,13 +5191,31 @@ function buildTargets() {
   const subOptions = subSection('Options', 'Additional synchronization options.');
   const optWrap = document.createElement('div');
   optWrap.style.cssText = 'background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:10px;';
-  optWrap.appendChild(fieldRow('Kilo: Copy from OpenCode', 'Copy the full provider block from OpenCode into Kilo instead of generating it separately', toggle(['targets', 'kilo_copy_opencode_full_provider_block']), ['targets', 'kilo_copy_opencode_full_provider_block']));
+
+  const optRow = document.createElement('div');
+  optRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:16px 20px;gap:20px;';
+
+  const optText = document.createElement('div');
+  optText.style.cssText = 'flex:1;min-width:0;';
+  optText.innerHTML = `
+    <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:3px;">Kilo: Copy from OpenCode</div>
+    <div style="font-size:12.5px;color:var(--text-3);line-height:1.45;">Copy the full provider block from OpenCode into Kilo instead of generating it separately</div>
+  `;
+
+  const optControl = document.createElement('div');
+  optControl.style.cssText = 'flex-shrink:0;display:flex;align-items:center;gap:10px;';
+  optControl.appendChild(toggle(['targets', 'kilo_copy_opencode_full_provider_block']));
+  optControl.appendChild(makeFieldReset('Kilo: Copy from OpenCode', ['targets', 'kilo_copy_opencode_full_provider_block']));
+
+  optRow.appendChild(optText);
+  optRow.appendChild(optControl);
+  optWrap.appendChild(optRow);
   subOptions.appendChild(optWrap);
   c.appendChild(subOptions);
 
   c.appendChild(createRawEditorCard({
     title: 'Raw integrations config (JSON)',
-    badge: 'Direct Edit',
+    badge: 'JSON',
     description: 'View and edit integration toggles for all harnesses directly as JSON.',
     pathArr: ['targets'],
     saveLabel: 'Apply integrations JSON',
@@ -4662,9 +5245,8 @@ function buildFilters() {
   rawLeakageCard.querySelector('#raw-catalog-chips-container').appendChild(harnessChips(['raw_catalog_harnesses']));
   c.appendChild(rawLeakageCard);
 
-  // 2. Model sort & preview list settings
+  // 2. Model sort
   c.appendChild(fieldRow('Model sort', 'Primary sort order for models-filtered.csv and every harness config', sortBuilder(['model_sort']), ['model_sort']));
-  c.appendChild(fieldRow('Show harness model list', 'Which per-harness preview CSVs to write', select([['raw', 'Raw catalog harnesses only'], ['all', 'Every synced harness'], ['configured', 'Only harness_filters targets'], ['none', 'Never write']], getAt(S.effective, ['show_harness_model_list']), (v) => { setAt(['show_harness_model_list'], v); setDirty(true); }), ['show_harness_model_list']));
 
   // 3. Unified Filter Rules Workspace
   const rulesWorkspace = document.createElement('div');
@@ -4889,7 +5471,7 @@ function buildFilters() {
     left.appendChild(numCol);
 
     const titleSpan = document.createElement('span');
-    titleSpan.style.cssText = 'color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;';
+    titleSpan.className = 'header-col-title';
     titleSpan.textContent = 'Rule Expression';
     left.appendChild(titleSpan);
     listHeader.appendChild(left);
@@ -4944,7 +5526,7 @@ function buildFilters() {
       });
     } else {
       listHeader.classList.remove('selection-active');
-      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">Target Harnesses</span>`;
+      right.innerHTML = `<span class="header-col-title">Target Harnesses</span>`;
     }
     listHeader.appendChild(right);
   }
@@ -5411,28 +5993,125 @@ function buildCapabilities() {
   return c;
 }
 
-function buildAdapters() {
-  const c = card('Adapters', 'The adapter each harness uses for the Router block and per-provider REST blocks.', 1, 'adapters');
-  // Display names: the raw keys were rendered in shouty uppercase, which read
-  // as a different label convention from every other heading in the app.
-  const HARNESS_NAME = { opencode: 'OpenCode', kilo: 'Kilo', pi: 'pi', zcode: 'zcode', opencodex: 'ocx', dsh: 'DSH' };
-  for (const h of ['opencode', 'kilo', 'pi', 'zcode', 'opencodex', 'dsh']) {
-    const sub = card(HARNESS_NAME[h] || h, '');
-    sub.appendChild(fieldRow('Router adapters', '', adapterList([h, 'router_adapters'], h), [h, 'router_adapters']));
-    sub.appendChild(fieldRow('REST adapters', '', adapterList([h, 'rest_adapters'], h), [h, 'rest_adapters']));
-    if (h === 'dsh') {
-      sub.appendChild(fieldRow('Model inputs', 'How DSH lists model inputs', select([['hardcode', 'hardcode'], ['vision', 'vision'], ['custom', 'custom array…']], getAt(S.effective, ['dsh', 'model_inputs']), (v) => { setAt(['dsh', 'model_inputs'], v); setDirty(true); }), ['dsh', 'model_inputs']));
-    }
-    c.appendChild(sub);
-  }
+let adaptersIndividualFilter = 'none';
 
+function buildAdapters() {
+  const c = card('Adapters', 'The adapter each harness uses for the Router block and per-provider Solo and REST blocks.', 1, 'adapters');
+  const HARNESS_NAME = { opencode: 'OpenCode', kilo: 'Kilo', dsh: 'DSH', pi: 'pi', zcode: 'zcode', opencodex: 'ocx' };
+  const harnesses = ['opencode', 'kilo', 'dsh', 'pi', 'zcode', 'opencodex'];
+
+  // 1. Top Table: Harness on left, columns Router, Solo, REST
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.style.cssText = 'overflow-x: auto; margin: 12px 0 20px 0; border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const table = document.createElement('table');
+  table.className = 'config-table adapters-table';
+  table.style.margin = '0';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width: 150px; text-align: left;">Harness</th>
+        <th style="text-align: left; min-width: 230px;">Router Adapter</th>
+        <th style="text-align: left; min-width: 230px;">Solo Adapter</th>
+        <th style="text-align: left; min-width: 230px;">REST Adapter</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  harnesses.forEach((h) => {
+    const tr = document.createElement('tr');
+
+    const tdHarness = document.createElement('td');
+    tdHarness.style.cssText = 'vertical-align: top; padding-top: 14px;';
+    const hTitle = document.createElement('div');
+    hTitle.style.cssText = 'font-weight: 600; font-size: 13.5px; color: var(--text);';
+    hTitle.textContent = HARNESS_NAME[h] || h;
+    tdHarness.appendChild(hTitle);
+
+    const hKey = document.createElement('div');
+    hKey.style.cssText = 'font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-top: 2px;';
+    hKey.textContent = h;
+    tdHarness.appendChild(hKey);
+    tr.appendChild(tdHarness);
+
+    const tdRouter = document.createElement('td');
+    tdRouter.style.verticalAlign = 'top';
+    tdRouter.appendChild(adapterList([h, 'router_adapters'], h));
+    tr.appendChild(tdRouter);
+
+    const tdSolo = document.createElement('td');
+    tdSolo.style.verticalAlign = 'top';
+    tdSolo.appendChild(adapterList([h, 'solo_adapters'], h));
+    tr.appendChild(tdSolo);
+
+    const tdRest = document.createElement('td');
+    tdRest.style.verticalAlign = 'top';
+    tdRest.appendChild(adapterList([h, 'rest_adapters'], h));
+    tr.appendChild(tdRest);
+
+    tbody.appendChild(tr);
+  });
+  tableWrap.appendChild(table);
+  c.appendChild(tableWrap);
+
+  // 2. Individual Providers Selector
+  const selectorBar = document.createElement('div');
+  selectorBar.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0 14px 0; padding: 12px 16px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const sLeft = document.createElement('div');
+  sLeft.innerHTML = `
+    <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">Configure adapters for individual providers</div>
+    <div style="font-size: 12px; color: var(--text-3); margin-top: 2px;">Override adapters for specific solo or REST providers from providers.csv</div>
+  `;
+  selectorBar.appendChild(sLeft);
+
+  const selDropdown = document.createElement('select');
+  selDropdown.id = 'adapters-individual-select';
+  selDropdown.className = 'select';
+  selDropdown.style.minWidth = '180px';
+  selDropdown.innerHTML = `
+    <option value="none">none</option>
+    <option value="solo">solo</option>
+    <option value="rest">rest</option>
+    <option value="both">both</option>
+  `;
+  selDropdown.value = adaptersIndividualFilter;
+  selectorBar.appendChild(selDropdown);
+  c.appendChild(selectorBar);
+
+  const individualContainer = document.createElement('div');
+  individualContainer.className = 'adapters-individual-wrap';
+  c.appendChild(individualContainer);
+
+  const updateIndividualTable = () => {
+    adaptersIndividualFilter = selDropdown.value;
+    if (adaptersIndividualFilter === 'none') {
+      individualContainer.style.display = 'none';
+      individualContainer.innerHTML = '';
+      return;
+    }
+    individualContainer.style.display = 'block';
+    individualContainer.innerHTML = '<div style="padding: 12px; color: var(--text-3); font-size: 13px;">Loading providers…</div>';
+
+    ensureProvidersLoaded((rows) => {
+      renderIndividualAdaptersTable(individualContainer, adaptersIndividualFilter, rows, harnesses, HARNESS_NAME);
+    });
+  };
+
+  selDropdown.addEventListener('change', updateIndividualTable);
+  updateIndividualTable();
+
+  // 3. Direct Edit Card
   c.appendChild(createRawEditorCard({
     title: 'Raw adapters config (JSON)',
     badge: 'Direct Edit',
-    description: 'View and edit router and REST adapters for all harnesses directly as JSON.',
+    description: 'View and edit router, solo, and REST adapters for all harnesses directly as JSON.',
     getRaw: () => {
       const obj = {};
-      for (const h of ['opencode', 'kilo', 'pi', 'zcode', 'opencodex', 'dsh']) {
+      for (const h of harnesses) {
         obj[h] = getAt(S.effective, [h]) || {};
       }
       return JSON.stringify(obj, null, 2);
@@ -5451,23 +6130,118 @@ function buildAdapters() {
   return c;
 }
 
-function buildT3() {
-  const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider instances, plus how each driver is launched.', 1, 't3');
-  const subRouter = subSection('Router drivers', 'Drivers launched for the router flat list.');
-  subRouter.appendChild(driverTable(['t3', 'router_drivers'], 'Router drivers'));
-  c.appendChild(subRouter);
-  const subRest = subSection('REST provider drivers', 'Drivers launched for REST provider instances.');
-  subRest.appendChild(driverTable(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
-  c.appendChild(subRest);
+let t3IndividualFilter = 'none';
 
+function buildT3() {
+  const c = card('T3 drivers', 'Drivers for the Router flat list and per-provider Solo and REST instances, plus how each driver is launched.', 1, 't3');
+
+  // Add datalist for common T3 drivers
+  let dlT3 = document.getElementById('dl-t3-common-drivers');
+  if (!dlT3) {
+    dlT3 = document.createElement('datalist');
+    dlT3.id = 'dl-t3-common-drivers';
+    dlT3.innerHTML = `
+      <option value="claudeAgent"></option>
+      <option value="codex"></option>
+      <option value="geminiAgent"></option>
+      <option value="opencode"></option>
+    `;
+    document.body.appendChild(dlT3);
+  }
+
+  // 1. Top Table: Target on left, columns Router, Solo, REST
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.style.cssText = 'overflow-x: auto; margin: 12px 0 20px 0; border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const table = document.createElement('table');
+  table.className = 'config-table t3-main-table';
+  table.style.margin = '0';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width: 140px; text-align: left;">Target</th>
+        <th style="text-align: left; min-width: 220px;">Router Drivers</th>
+        <th style="text-align: left; min-width: 220px;">Solo Provider Drivers</th>
+        <th style="text-align: left; min-width: 220px;">REST Provider Drivers</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="vertical-align: top; padding-top: 14px;">
+          <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">T3 CLI Instances</div>
+          <div style="font-size: 11.5px; color: var(--text-3); margin-top: 3px;">Active launched driver processes</div>
+        </td>
+        <td style="vertical-align: top;" id="t3-cell-router"></td>
+        <td style="vertical-align: top;" id="t3-cell-solo"></td>
+        <td style="vertical-align: top;" id="t3-cell-rest"></td>
+      </tr>
+    </tbody>
+  `;
+  table.querySelector('#t3-cell-router').appendChild(createT3DriverCell(['t3', 'router_drivers'], 'Router drivers'));
+  table.querySelector('#t3-cell-solo').appendChild(createT3DriverCell(['t3', 'solo_provider_drivers'], 'Solo provider drivers'));
+  table.querySelector('#t3-cell-rest').appendChild(createT3DriverCell(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
+
+  tableWrap.appendChild(table);
+  c.appendChild(tableWrap);
+
+  // 2. Individual Providers Selector
+  const selectorBar = document.createElement('div');
+  selectorBar.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0 14px 0; padding: 12px 16px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md);';
+
+  const sLeft = document.createElement('div');
+  sLeft.innerHTML = `
+    <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">Configure T3 drivers for individual providers</div>
+    <div style="font-size: 12px; color: var(--text-3); margin-top: 2px;">Override launched drivers or 1M context for specific solo or REST providers</div>
+  `;
+  selectorBar.appendChild(sLeft);
+
+  const selDropdown = document.createElement('select');
+  selDropdown.id = 't3-individual-select';
+  selDropdown.className = 'select';
+  selDropdown.style.minWidth = '180px';
+  selDropdown.innerHTML = `
+    <option value="none">none</option>
+    <option value="solo">solo</option>
+    <option value="rest">rest</option>
+    <option value="both">both</option>
+  `;
+  selDropdown.value = t3IndividualFilter;
+  selectorBar.appendChild(selDropdown);
+  c.appendChild(selectorBar);
+
+  const individualContainer = document.createElement('div');
+  individualContainer.className = 't3-individual-wrap';
+  c.appendChild(individualContainer);
+
+  const updateIndividualTable = () => {
+    t3IndividualFilter = selDropdown.value;
+    if (t3IndividualFilter === 'none') {
+      individualContainer.style.display = 'none';
+      individualContainer.innerHTML = '';
+      return;
+    }
+    individualContainer.style.display = 'block';
+    individualContainer.innerHTML = '<div style="padding: 12px; color: var(--text-3); font-size: 13px;">Loading providers…</div>';
+
+    ensureProvidersLoaded((rows) => {
+      renderIndividualT3Table(individualContainer, t3IndividualFilter, rows);
+    });
+  };
+
+  selDropdown.addEventListener('change', updateIndividualTable);
+  updateIndividualTable();
+
+  // 3. Direct Edit Card
   c.appendChild(createRawEditorCard({
     title: 'Raw T3 drivers & strategy (JSON)',
     badge: 'Direct Edit',
-    description: 'Edit T3 router drivers, REST provider drivers, and driver strategy directly as JSON. Changes reflect across T3 tables above.',
+    description: 'Edit T3 router drivers, solo & REST provider drivers, and driver strategy directly as JSON. Changes reflect across T3 tables above.',
     pathArr: ['t3'],
     saveLabel: 'Apply T3 JSON',
     onApplied: () => { rebuildConfig(); showSection('t3'); }
   }));
+
   return c;
 }
 
@@ -5565,7 +6339,7 @@ function buildCustomCommandsEditor() {
     left.appendChild(numCol);
 
     const titleSpan = document.createElement('span');
-    titleSpan.style.cssText = 'color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;';
+    titleSpan.className = 'header-col-title';
     titleSpan.textContent = 'Command Expression';
     left.appendChild(titleSpan);
     listHeader.appendChild(left);
@@ -5610,7 +6384,7 @@ function buildCustomCommandsEditor() {
       };
     } else {
       listHeader.classList.remove('selection-active');
-      right.innerHTML = `<span style="font-size:11.5px;color:var(--text-3);font-weight:500">${commands.length} command(s)</span>`;
+      right.innerHTML = `<span class="header-col-title">${commands.length} Command${commands.length === 1 ? '' : 's'}</span>`;
     }
     listHeader.appendChild(right);
   }
@@ -6084,6 +6858,11 @@ function formatNum(n) {
 }
 let modelsCache = null;
 async function loadModels() {
+  const hpSelect = $('#models-harness-previews-select');
+  if (hpSelect && S.effective) {
+    hpSelect.value = getAt(S.effective, ['show_harness_model_list']) || 'raw';
+  }
+  await updateModelsWhichDropdown();
   const which = $('#models-which').value;
   try {
     const r = await api('GET', '/api/models?file=' + which);
@@ -6123,6 +6902,7 @@ function renderModelsTable(rows) {
   for (const col of ['id', 'input_context', 'output_context', 'vision', 'reasoning', 'tool']) {
     const th = document.createElement('th');
     th.textContent = col + (col === key ? (dir === 1 ? ' ▲' : ' ▼') : '');
+    if (col === 'input_context' || col === 'output_context') th.className = 'num-col';
     th.addEventListener('click', () => {
       if (S.modelsSort.key === col) S.modelsSort.dir *= -1;
       else S.modelsSort = { key: col, dir: col === 'id' ? 1 : -1 };
@@ -6152,9 +6932,12 @@ function renderModelsTable(rows) {
     frag.appendChild(tr);
   }
   tbody.appendChild(frag);
-  wrap.appendChild(table);
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.appendChild(table);
+  wrap.appendChild(tableWrap);
 }
-let providersCache = [];
+// providersCache declared globally with state
 
 function openProviderModal(existing = null) {
   const root = $('#modal-root');
@@ -6314,7 +7097,7 @@ function openProviderModal(existing = null) {
   setTimeout(() => { form.querySelector('#p-form-name').focus(); }, 50);
 }
 
-function updateModelsWhichDropdown() {
+async function updateModelsWhichDropdown() {
   const sel = $('#models-which');
   if (!sel) return;
   const curVal = sel.value;
@@ -6322,34 +7105,54 @@ function updateModelsWhichDropdown() {
     <option value="filtered">models-filtered.csv (Router)</option>
     <option value="all">models-all.csv (Router Raw)</option>
   `;
+
+  let filesInfo = null;
+  try {
+    filesInfo = await api('GET', '/api/models/files');
+  } catch (e) {}
+
   const soloProviders = (providersCache || []).filter(p => p.type === 'solo');
   if (soloProviders.length) {
     const optGroup = document.createElement('optgroup');
     optGroup.label = 'Solo Providers';
     for (const p of soloProviders) {
-      const optF = document.createElement('option');
-      optF.value = 'filtered-' + p.provider;
-      optF.textContent = `${p.provider} - Filtered (models-filtered-${p.provider}.csv)`;
-      optGroup.appendChild(optF);
-      const optA = document.createElement('option');
-      optA.value = 'all-' + p.provider;
-      optA.textContent = `${p.provider} - Raw (models-all-${p.provider}.csv)`;
-      optGroup.appendChild(optA);
+      const pInfo = filesInfo && filesInfo.solo ? filesInfo.solo.find(s => s.provider === p.provider) : null;
+      if (!pInfo || pInfo.filtered) {
+        const optF = document.createElement('option');
+        optF.value = 'filtered-' + p.provider;
+        optF.textContent = `${p.provider} - Filtered (models-filtered-${p.provider}.csv)`;
+        optGroup.appendChild(optF);
+      }
+      if (!pInfo || pInfo.all) {
+        const optA = document.createElement('option');
+        optA.value = 'all-' + p.provider;
+        optA.textContent = `${p.provider} - Raw (models-all-${p.provider}.csv)`;
+        optGroup.appendChild(optA);
+      }
     }
-    sel.appendChild(optGroup);
+    if (optGroup.children.length > 0) {
+      sel.appendChild(optGroup);
+    }
   }
-  const hGroup = document.createElement('optgroup');
-  hGroup.label = 'Harness Previews';
-  for (const h of ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx']) {
-    const opt = document.createElement('option');
-    opt.value = 'harness-' + h;
-    opt.textContent = `models-${h}.csv`;
-    hGroup.appendChild(opt);
+
+  // Only display harness previews for files that actually exist/have been generated!
+  const generatedHarnesses = filesInfo && Array.isArray(filesInfo.harnesses) ? filesInfo.harnesses : [];
+  if (generatedHarnesses.length > 0) {
+    const hGroup = document.createElement('optgroup');
+    hGroup.label = 'Harness Previews';
+    for (const h of generatedHarnesses) {
+      const opt = document.createElement('option');
+      opt.value = 'harness-' + h;
+      opt.textContent = `models-${h}.csv`;
+      hGroup.appendChild(opt);
+    }
+    sel.appendChild(hGroup);
   }
-  sel.appendChild(hGroup);
 
   if (Array.from(sel.options).some(o => o.value === curVal)) {
     sel.value = curVal;
+  } else {
+    sel.value = 'filtered';
   }
 }
 
@@ -6523,7 +7326,10 @@ function renderProvidersTable(rows) {
     tdActions.appendChild(actWrap);
   });
 
-  wrap.appendChild(table);
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-wrap';
+  tableWrap.appendChild(table);
+  wrap.appendChild(tableWrap);
 }
 
 // ===========================================================================
@@ -6576,6 +7382,22 @@ $('#stop-btn').addEventListener('click', async () => { try { await api('POST', '
 $('#models-which').addEventListener('change', loadModels);
 $('#models-search').addEventListener('input', () => { if (modelsCache) renderModelsTable(modelsCache); });
 $('#models-refresh').addEventListener('click', loadModels);
+
+const hpSelect = $('#models-harness-previews-select');
+if (hpSelect) {
+  hpSelect.addEventListener('change', async (e) => {
+    const val = e.target.value;
+    setAt(['show_harness_model_list'], val);
+    try {
+      await api('POST', '/api/config', { config: S.effective });
+      setDirty(false);
+      toast('Harness previews setting saved', 'Preference saved: ' + val);
+      await updateModelsWhichDropdown();
+    } catch (err) {
+      toast('Failed to save setting', err.message, true);
+    }
+  });
+}
 
 const addProvBtn = $('#add-provider-btn');
 if (addProvBtn) addProvBtn.addEventListener('click', () => openProviderModal(null));

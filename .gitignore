@@ -11,4 +11,5 @@ test/
 .zcode/
 *.png
 *.bak
+.gui.port
 design-exploration/

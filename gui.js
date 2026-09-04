@@ -546,6 +546,36 @@ function handleApi(req, res, url) {
     }).catch((e) => sendJson(res, 400, { error: e.message }));
   }
 
+  if (req.method === 'GET' && route === '/api/models/files') {
+    const cfg = loadConfig();
+    const allBase = resolveish(cfg.paths.all_models_csv) || path.join(__dirname, 'models-all.csv');
+    const filteredBase = resolveish(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv');
+    const dir = path.dirname(filteredBase);
+
+    const router = {
+      filtered: fs.existsSync(filteredBase),
+      all: fs.existsSync(allBase),
+    };
+
+    const providersData = readProviders();
+    const soloProviders = (providersData.rows || []).filter((r) => r.type === 'solo');
+    const solo = soloProviders.map((p) => {
+      const allFile = path.join(path.dirname(allBase), `models-all-${p.provider}.csv`);
+      const filteredFile = path.join(dir, `models-filtered-${p.provider}.csv`);
+      return {
+        provider: p.provider,
+        filtered: fs.existsSync(filteredFile),
+        all: fs.existsSync(allFile),
+      };
+    });
+
+    const harnesses = ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'ocx'].filter((h) => {
+      return fs.existsSync(path.join(dir, `models-${h}.csv`));
+    });
+
+    return sendJson(res, 200, { router, solo, harnesses });
+  }
+
   if (req.method === 'GET' && route === '/api/models') {
     const which = url.searchParams.get('file') || 'filtered';
     return sendJson(res, 200, readModelsCsv(which));
@@ -832,6 +862,7 @@ function start(opts) {
       }
     });
     server.listen(p, '127.0.0.1', () => {
+      try { fs.writeFileSync(path.join(__dirname, '.gui.port'), String(p), 'utf8'); } catch (e) {}
       console.log('');
       console.log('  Omnilist GUI running at:  http://127.0.0.1:' + p);
       if (p !== wanted) console.log('  (port ' + wanted + ' was busy, using the next free one)');
@@ -841,10 +872,30 @@ function start(opts) {
   };
   tryListen(wanted);
 
-  const shutdown = () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 1500).unref(); };
+  const shutdown = () => {
+    try {
+      const pf = path.join(__dirname, '.gui.port');
+      if (fs.existsSync(pf)) fs.unlinkSync(pf);
+    } catch (e) {}
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 1500).unref();
+  };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   return new Promise((resolve) => server.on('listening', () => resolve({ port: server.address().port })));
 }
 
-module.exports = { start, readProviders, writeProvidersCsv, readModelsCsv };
+if (process.stdout && typeof process.stdout.on === 'function') {
+  process.stdout.on('error', (err) => { if (err && err.code === 'EPIPE') return; });
+}
+if (process.stderr && typeof process.stderr.on === 'function') {
+  process.stderr.on('error', (err) => { if (err && err.code === 'EPIPE') return; });
+}
+
+
+if (require.main === module) {
+  const portArg = parseInt(process.argv[2], 10);
+  start({ port: isNaN(portArg) || portArg <= 0 ? DEFAULT_PORT : portArg });
+}
+
+module.exports = { start, readProviders, writeProvidersCsv, readModelsCsv, DEFAULT_PORT };

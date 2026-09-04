@@ -201,6 +201,9 @@ const DEFAULTS = {
       { driver: 'codex', '1m': false },
     ],
     // dont use codex or any other driver here only claude recommended
+    solo_provider_drivers: [
+      { driver: 'claudeAgent', '1m': true },
+    ],
     rest_provider_drivers: [
       { driver: 'claudeAgent', '1m': true },
     ],
@@ -220,14 +223,15 @@ const DEFAULTS = {
     remove_if_provider_doesnt_exist: true,
   },
 
-  opencode: { router_adapters: ['@ai-sdk/openai-compatible'], rest_adapters: ['@ai-sdk/openai-compatible'] },
-  kilo:     { router_adapters: ['@ai-sdk/openai-compatible'], rest_adapters: ['@ai-sdk/openai-compatible'] },
-  pi:       { router_adapters: ['openai-completions'],         rest_adapters: ['openai-completions'] },
-  zcode:    { router_adapters: ['openai-compatible'],          rest_adapters: ['openai-compatible'] },
-  opencodex:{ router_adapters: ['openai-chat'],                rest_adapters: ['openai-chat'] },
+  opencode: { router_adapters: ['@ai-sdk/openai-compatible'], solo_adapters: ['@ai-sdk/openai-compatible'], rest_adapters: ['@ai-sdk/openai-compatible'] },
+  kilo:     { router_adapters: ['@ai-sdk/openai-compatible'], solo_adapters: ['@ai-sdk/openai-compatible'], rest_adapters: ['@ai-sdk/openai-compatible'] },
+  pi:       { router_adapters: ['openai-completions'],         solo_adapters: ['openai-completions'],         rest_adapters: ['openai-completions'] },
+  zcode:    { router_adapters: ['openai-compatible'],          solo_adapters: ['openai-compatible'],          rest_adapters: ['openai-compatible'] },
+  opencodex:{ router_adapters: ['openai-chat'],                solo_adapters: ['openai-chat'],                rest_adapters: ['openai-chat'] },
 
   dsh: {
     router_adapters: ['openai-completions'],
+    solo_adapters: ['openai-completions'],
     rest_adapters: ['openai-completions'],
     model_inputs: 'hardcode',   // 'hardcode' | 'vision' | ["text","image"]
   },
@@ -419,16 +423,39 @@ const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider
 
 const T3_ROUTER_DRIVERS = cfg.t3.router_drivers;
 const T3_REST_PROVIDER_DRIVERS = cfg.t3.rest_provider_drivers;
+const T3_SOLO_PROVIDER_DRIVERS = (cfg.t3 && cfg.t3.solo_provider_drivers) || cfg.t3.rest_provider_drivers;
 const T3_DRIVER_STRATEGY = cfg.t3.driver_strategy;
 
 // Uniform adapter getter — free-form strings, backward-compat for legacy dsh.router_apis/rest_apis, dedup + normalize.
-function getAdapters(harness, side) {
-  // harness: 'opencode'|'kilo'|'pi'|'zcode'|'opencodex'|'dsh'; side: 'router'|'rest'
-  const want = `${side}_adapters`;
-  const legacyMap = { dsh: { router: 'router_apis', rest: 'rest_apis' } };
+function getAdapters(harness, side, providerName) {
+  // harness: 'opencode'|'kilo'|'pi'|'zcode'|'opencodex'|'dsh'; side: 'router'|'solo'|'rest'
   const blk = (cfg && cfg[harness] && typeof cfg[harness] === 'object') ? cfg[harness] : null;
+
+  // 1) Per-provider adapter override
+  if (providerName && blk && blk.provider_adapters && typeof blk.provider_adapters === 'object') {
+    const custom = blk.provider_adapters[providerName];
+    let customArr = null;
+    if (Array.isArray(custom) && custom.length) customArr = custom;
+    else if (typeof custom === 'string' && custom.trim()) customArr = [custom.trim()];
+    if (customArr && customArr.length) {
+      const seen = new Set(); const out = [];
+      for (const v of customArr) {
+        const s = typeof v === 'string' ? v.trim() : '';
+        if (!s || seen.has(s)) continue;
+        const simp = simplifyName(s);
+        if (!simp || seen.has('simp:' + simp)) continue;
+        seen.add(s); seen.add('simp:' + simp); out.push(s);
+      }
+      if (out.length) return out;
+    }
+  }
+
+  // 2) Harness side adapters (router, solo, or rest)
+  const want = `${side}_adapters`;
+  const legacyMap = { dsh: { router: 'router_apis', rest: 'rest_apis', solo: 'rest_apis' } };
   let arr = null;
   if (blk && Array.isArray(blk[want]) && blk[want].length) arr = blk[want];
+  else if (side === 'solo' && blk && Array.isArray(blk.rest_adapters) && blk.rest_adapters.length) arr = blk.rest_adapters;
   else if (blk && legacyMap[harness] && Array.isArray(blk[legacyMap[harness][side]])) arr = blk[legacyMap[harness][side]];
   else {
     const def = DEFAULTS[harness] && Array.isArray(DEFAULTS[harness][want]) ? DEFAULTS[harness][want] : null;
@@ -559,12 +586,18 @@ function makeLineReader() {
 }
 
 // On a fresh install providers.csv doesn't exist (or has no Router row). Prompt
-// the user for the Router's base URL + API key and write a minimal providers.csv
-// so the normal fetch step can populate models-filtered.csv. Returns the created provider
-// name, or null when a Router already existed and nothing needed to change.
+// the user for the provider configuration. If providers.csv has no rows at all,
+// ask what kind of provider we are adding (Router or Solo).
+// Returns the created provider name, or null when already configured.
 async function ensureRouterProvider() {
   const rows = readProvidersCsv();
   if (getRouterRow(rows)) return null; // already configured
+
+  // If there are already solo providers configured and this run doesn't strictly need a router row,
+  // we can skip prompting for a router.
+  if (rows.length > 0 && getSoloRows(rows).length > 0) {
+    return null;
+  }
 
   if (!isInteractive()) {
     // Cannot prompt (piped/no stdin). Give a clear error instead of hanging.
@@ -585,25 +618,64 @@ async function ensureRouterProvider() {
   };
 
   try {
-    console.log('\nNo Router provider is configured yet. Let’s set one up.\n');
-    const baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
-    if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
-    const apiKey = (await q('Router API key', '')) || '';
-    if (!apiKey) throw new Error('Aborted: no Router API key provided.');
-    const providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+    let providerName, baseUrl, apiKey, type, desc;
 
-    const header = 'provider,base_url,api_key,description';
-    const line = providerName + ',' + baseUrl + ',' + apiKey + ',Router';
-    fs.mkdirSync(path.dirname(PROVIDERS_CSV), { recursive: true });
+    // If providers.csv has no rows at all, ask what kind of provider to add
+    if (rows.length === 0) {
+      console.log('\nNo providers are configured yet. Let’s set one up.\n');
+      console.log('What kind of provider are we adding?');
+      console.log('  1) Router (aggregates models from multiple upstream providers into a single gateway)');
+      console.log('  2) Solo (direct provider with its own /models endpoint, e.g. OpenRouter, DeepSeek, Groq)');
+      const choice = (await q('Choice (1 = Router, 2 = Solo)', '1')) || '1';
 
-    // Preserve any existing (non-Router) providers.csv content: append the new
-    // Router row rather than overwriting rows the user already had.
+      if (choice.startsWith('http://') || choice.startsWith('https://')) {
+        // Direct URL entered (e.g. from automated test inputs)
+        baseUrl = choice;
+        apiKey = (await q('Router API key', '')) || '';
+        if (!apiKey) throw new Error('Aborted: no Router API key provided.');
+        providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+        type = 'router';
+        desc = 'Router';
+      } else if (choice === '2' || choice.toLowerCase() === 'solo') {
+        providerName = (await q('Provider name (e.g. deepseek, groq, openrouter)', 'deepseek')) || 'deepseek';
+        baseUrl = (await q('Base URL (e.g. https://api.deepseek.com/v1)', '')) || '';
+        if (!baseUrl) throw new Error('Aborted: no base URL provided.');
+        apiKey = (await q('API key', '')) || '';
+        if (!apiKey) throw new Error('Aborted: no API key provided.');
+        type = 'solo';
+        desc = 'Solo';
+      } else {
+        baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
+        if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
+        apiKey = (await q('Router API key', '')) || '';
+        if (!apiKey) throw new Error('Aborted: no Router API key provided.');
+        providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+        type = 'router';
+        desc = 'Router';
+      }
+    } else {
+      console.log('\nNo Router provider is configured yet. Let’s set one up.\n');
+      baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
+      if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
+      apiKey = (await q('Router API key', '')) || '';
+      if (!apiKey) throw new Error('Aborted: no Router API key provided.');
+      providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+      type = 'router';
+      desc = 'Router';
+    }
+
     let existing = '';
     if (fs.existsSync(PROVIDERS_CSV)) {
       existing = fs.readFileSync(PROVIDERS_CSV, 'utf8').replace(/\r\n/g, '\n').replace(/\n+$/, '');
     }
     const hasContent = existing.trim().length > 0;
     const hasHeader = /^\s*provider\s*,/.test(existing);
+    const existingHasType = hasHeader && /,\s*type\s*,/i.test(existing.split('\n')[0]);
+    const header = 'provider,base_url,api_key,type,description';
+    const line = (!hasContent || existingHasType)
+      ? providerName + ',' + baseUrl + ',' + apiKey + ',' + type + ',' + desc
+      : providerName + ',' + baseUrl + ',' + apiKey + ',' + desc;
+    fs.mkdirSync(path.dirname(PROVIDERS_CSV), { recursive: true });
     let out;
     if (!hasContent) {
       out = header + '\n' + line + '\n';
@@ -615,7 +687,7 @@ async function ensureRouterProvider() {
     fs.writeFileSync(PROVIDERS_CSV, out, 'utf8');
 
     console.log('\n' + (hasContent ? 'Added' : 'Created') +
-      ' Router provider "' + providerName + '" in ' + PROVIDERS_CSV + '.\n');
+      ' ' + desc + ' provider "' + providerName + '" in ' + PROVIDERS_CSV + '.\n');
     return providerName;
   } finally {
     reader.close();
@@ -1553,10 +1625,15 @@ async function fetchSoloModels(row, minInput = 0, minOutput = 0) {
 //   --min-input-context N : skip models with input context < N (0 = no filter)
 //   --min-output-limit N   : skip models with output < N (0 = no filter)
 async function fetchModels(minInput = 0, minOutput = 0) {
-  const raw = await fetchRawModels(minInput, minOutput);
   const rows = readProvidersCsv();
   const router = getRouterRow(rows);
   const routerName = router ? router.provider : null;
+  let raw = [];
+  if (router) {
+    raw = await fetchRawModels(minInput, minOutput);
+  } else {
+    console.log('No Router configured; skipping router catalog fetch.');
+  }
   // custom_models are authoritative: they override any colliding fetched model
   // and are always present in every catalog file, regardless of filters.
   const rawWithCustom = mergeCustomModels(raw, routerName);
@@ -1707,6 +1784,7 @@ async function syncT3Providers() {
   }
 
   const activeRestDrivers = T3_REST_PROVIDER_DRIVERS.filter(e => e && typeof e === 'object' && e.driver);
+  const activeSoloDrivers = (T3_SOLO_PROVIDER_DRIVERS || activeRestDrivers).filter(e => e && typeof e === 'object' && e.driver);
 
   let count = 0;
   for (const [provider, keys] of Object.entries(byProvider)) {
@@ -1733,7 +1811,16 @@ async function syncT3Providers() {
       providerModelsAll.push(name);
       if (m.in >= 1000000) providerModelsAll.push(name + '[1m]');
     }
-    const drivers = activeRestDrivers;
+    let drivers = isSolo ? activeSoloDrivers : activeRestDrivers;
+    if (cfg.t3 && cfg.t3.provider_drivers && typeof cfg.t3.provider_drivers === 'object' && cfg.t3.provider_drivers[provider]) {
+      const custom = cfg.t3.provider_drivers[provider];
+      if (Array.isArray(custom) && custom.length) {
+        const filteredCustom = custom.filter(e => e && typeof e === 'object' && e.driver);
+        if (filteredCustom.length) drivers = filteredCustom;
+      } else if (typeof custom === 'string' && custom.trim()) {
+        drivers = [{ driver: custom.trim(), '1m': false }];
+      }
+    }
     if (drivers.length === 0) continue;
     keys.forEach((row, idx) => {
       drivers.forEach((driverEntry, driverIdx) => {
@@ -1961,8 +2048,9 @@ async function syncOpencodeRestProviders() {
               };
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
-      for (const adapter of restAdapters) {
-        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+      const providerAdapters = getAdapters('opencode', isSolo ? 'solo' : 'rest', providerName);
+      for (const adapter of providerAdapters) {
+        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         config.provider[key] = {
           name: key,
           npm: adapter,
@@ -2038,8 +2126,9 @@ async function syncKiloRestProviders() {
               };
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
-      for (const adapter of restAdapters) {
-        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+      const providerAdapters = getAdapters('kilo', isSolo ? 'solo' : 'rest', providerName);
+      for (const adapter of providerAdapters) {
+        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         config.provider[key] = {
           name: key,
           npm: adapter,
@@ -3069,9 +3158,10 @@ async function syncDSHRestProviders() {
       providerModelCandidates = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]')), 'dsh');
     }
     const simp = simplifyName(provider);
+    const providerApis = getAdapters('dsh', isSolo ? 'solo' : 'rest', provider);
     providerRows.forEach((row, idx) => {
-      for (const api of restAdapters) {
-        const key = `${PREFIX}${simp}${instancePart(idx, providerRows.length)}${adapterSuffix(api, restAdapters)}`;
+      for (const api of providerApis) {
+        const key = `${PREFIX}${simp}${instancePart(idx, providerRows.length)}${adapterSuffix(api, providerApis)}`;
         const envVar = PREFIX_UPPER + (providerRows.length > 1 ? simp.toUpperCase() + '_' + (idx + 1) : simp.toUpperCase()) + '_API_KEY';
         creds.refs[envVar] = row.api_key;
         const dshModels = providerModelCandidates.map(m => {
@@ -3083,7 +3173,7 @@ async function syncDSHRestProviders() {
         const inst = instancePart(idx, providerRows.length);
         // displayName: for single instance keep bare provider; multi-instance keep -N; plus -adapter when multi-adapter.
         const instDisplay = (inst === '' ? '' : inst);
-        const sufDisplay = adapterSuffix(api, restAdapters);
+        const sufDisplay = adapterSuffix(api, providerApis);
         providers[key] = {
           displayName: `${simp}${instDisplay}${sufDisplay}`,
           apiKeyEnv: envVar,
@@ -3159,8 +3249,9 @@ async function syncPiRestProviders() {
           maxTokens: m.out
         };
       });
-      for (const adapter of restAdapters) {
-        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+      const providerAdapters = getAdapters('pi', isSolo ? 'solo' : 'rest', providerName);
+      for (const adapter of providerAdapters) {
+        const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: adapter, models };
       }
     });
@@ -3251,9 +3342,10 @@ async function syncOpencodexRestProviders() {
       const prefix = provider + '/';
       providerModels = applyHarnessTopN(modelRows.filter((m) => m.id.startsWith(prefix)), 'ocx');
     }
+    const providerAdapters = getAdapters('opencodex', isSolo ? 'solo' : 'rest', provider);
     providerRows.forEach((row, idx) => {
-      for (const adapter of restAdapters) {
-        const key = `${PREFIX}${simplifyName(provider)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, restAdapters)}`;
+      for (const adapter of providerAdapters) {
+        const key = `${PREFIX}${simplifyName(provider)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         doc.providers[key] = ocxProviderEntry(row, adapter);
         const modelIds = new Set(providerModels.map((m) => isSolo ? m.id : m.id.slice(provider.length + 1)));
         doc.customModels = doc.customModels.filter((e) => {
@@ -3457,8 +3549,10 @@ async function syncZcodeRestProviders() {
     for (let idx = 1; idx <= group.length; idx++) {
       const row = group[idx - 1];
       const withoutAdapter = PREFIX + base + (idx > 1 ? `-${idx}` : '');
-      for (const adapter of restAdapters) {
-        const suffix = restAdapters.length > 1 ? '-' + simplifyName(adapter) : '';
+      const isSolo = isSoloRow(row);
+      const providerAdapters = getAdapters('zcode', isSolo ? 'solo' : 'rest', row.provider);
+      for (const adapter of providerAdapters) {
+        const suffix = providerAdapters.length > 1 ? '-' + simplifyName(adapter) : '';
         const logical = withoutAdapter + suffix;
         if (existingLogicals.has(logical)) continue;
         const isSolo = isSoloRow(row);
@@ -4009,18 +4103,18 @@ async function runCustomCommands() {
 // ---------- usage ----------
 function printUsage() {
   console.log(`
-${CLI_COMMAND_NAME}.js — fetch the Router's model catalog and sync into config files
+${CLI_COMMAND_NAME}.js — fetch model catalogs and sync into AI harness configs
 
 Usage:
-  node ${CLI_COMMAND_NAME}.js [targets...] [options]
+  ${CLI_COMMAND_NAME} run [targets...] [options]   Run the sync pipeline (default)
+  ${CLI_COMMAND_NAME} start [port] [options]        Start GUI in background and run sync pipeline
+  ${CLI_COMMAND_NAME} gui [port]                   Start GUI in background only (doesn't hijack terminal)
+  ${CLI_COMMAND_NAME} [targets...] [options]       Directly invoke specific targets or sync all
 
-The special "Router" provider is the row in providers.csv whose description
-column (trimmed) equals exactly "Router". Only the first such row is used;
-any additional Router rows are reported on the console and ignored.
-
-First run: if no Router is configured (providers.csv missing or has no "Router"
-row), you'll be prompted for the Router base URL + API key. That creates
-providers.csv, and the fetch step then builds models-filtered.csv from the model endpoint.
+Providers:
+  Providers are configured in providers.csv. Supports both "Router" gateways
+  (which aggregate models from multiple providers) and "Solo" direct providers
+  (OpenAI-compatible endpoints with their own /models catalog).
 
 Targets (default if none given: fetch + enabled targets + cleanup):
   fetch           Fetch models -> models-filtered.csv from the Router's {base_url}/models
@@ -4215,6 +4309,79 @@ const NUM_MAP = {
   4: ['t3models', 't3rest'],
 };
 
+function getSavedGuiPort() {
+  const portFile = path.join(__dirname, '.gui.port');
+  try {
+    if (fs.existsSync(portFile)) {
+      const p = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+      if (!isNaN(p) && p > 0) return p;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function checkGuiRunning(port) {
+  return new Promise((resolve) => {
+    const http = require('http');
+    const req = http.get(`http://127.0.0.1:${port}/`, (res) => {
+      resolve(res.statusCode >= 200 && res.statusCode < 500);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(600, () => {
+      try { req.destroy(); } catch (e) {}
+      resolve(false);
+    });
+  });
+}
+
+function startGuiInBackground(opts) {
+  const wantedPort = (opts && opts.port) || 47613;
+  return new Promise(async (resolve, reject) => {
+    const savedPort = getSavedGuiPort();
+    const portsToCheck = [wantedPort];
+    if (savedPort && savedPort !== wantedPort) portsToCheck.unshift(savedPort);
+
+    for (const p of portsToCheck) {
+      if (await checkGuiRunning(p)) {
+        console.log(`\n  Omnilist GUI is already running at:  http://127.0.0.1:${p}\n`);
+        return resolve(p);
+      }
+    }
+
+    const { spawn } = require('child_process');
+    const guiScript = path.join(__dirname, 'gui.js');
+    const child = spawn(process.execPath, [guiScript, String(wantedPort)], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    try { child.unref(); } catch (e) {}
+
+    const portFile = path.join(__dirname, '.gui.port');
+    const start = Date.now();
+    const checkInterval = setInterval(async () => {
+      let activePort = wantedPort;
+      try {
+        if (fs.existsSync(portFile)) {
+          const filePort = parseInt(fs.readFileSync(portFile, 'utf8').trim(), 10);
+          if (!isNaN(filePort) && filePort > 0) activePort = filePort;
+        }
+      } catch (e) {}
+
+      const running = await checkGuiRunning(activePort);
+      if (running) {
+        clearInterval(checkInterval);
+        console.log(`\n  Omnilist GUI running at:  http://127.0.0.1:${activePort} (background)\n`);
+        return resolve(activePort);
+      }
+      if (Date.now() - start > 6000) {
+        clearInterval(checkInterval);
+        reject(new Error(`Timed out waiting for GUI server to start on port ${wantedPort}`));
+      }
+    }, 150);
+  });
+}
+
 function parseArgs() {
   const args = {
     targets: new Set(),
@@ -4222,11 +4389,33 @@ function parseArgs() {
     minOutput: 0,
     cleanup: CLEANUP_DEFAULT,
     port: 0,
+    action: 'run',
   };
   const raw = process.argv.slice(2).filter((a) => a.length > 0);
 
   for (let i = 0; i < raw.length; i++) {
     const a = raw[i];
+    const word = a.toLowerCase();
+
+    // ----- action commands: run, start, gui -----
+    if (word === 'gui') {
+      args.action = 'gui';
+      if (i + 1 < raw.length && /^\d+$/.test(raw[i + 1])) {
+        args.port = parseInt(raw[++i], 10);
+      }
+      continue;
+    }
+    if (word === 'start') {
+      args.action = 'start';
+      if (i + 1 < raw.length && /^\d+$/.test(raw[i + 1])) {
+        args.port = parseInt(raw[++i], 10);
+      }
+      continue;
+    }
+    if (word === 'run') {
+      args.action = 'run';
+      continue;
+    }
 
     // ----- filter flags -----
     let val = null;
@@ -4287,7 +4476,6 @@ function parseArgs() {
     }
 
     // ----- named target words -----
-    const word = a.toLowerCase();
     if (WORD_MAP[word]) {
       WORD_MAP[word].forEach((t) => args.targets.add(t));
       continue;
@@ -4354,6 +4542,8 @@ module.exports = {
   readProvidersCsv,
   soloAllCsvPath,
   soloFilteredCsvPath,
+  checkGuiRunning,
+  startGuiInBackground,
 };
 
 // The CLI entry runs only when the script is invoked directly. gui.js requires
@@ -4364,6 +4554,13 @@ if (require.main === module)
   const has = (t) => args.targets.has(t);
   let failed = false;
   try {
+    if (args.action === 'gui') {
+      await startGuiInBackground({ port: args.port });
+      return;
+    }
+    if (args.action === 'start') {
+      await startGuiInBackground({ port: args.port });
+    }
     if (has('gui')) {
       // Hand off to the web dashboard; it owns the process until Ctrl-C.
       await require('./gui').start({ port: args.port });
@@ -4398,7 +4595,13 @@ if (require.main === module)
     ];
 
     for (const target of executionOrder) {
-      if (!has(target)) continue;
+      if (!has(target)) {
+        if (target === 'commands' && Array.isArray(cfg.custom_commands) && cfg.custom_commands.length > 0 && !has('install') && !has('uninstall')) {
+          // Auto-run custom_commands after sync pipeline
+        } else {
+          continue;
+        }
+      }
       try {
         switch (target) {
           case 'fetch': {
@@ -4411,6 +4614,10 @@ if (require.main === module)
               console.log(`Skipped opencode (not found: ${OPENCODE_FILE})`);
               break;
             }
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped opencode router block (no router configured)`);
+              break;
+            }
             const n = await syncRouterProvider(OPENCODE_FILE, 'opencode');
             console.log(`Synced router provider block in ${OPENCODE_FILE} (${n} models)`);
             break;
@@ -4418,6 +4625,10 @@ if (require.main === module)
           case 'kilo': {
             if (!fs.existsSync(KILO_FILE)) {
               console.log(`Skipped kilo (not found: ${KILO_FILE})`);
+              break;
+            }
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped kilo router block (no router configured)`);
               break;
             }
             const n = await syncRouterProvider(KILO_FILE, 'kilo');
@@ -4434,6 +4645,10 @@ if (require.main === module)
             break;
           }
           case 't3models': {
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped t3 router customModels (no router configured)`);
+              break;
+            }
             const n = await syncT3Models(args.minInput, args.minOutput);
             console.log(`Synced flat customModels in ${T3_SETTINGS_FILE} (${n} entries)`);
             break;
@@ -4462,6 +4677,10 @@ if (require.main === module)
             break;
           }
           case 'dsh': {
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped dsh router block (no router configured)`);
+              break;
+            }
             const n = await syncDSHRouter();
             console.log(`Synced DSH router providers in ${DSH_SETTINGS_FILE} (${n} apis)`);
             break;
@@ -4472,6 +4691,10 @@ if (require.main === module)
             break;
           }
           case 'pi': {
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped pi router block (no router configured)`);
+              break;
+            }
             const n = await syncPiRouter();
             console.log(`Synced pi router provider in ${PI_FILE} (${n} models)`);
             break;
@@ -4483,6 +4706,10 @@ if (require.main === module)
           }
           case 'zcode': {
             if (ZCODE_ROUTER || ZCODE_REST) warnZcodeUpdateOnly();
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped zcode router block (no router configured)`);
+              break;
+            }
             const n = await syncZcodeRouter();
             console.log(`Synced zcode router provider in ${ZCODE_FILE} (${n} models)`);
             break;
@@ -4494,6 +4721,10 @@ if (require.main === module)
             break;
           }
           case 'opencodex': {
+            if (!getRouterRow(readProvidersCsv())) {
+              console.log(`Skipped opencodex router block (no router configured)`);
+              break;
+            }
             const n = await syncOpencodexRouter();
             console.log(`Synced opencodex router provider in ${OPENCODEX_FILE} (${n} models)`);
             break;
