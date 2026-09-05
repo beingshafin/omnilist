@@ -4925,16 +4925,76 @@ function parseArgs() {
   return args;
 }
 
-function printOnboardingBanner(port) {
+// Post-setup recap: everything setup did, where it lives, and what to run
+// next. Reads live state (providers.csv, config path) so it never lies.
+function printSetupSummary(port) {
   const p = port || 55555;
-  console.log('');
-  console.log('  OmniList is ready');
-  console.log('');
-  console.log('  Dashboard   http://127.0.0.1:' + p);
-  console.log('  Sync        ' + CLI_COMMAND_NAME + '               (fetch + sync everything)');
-  console.log('  Fetch only  ' + CLI_COMMAND_NAME + ' fetch');
-  console.log('  Help        ' + CLI_COMMAND_NAME + ' --help');
-  console.log('');
+  const say = (s) => console.log(s === '' ? '' : '  ' + s);
+  const rows = readProvidersCsv();
+  const router = getRouterRow(rows);
+  const solos = getSoloRows(rows);
+  const primaryConfig = process.env.OMNILIST_CONFIG
+    || path.join(PROJECT_ROOT, 'config', 'config.jsonc');
+
+  say('');
+  say('Setup complete — here is everything that is ready');
+  say('');
+  say('What was done');
+  if (router) {
+    say('  Provider    Router "' + router.provider + '"  →  ' + router.base_url);
+  } else if (solos.length) {
+    say('  Provider    Solo "' + solos.map((r) => r.provider).join('", "') + '" (no Router yet)');
+  } else {
+    say('  Provider    (none — add one with `' + CLI_COMMAND_NAME + ' setup`)');
+  }
+  say('              saved in ' + PROVIDERS_CSV);
+  say('  Command     `' + CLI_COMMAND_NAME + '` installed to User PATH');
+  say('              (reopen your terminal, then run it from anywhere)');
+  say('  Dashboard   running in the background:  http://127.0.0.1:' + p);
+  say('              `omnilist stop` stops it, `omnilist gui` reopens it');
+  say('');
+  say('Customize');
+  say('  Config      ' + primaryConfig);
+  say('              every key is optional; the dashboard edits this same file');
+  if (!process.env.OMNILIST_CONFIG) {
+    say('  Overrides    ' + path.join(PROJECT_ROOT, 'config', 'config.local.jsonc') + '  (private, gitignored)');
+  }
+  say('');
+  say('Next');
+  say('  ' + CLI_COMMAND_NAME + '             fetch the catalog + sync every enabled tool');
+  say('  ' + CLI_COMMAND_NAME + ' gui         visual config for every tab (Run, Models, Providers, …)');
+  say('  ' + CLI_COMMAND_NAME + ' --help      all targets and flags');
+  say('  Full per-tab guides in docs\\  (docs\\README.md index)');
+  say('');
+}
+
+// Pause so a double-clicked setup.cmd window doesn't vanish before the user
+// reads the summary. Skipped automatically when stdin isn't a TTY (pipes,
+// CI, tests) so scripts never hang.
+function waitForAnyKey() {
+  return new Promise((resolve) => {
+    let tty = false;
+    try { tty = Boolean(process.stdin.isTTY) && typeof process.stdin.setRawMode === 'function'; }
+    catch (e) { tty = false; }
+    if (!tty) return resolve();
+    console.log('  Press any key to exit...');
+    const stdin = process.stdin;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try { stdin.setRawMode(false); } catch (e) { /* ignore */ }
+      try { stdin.pause(); } catch (e) { /* ignore */ }
+      console.log('');
+      resolve();
+    };
+    try {
+      stdin.setRawMode(true);
+      stdin.resume();
+      stdin.once('data', finish);
+      stdin.once('end', finish);
+    } catch (e) { finish(); }
+  });
 }
 
 // Re-exported for gui.js: the config schema, loader/merger, JSONC parser, and
@@ -4995,14 +5055,17 @@ if (require.main === module)
       const created = await ensureRouterProvider();
       if (!created) console.log('  Already configured: ' + PROVIDERS_CSV + '\n');
 
-      console.log('Installing ' + CLI_COMMAND_NAME + ' command to User PATH...');
+      console.log('  Installing ' + CLI_COMMAND_NAME + ' command to User PATH...');
       installAsCommand(false);
 
       const port = args.port || 55555;
-      console.log('\nStarting OmniList Web Dashboard on port ' + port + '...');
-      await startGuiInBackground({ port });
+      console.log('\n  Starting OmniList Web Dashboard on port ' + port + '...');
+      const livePort = await startGuiInBackground({ port });
 
-      printOnboardingBanner(port);
+      printSetupSummary(livePort || port);
+      // setup.cmd ends with a batch `pause`, so skip the in-process key wait
+      // when launched from there (OMNILIST_SETUP_CMD) to avoid asking twice.
+      if (!process.env.OMNILIST_SETUP_CMD) await waitForAnyKey();
       return;
     }
     if (args.action === 'stop') {
