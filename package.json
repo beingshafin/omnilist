@@ -1,0 +1,10 @@
+{
+  "name": "omnilist",
+  "version": "1.0.0",
+  "description": "Fetch a Router's model catalog and keep OpenCode, Kilo, and T3 configs in sync.",
+  "main": "src/omnilist.js",
+  "scripts": {
+    "test": "node --test test/omnilist.test.js"
+  },
+  "license": "MIT"
+}

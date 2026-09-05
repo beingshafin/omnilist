@@ -1,0 +1,256 @@
+/*
+  OMNILIST DEFAULT CONFIGURATION (default.jsonc)
+
+  This file defines the baseline defaults for OmniList.
+  - Changes pushed via "Push as Default" in the GUI will be saved here.
+  - Active configuration overrides belong in config.jsonc (project-wide) or
+    config.local.jsonc (private, gitignored).
+*/
+
+{
+  // paths — catalog + harness config file locations (~, absolute, or relative to the project root)
+  "paths": {
+    "models_csv": "data/models-filtered.csv",
+    "providers_csv": "data/providers.csv",
+    "all_models_csv": "",
+    "harness_models_file": "data/models-<harness>.csv",
+    "opencode_file": "~/.config/opencode/opencode.jsonc",
+    "kilo_file": "~/.config/kilo/kilo.jsonc",
+    "t3_settings_file": "",
+    "t3_data_dir": "~/.t3/userdata",
+    "t3_logs_dir": "",
+    "dsh_settings_file": "~/.dsh/settings.yaml",
+    "dsh_credentials_file": "~/.dsh/.credentials.yaml",
+    "pi_file": "~/.pi/agent/models.json",
+    "zcode_file": "~/.zcode/v2/config.json",
+    "opencodex_file": "~/.opencodex/config.json"
+  },
+
+  // cli — global command registration
+  "cli": {
+    "install_as_command": true,
+    "command_name": "omnilist"
+  },
+
+  // fetch — where the model list comes from ("" = {base_url}/models from the Router row)
+  "fetch": {
+    "models_endpoint": ""
+  },
+
+  // capabilities — which router model fields to probe for vision/reasoning/tool
+  "capabilities": {
+    "fields": {
+      "vision": [
+        "vision",
+        "supports_vision",
+        "image",
+        "input_modalities",
+        "attachment"
+      ],
+      "reasoning": [
+        "reasoning",
+        "supports_reasoning",
+        "thinking",
+        "supportsThinking"
+      ],
+      "tool": [
+        "tool_call",
+        "tool_calls",
+        "supports_tool_call",
+        "tools",
+        "tool_calling",
+        "supports_tool_calling"
+      ]
+    },
+    "n_a_defaults": {
+      "vision": true,
+      "reasoning": true,
+      "tool": true
+    }
+  },
+
+  // model filters — C-like expressions, last matching rule wins
+  "model_filters": [
+    "!kc/*",
+    "!opencode-zen/*",
+    "*free",
+    "!agy/*",
+    "!gemini/*",
+    "!no-think",
+    "!compatible"
+  ],
+
+  // harness filters — second-stage filters at sync time; "rule->t3,dsh" targets specific harnesses
+  "harness_filters": [],
+
+  // invalid_value_overrides — "(field:value)" or "(field:value)->t3,dsh"; rewrite only when current value is invalid
+  "invalid_value_overrides": [],
+
+  // always_overrides — same syntax, unconditional rewrite
+  "always_overrides": [],
+
+  // raw catalog — harnesses that read models-all.csv instead of models-filtered.csv
+  "raw_catalog_harnesses": [],
+
+  // previews — per-harness model list CSVs: raw | all | configured | none (default: raw)
+  // "show_harness_model_list": "raw",
+
+  // custom models — injected models; never filtered out
+  "custom_models": [],
+
+  // targets — per-harness sync switches
+  "targets": {
+    "opencode_solo": true,
+    "opencode_router": true,
+    "opencode_rest": false,
+    "kilo_solo": true,
+    "kilo_router": true,
+    "kilo_rest": false,
+    "kilo_copy_opencode_full_provider_block": false,
+    "t3_solo": true,
+    "t3_router": true,
+    "t3_rest": true,
+    "dsh_solo": true,
+    "dsh_router": false,
+    "dsh_rest": false,
+    "pi_solo": true,
+    "pi_router": false,
+    "pi_rest": false,
+    "zcode_solo": false,
+    "zcode_router": false,
+    "zcode_rest": false,
+    "opencodex_solo": true,
+    "opencodex_router": false,
+    "opencodex_rest": false
+  },
+
+  // template — emit full hardcoded model template into OpenCode/Kilo blocks
+  "follow_hardcoded_model_template": true,
+
+  // cleanup — default for the cleanup step (CLI --clean/--noclean)
+  "cleanup_default": true,
+
+  // t3 — drivers and driver strategy
+  "t3": {
+    "router_drivers": [
+      {
+        "driver": "claudeAgent",
+        "1m": true
+      },
+      {
+        "driver": "codex",
+        "1m": false
+      }
+    ],
+    "solo_provider_drivers": [
+      {
+        "driver": "claudeAgent",
+        "1m": true
+      }
+    ],
+    "rest_provider_drivers": [
+      {
+        "driver": "claudeAgent",
+        "1m": true
+      }
+    ],
+    "driver_strategy": {
+      "claudeAgent": {
+        "mode": "env",
+        "apiKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "ANTHROPIC_BASE_URL"
+      },
+      "codex": {
+        "mode": "launchArgs"
+      }
+    }
+  },
+
+  // adapters — opencode
+  "opencode": {
+    "router_adapters": [
+      "@ai-sdk/openai-compatible"
+    ],
+    "solo_adapters": [
+      "@ai-sdk/openai-compatible"
+    ],
+    "rest_adapters": [
+      "@ai-sdk/openai-compatible"
+    ]
+  },
+
+  // adapters — kilo
+  "kilo": {
+    "router_adapters": [
+      "@ai-sdk/openai-compatible"
+    ],
+    "solo_adapters": [
+      "@ai-sdk/openai-compatible"
+    ],
+    "rest_adapters": [
+      "@ai-sdk/openai-compatible"
+    ]
+  },
+
+  // adapters — pi
+  "pi": {
+    "router_adapters": [
+      "openai-completions"
+    ],
+    "solo_adapters": [
+      "openai-completions"
+    ],
+    "rest_adapters": [
+      "openai-completions"
+    ]
+  },
+
+  // adapters — zcode
+  "zcode": {
+    "router_adapters": [
+      "openai-compatible"
+    ],
+    "solo_adapters": [
+      "openai-compatible"
+    ],
+    "rest_adapters": [
+      "openai-compatible"
+    ]
+  },
+
+  // adapters — opencodex
+  "opencodex": {
+    "router_adapters": [
+      "openai-chat"
+    ],
+    "solo_adapters": [
+      "openai-chat"
+    ],
+    "rest_adapters": [
+      "openai-chat"
+    ]
+  },
+
+  // dsh — adapters and model inputs
+  "dsh": {
+    "router_adapters": [
+      "openai-completions"
+    ],
+    "solo_adapters": [
+      "openai-completions"
+    ],
+    "rest_adapters": [
+      "openai-completions"
+    ],
+    "model_inputs": "hardcode"
+  },
+
+  // cleanup providers — prune stale c-* keys
+  "cleanup_providers": {
+    "remove_if_false_provider": true,
+    "remove_if_provider_doesnt_exist": true
+  },
+
+  // custom commands — run after all sync targets; "sleep <s>" pauses, "bg:<cmd>" detaches
+  "custom_commands": []
+}
