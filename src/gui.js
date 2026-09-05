@@ -341,13 +341,22 @@ function resolveish(p) {
 }
 
 function resolveExisting(p, fallbackName) {
-  const resolved = resolveish(p);
-  if (resolved && (fs.existsSync(resolved) || (p && path.isAbsolute(p)))) return resolved;
+  if (p && (p.startsWith('~') || path.isAbsolute(p))) {
+    return resolveish(p);
+  }
   const inData = path.join(PROJECT_ROOT, 'data', fallbackName);
-  if (fs.existsSync(inData)) return inData;
   const inRoot = path.join(PROJECT_ROOT, fallbackName);
+  const norm = p ? p.replace(/\\/g, '/').replace(/^\.\//, '') : '';
+  if (!norm || norm === fallbackName || norm === `data/${fallbackName}`) {
+    if (fs.existsSync(inData)) return inData;
+    if (fs.existsSync(inRoot)) return inRoot;
+    return inData;
+  }
+  const resolved = resolveish(p);
+  if (fs.existsSync(resolved)) return resolved;
+  if (fs.existsSync(inData)) return inData;
   if (fs.existsSync(inRoot)) return inRoot;
-  return resolved || inData;
+  return inData;
 }
 
 function resolveProvidersFile(cfg) {
@@ -664,8 +673,8 @@ function handleApi(req, res, url) {
 
   if (req.method === 'GET' && route === '/api/models/files') {
     const cfg = loadConfig();
-    const allBase = resolveish(cfg.paths.all_models_csv) || (fs.existsSync(path.join(PROJECT_ROOT, 'data', 'models-all.csv')) ? path.join(PROJECT_ROOT, 'data', 'models-all.csv') : path.join(PROJECT_ROOT, 'models-all.csv'));
-    const filteredBase = resolveish(cfg.paths.models_csv) || (fs.existsSync(path.join(PROJECT_ROOT, 'data', 'models-filtered.csv')) ? path.join(PROJECT_ROOT, 'data', 'models-filtered.csv') : path.join(PROJECT_ROOT, 'models-filtered.csv'));
+    const allBase = resolveExisting(cfg && cfg.paths && cfg.paths.all_models_csv, 'models-all.csv');
+    const filteredBase = resolveExisting(cfg && cfg.paths && cfg.paths.models_csv, 'models-filtered.csv');
     const dir = path.dirname(filteredBase);
 
     const router = {
@@ -1095,4 +1104,4 @@ if (require.main === module) {
   start({ port: isNaN(portArg) || portArg <= 0 ? DEFAULT_PORT : portArg });
 }
 
-module.exports = { start, readProviders, writeProvidersCsv, readModelsCsv, DEFAULT_PORT };
+module.exports = { start, readProviders, writeProvidersCsv, readModelsCsv, resolveExisting, resolveProvidersFile, DEFAULT_PORT };

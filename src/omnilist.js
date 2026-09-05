@@ -71,7 +71,7 @@ const DEFAULTS = {
   paths: {
     models_csv: 'data/models-filtered.csv',
     providers_csv: 'data/providers.csv',
-    all_models_csv: '',  // raw catalog (dedup only, pre-filter); '' = <models dir>/models-all.csv
+    all_models_csv: 'data/models-all.csv',  // raw catalog (dedup only, pre-filter); '' = <models dir>/models-all.csv
     harness_models_file: 'data/models-<harness>.csv',  // per-harness preview; <harness> -> t3/dsh/opencode/kilo
     opencode_file: '~/.config/opencode/opencode.jsonc',
     kilo_file: '~/.config/kilo/kilo.jsonc',
@@ -277,6 +277,10 @@ function resolvePath(p) {
 function resolveCatalogPath(name) {
   if (!name) return '';
   if (name.startsWith('~') || path.isAbsolute(name)) return resolvePath(name);
+  const norm = name.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (norm.startsWith('data/')) {
+    return path.normalize(path.join(PROJECT_ROOT, norm));
+  }
   return path.normalize(path.join(path.dirname(MODELS_CSV), name));
 }
 
@@ -339,26 +343,40 @@ function resolveProvidersCsv(p) {
   if (process.env.PROVIDERS_CSV) return path.normalize(process.env.PROVIDERS_CSV);
   if (!p) return path.join(PROJECT_ROOT, 'data', 'providers.csv');
   if (path.isAbsolute(p) || p.startsWith('~')) return resolvePath(p);
+
+  const inData = path.join(PROJECT_ROOT, 'data', 'providers.csv');
+  const inRoot = path.join(PROJECT_ROOT, 'providers.csv');
+
+  const norm = p.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (norm === 'providers.csv' || norm === 'data/providers.csv') {
+    if (fs.existsSync(inData)) return inData;
+    if (fs.existsSync(inRoot)) return inRoot;
+    return inData;
+  }
+
   const resolved = resolvePath(p);
   if (fs.existsSync(resolved)) return resolved;
-  const inData = path.join(PROJECT_ROOT, 'data', 'providers.csv');
-  if (fs.existsSync(inData)) return inData;
-  const inRoot = path.join(PROJECT_ROOT, 'providers.csv');
-  if (fs.existsSync(inRoot)) return inRoot;
-  return resolved;
+  return inData;
 }
 
 function resolveModelsCsv(p) {
   if (process.env.MODELS_TEST) return path.normalize(process.env.MODELS_TEST);
   if (!p) return path.join(PROJECT_ROOT, 'data', 'models-filtered.csv');
   if (path.isAbsolute(p) || p.startsWith('~')) return resolvePath(p);
+
+  const inData = path.join(PROJECT_ROOT, 'data', 'models-filtered.csv');
+  const inRoot = path.join(PROJECT_ROOT, 'models-filtered.csv');
+
+  const norm = p.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (norm === 'models-filtered.csv' || norm === 'data/models-filtered.csv') {
+    if (fs.existsSync(inData)) return inData;
+    if (fs.existsSync(inRoot)) return inRoot;
+    return inData;
+  }
+
   const resolved = resolvePath(p);
   if (fs.existsSync(resolved)) return resolved;
-  const inData = path.join(PROJECT_ROOT, 'data', 'models-filtered.csv');
-  if (fs.existsSync(inData)) return inData;
-  const inRoot = path.join(PROJECT_ROOT, 'models-filtered.csv');
-  if (fs.existsSync(inRoot)) return inRoot;
-  return resolved;
+  return inData;
 }
 
 const MODELS_CSV = path.normalize(resolveModelsCsv(cfg.paths.models_csv));
@@ -952,7 +970,7 @@ function mergeCustomModels(rows, providerName) {
 }
 
 function harnessModelsPath(harnessId) {
-  const template = (cfg.paths && cfg.paths.harness_models_file) || 'models-<harness>.csv';
+  const template = (cfg.paths && cfg.paths.harness_models_file) || 'data/models-<harness>.csv';
   const name = template.replace(/<harness>/g, harnessId);
   return resolveCatalogPath(name) || path.join(path.dirname(MODELS_CSV), `models-${harnessId}.csv`);
 }

@@ -12,7 +12,7 @@
   "paths": {
     "models_csv": "data/models-filtered.csv",
     "providers_csv": "data/providers.csv",
-    "all_models_csv": "",
+    "all_models_csv": "data/models-all.csv",
     "harness_models_file": "data/models-<harness>.csv",
     "opencode_file": "~/.config/opencode/opencode.jsonc",
     "kilo_file": "~/.config/kilo/kilo.jsonc",

@@ -4,7 +4,7 @@
   WHAT THIS IS
   Omnilist keeps your AI coding tools (OpenCode, Kilo, T3, DSH, pi, zcode) in sync with a
   single Router's model catalog. You keep ONE list of providers in
-  `providers.csv`; omnilist fetches the Router's model list and pushes it
+  `data/providers.csv`; omnilist fetches the Router's model list and pushes it
   into every tool's config file for you.
 
   HOW TO USE IT
@@ -98,10 +98,10 @@
 {
   // paths
   "paths": {
-    "models_csv": "models-filtered.csv",
-    "providers_csv": "providers.csv",
-    "all_models_csv": "models-all.csv",
-    "harness_models_file": "models-<harness>.csv",
+    "models_csv": "data/models-filtered.csv",
+    "providers_csv": "data/providers.csv",
+    "all_models_csv": "data/models-all.csv",
+    "harness_models_file": "data/models-<harness>.csv",
     "opencode_file": "~/.config/opencode/opencode.jsonc",
     "kilo_file": "~/.config/kilo/kilo.jsonc",
     "t3_data_dir": "~/.t3/userdata",
