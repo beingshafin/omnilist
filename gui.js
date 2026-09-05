@@ -24,7 +24,7 @@ const {
   sortModels,
 } = require('./omnilist.js');
 
-const DEFAULT_PORT = 47613;
+const DEFAULT_PORT = 55555;
 let currentServer = null;
 let currentPort = DEFAULT_PORT;
 const SCRIPT = path.join(__dirname, 'omnilist.js');
@@ -899,8 +899,8 @@ function createServer() {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
       return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%23f54e00"/><path d="M8 10h16M8 16h16M8 22h10" stroke="%23ffffff" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="22" r="2.5" fill="%23ffffff"/></svg>');
     }
-    if (req.method !== 'GET' || (url.pathname !== '/' && url.pathname !== '/index.html')) {
-      return sendJson(res, 404, { error: 'not found' });
+    if (req.method !== 'GET') {
+      return sendJson(res, 405, { error: 'method not allowed' });
     }
     const htmlFile = path.join(__dirname, 'dashboard.html');
     try {

@@ -287,6 +287,19 @@
     font-weight: 600;
   }
   .nav-item.active .ico { color: var(--accent); }
+  .sidebar-github {
+    margin-top: 6px;
+    flex-shrink: 0;
+    text-decoration: none;
+  }
+  .sidebar-github .ico {
+    width: 16px;
+    height: 16px;
+    color: var(--text-3);
+  }
+  .sidebar-github:hover .ico {
+    color: var(--text);
+  }
   /* the four utility actions (reset, reload, theme, shutdown) anchored to the
      sidebar's bottom edge; auto layout so the four share the full row width */
   .sidebar-tools {
@@ -294,11 +307,27 @@
     align-items: stretch;
     gap: 3px;
     padding: 10px 4px 2px;
-    margin-top: 12px;
+    margin-top: 8px;
     border-top: 1px solid var(--border);
   }
-  .sidebar-tools .icon-btn { flex: 1 1 0; border-radius: var(--r-md); }
-  .sidebar-tools #shutdown-btn:hover { color: var(--danger); background: var(--danger-weak); border-color: var(--danger-border); }
+  .sidebar-tools .icon-btn {
+    flex: 1 1 0;
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
+    color: var(--text-3);
+    opacity: 1 !important;
+  }
+  .sidebar-tools .icon-btn:hover {
+    background: var(--panel-2) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    opacity: 1 !important;
+  }
+  .sidebar-tools #shutdown-btn:hover {
+    color: var(--danger) !important;
+    background: var(--danger-weak) !important;
+    border-color: var(--danger-border) !important;
+  }
   .content { flex: 1; overflow-y: auto; padding: 32px 44px 140px; }
   /* Cap the reading measure. Without this, description copy ran ~99 chars per
      line even at a modest window width. The inner wrapper keeps the scroll
@@ -343,11 +372,64 @@
     /* a square hit area is the whole point — without this, an overflowing flex
        row (the header at 375px) crushes a 30px button down to 17px */
     flex-shrink: 0;
+    text-decoration: none;
+    box-sizing: border-box;
   }
   .icon-btn:hover { background: var(--panel-2); color: var(--text); border-color: var(--border); }
   .icon-btn svg { width: 14px; height: 14px; display: block; }
+  .icon-btn.small { width: 24px; height: 24px; border-radius: var(--r-sm); }
+  .icon-btn.small .ic, .icon-btn.small svg { width: 13px; height: 13px; }
+  .icon-btn:disabled, .icon-btn[disabled] { opacity: 0.25 !important; cursor: not-allowed !important; pointer-events: none !important; border-color: transparent !important; background: transparent !important; }
   :root[data-theme="dark"] .icon-moon { display: none; }
   :root[data-theme="light"] .icon-sun { display: none; }
+
+  /* Table & field reset buttons: clean icon-only, no box outline, border or box background (does not affect sidebar) */
+  .field-reset,
+  .harness-reset-btn,
+  .t3-reset-btn,
+  .table-reset-btn,
+  .provider-reset-btn,
+  .reset-btn:not(.sidebar-tools *),
+  .btn-reset:not(.sidebar-tools *) {
+    border: none !important;
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: var(--text-3);
+    opacity: 0.65;
+    transition: color .15s ease, opacity .15s ease;
+  }
+  .field-reset:hover,
+  .harness-reset-btn:hover,
+  .t3-reset-btn:hover,
+  .table-reset-btn:hover,
+  .provider-reset-btn:hover,
+  .reset-btn:not(.sidebar-tools *):hover:not(:disabled),
+  .btn-reset:not(.sidebar-tools *):hover:not(:disabled) {
+    border: none !important;
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: var(--text) !important;
+    opacity: 1 !important;
+  }
+  .field-reset:focus-visible,
+  .harness-reset-btn:focus-visible,
+  .t3-reset-btn:focus-visible,
+  .table-reset-btn:focus-visible,
+  .provider-reset-btn:focus-visible,
+  .reset-btn:not(.sidebar-tools *):focus-visible,
+  .btn-reset:not(.sidebar-tools *):focus-visible {
+    border: none !important;
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: var(--accent) !important;
+    opacity: 1 !important;
+  }
 
   /* ---------- icon sprite sizing ----------
      One family via <use href="#i-*">. Sized in em so an icon always tracks the
@@ -751,10 +833,34 @@
     background: none; border: none; padding: 0; margin: 0;
     color: var(--text-3); cursor: pointer;
     border-radius: 50%;
+    transition: background .12s, color .12s;
   }
   .chip .x .ic { width: 11px; height: 11px; }
   .chip .x:hover { color: var(--danger); background: var(--danger-weak); }
   .chip.on .x { color: var(--accent); }
+
+  button.x {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; flex-shrink: 0;
+    background: transparent; border: 1px solid transparent; padding: 0; margin: 0;
+    color: var(--text-3); cursor: pointer;
+    border-radius: var(--r-sm);
+    box-sizing: border-box;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  button.x .ic { width: 13px; height: 13px; }
+  button.x:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--panel-2);
+    border-color: var(--border);
+  }
+  button.x:disabled, button.x[disabled] {
+    opacity: 0.25 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    border-color: transparent !important;
+    background: transparent !important;
+  }
 
   /* Was styled inline at 9 separate call sites, each slightly different. */
   .field-note { color: var(--text-3); font-size: 12.5px; line-height: 1.5; max-width: var(--measure); }
@@ -1352,6 +1458,8 @@
     justify-content: center;
     border-radius: var(--r-pill);
     padding: 2px 8px;
+    height: 28px;
+    box-sizing: border-box;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.03em;
@@ -1443,6 +1551,26 @@
     background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
     border-radius: var(--r-pill); padding: 0 6px; min-width: 16px; text-align: center;
   }
+  .adapter-select-btn {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 4px;
+    width: 100%; height: 28px; padding: 2px 6px 2px 8px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    cursor: pointer; white-space: nowrap;
+    overflow: hidden; box-sizing: border-box;
+    transition: border-color .12s, background .12s, box-shadow .12s;
+  }
+  .adapter-select-btn:hover {
+    border-color: var(--border-hover);
+    background: var(--panel-2);
+  }
+  .adapter-select-btn:focus-visible, .adapter-select-btn.open {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
   .prov-target-menu {
     position: fixed; z-index: 9999;
     background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-md);
@@ -1526,6 +1654,7 @@
   <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
   <symbol id="i-check-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
   <symbol id="i-check-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 12 11 16 20 7"/><polyline points="2 12 6 16 10 12"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
 </svg>
 
 <button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Show navigation" aria-expanded="false" aria-controls="config-nav"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg></button>
@@ -1554,6 +1683,7 @@
       <button class="nav-item" data-sec="t3"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bolt"/></svg>T3 drivers</button>
       <button class="nav-item" data-sec="commands"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>Commands &amp; advanced</button>
     </div>
+    <a class="nav-item sidebar-github" id="github-link" href="https://github.com/beingshafin/omnilist" target="_blank" rel="noopener noreferrer" title="GitHub repository (beingshafin/omnilist)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg><span>GitHub</span></a>
     <div class="sidebar-tools">
       <button class="icon-btn" id="reset-all-btn" title="Reset every setting back to its default" aria-label="Reset all settings to defaults"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg></button>
       <button class="icon-btn" id="reload-btn" title="Reload the config from disk" aria-label="Reload config from disk"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"/></svg></button>
@@ -1760,9 +1890,32 @@ function setAt(pathArr, value) {
   }
   node[pathArr[pathArr.length - 1]] = value;
 }
+function deleteOverrideKey(pathArr, key) {
+  const blk = getAt(S.effective, pathArr);
+  if (!blk || typeof blk !== 'object') return;
+  delete blk[key];
+  if (Object.keys(blk).filter(k => blk[k] !== undefined).length === 0) {
+    const savedBlk = getAt(S.saved, pathArr);
+    if (!savedBlk || Object.keys(savedBlk).filter(k => savedBlk[k] !== undefined).length === 0) {
+      if (pathArr.length > 0) {
+        const parentPath = pathArr.slice(0, -1);
+        const lastKey = pathArr[pathArr.length - 1];
+        const parent = getAt(S.effective, parentPath);
+        if (parent && typeof parent === 'object') {
+          delete parent[lastKey];
+        }
+      }
+    }
+  }
+}
 function isDeepEqual(a, b) {
   if (a === b) return true;
-  if (a == null || b == null || typeof a !== typeof b) return false;
+  if (a == null || b == null) {
+    const isEmptyObj = (o) => o != null && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).filter(k => o[k] !== undefined).length === 0;
+    if ((a == null && isEmptyObj(b)) || (b == null && isEmptyObj(a))) return true;
+    return false;
+  }
+  if (typeof a !== typeof b) return false;
   if (typeof a !== 'object') return a === b;
   if (Array.isArray(a) !== Array.isArray(b)) return false;
   if (Array.isArray(a)) {
@@ -1772,11 +1925,13 @@ function isDeepEqual(a, b) {
     }
     return true;
   }
-  const keysA = Object.keys(a).filter(k => a[k] !== undefined);
-  const keysB = Object.keys(b).filter(k => b[k] !== undefined);
-  if (keysA.length !== keysB.length) return false;
-  for (const k of keysA) {
-    if (!Object.prototype.hasOwnProperty.call(b, k) || !isDeepEqual(a[k], b[k])) return false;
+  const isEmptyVal = (v) => v === undefined || (v != null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).filter(k => v[k] !== undefined).length === 0);
+  const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of allKeys) {
+    const valA = a[k];
+    const valB = b[k];
+    if (isEmptyVal(valA) && isEmptyVal(valB)) continue;
+    if (!isDeepEqual(valA, valB)) return false;
   }
   return true;
 }
@@ -1811,6 +1966,15 @@ function refreshResetState() {
     let pathArr = null;
     try { pathArr = JSON.parse(btn.dataset.path || 'null'); } catch (e) { /* noop */ }
     btn.classList.toggle('show', !!pathArr && differsFromDefault(pathArr));
+  });
+  sec.querySelectorAll('.harness-reset-btn').forEach((btn) => {
+    const h = btn.dataset.harness;
+    const isModified = differsFromDefault([h, 'router_adapters']) || differsFromDefault([h, 'solo_adapters']) || differsFromDefault([h, 'rest_adapters']);
+    btn.style.display = isModified ? 'inline-flex' : 'none';
+  });
+  sec.querySelectorAll('.t3-reset-btn').forEach((btn) => {
+    const isModified = differsFromDefault(['t3', 'router_drivers']) || differsFromDefault(['t3', 'solo_provider_drivers']) || differsFromDefault(['t3', 'rest_provider_drivers']);
+    btn.style.display = isModified ? 'inline-flex' : 'none';
   });
   const secBtn = sec.querySelector('.section-reset');
   if (secBtn) {
@@ -1938,7 +2102,7 @@ function fieldRow(labelText, hint, controlEl, pathArr, iconId) {
 function makeFieldReset(labelText, pathArr) {
   const reset = document.createElement('button');
   reset.type = 'button';
-  reset.className = 'icon-btn field-reset';
+  reset.className = 'icon-btn field-reset reset-btn';
   reset.dataset.path = JSON.stringify(pathArr);
   reset.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
   reset.title = 'Reset ' + labelText + ' to default';
@@ -4215,39 +4379,84 @@ const HARNESS_ADAPTERS = {
   pi: ['anthropic-messages', 'openai-completions', 'openai-responses', 'openai-codex-responses', 'azure-openai-responses', 'bedrock-converse-stream', 'google-generative-ai', 'google-gemini-cli', 'google-vertex', 'mistral-conversations'],
 };
 
+const HARNESS_DEFAULT_ADAPTER = {
+  opencode: '@ai-sdk/openai-compatible',
+  kilo: '@ai-sdk/openai-compatible',
+  pi: 'openai-completions',
+  zcode: 'openai-compatible',
+  opencodex: 'openai-chat',
+  dsh: 'openai-completions',
+};
+
+function getHarnessDefaultAdapter(h, isSolo) {
+  const blk = (S.effective && S.effective[h]) || {};
+  const want = isSolo ? 'solo_adapters' : 'rest_adapters';
+  const arr = blk[want];
+  if (Array.isArray(arr) && arr.length && arr[0]) return arr[0];
+  if (isSolo && Array.isArray(blk.rest_adapters) && blk.rest_adapters.length && blk.rest_adapters[0]) return blk.rest_adapters[0];
+  const def = S.defaults && S.defaults[h] && S.defaults[h][want];
+  if (Array.isArray(def) && def.length && def[0]) return def[0];
+  return HARNESS_DEFAULT_ADAPTER[h] || (HARNESS_ADAPTERS[h] && HARNESS_ADAPTERS[h][0]) || '';
+}
+
+function getT3DefaultDriver(isSolo) {
+  const defDrivers = isSolo
+    ? (getAt(S.effective, ['t3', 'solo_provider_drivers']) || getAt(S.effective, ['t3', 'rest_provider_drivers']) || [])
+    : (getAt(S.effective, ['t3', 'rest_provider_drivers']) || []);
+  return defDrivers.length && defDrivers[0] ? defDrivers[0] : { driver: 'claudeAgent', '1m': true };
+}
+
 // Shared fixed-position adapter dropdown.
-// opts.options   : string[] — the known adapter names for this harness
-// opts.current   : string  — currently selected value ('' = default/none)
-// opts.placeholder: string — shown in btn when nothing selected
-// opts.hasValue  : bool    — true = highlight border in accent color
-// opts.onChange  : fn(val: string) — called when user picks an option
-// opts.ariaLabel : string
+// opts.options        : string[] — known preset names
+// opts.current        : string  — currently selected value ('' = default/none)
+// opts.placeholder    : string  — fallback label when empty
+// opts.defaultOption  : string  — preset marked as (Default) in menu
+// opts.inheritDefault : string  — top (Default: <val>) item for override tables
+// opts.onChange       : fn(val: string) — called when user picks an option
+// opts.ariaLabel      : string
 function createAdapterDropdown(opts) {
-  const { options = [], current = '', placeholder = '', hasValue = false, onChange, ariaLabel = 'Adapter' } = opts;
+  const {
+    options = [],
+    current = '',
+    placeholder = '',
+    defaultOption = '',
+    inheritDefault = '',
+    onChange,
+    ariaLabel = 'Adapter'
+  } = opts;
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position: relative; display: inline-block; width: 100%;';
 
   const btn = document.createElement('button');
   btn.type = 'button';
+  btn.className = 'adapter-select-btn';
   btn.setAttribute('aria-label', ariaLabel);
-  btn.style.cssText = [
-    'display: inline-flex; align-items: center; justify-content: space-between; gap: 4px;',
-    'width: 100%; height: 28px; padding: 2px 6px 2px 8px;',
-    'font-family: var(--mono); font-size: 11.5px; color: var(--text);',
-    'background: ' + (hasValue ? 'var(--accent-weak)' : 'var(--input-bg)') + ';',
-    'border: 1px solid ' + (hasValue ? 'var(--accent)' : 'var(--border)') + ';',
-    'border-radius: var(--r-sm); cursor: pointer; white-space: nowrap;',
-    'overflow: hidden; box-sizing: border-box;',
-  ].join('');
 
   const btnText = document.createElement('span');
   btnText.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;';
-  btnText.textContent = current || placeholder;
-  if (!current) btnText.style.color = 'var(--text-3)';
+
+  function updateBtnDisplay(val) {
+    if (val) {
+      btnText.textContent = val;
+      btnText.style.color = 'var(--text)';
+      btnText.style.fontStyle = 'normal';
+    } else if (inheritDefault) {
+      btnText.textContent = '(Default: ' + inheritDefault + ')';
+      btnText.style.color = 'var(--text-3)';
+      btnText.style.fontStyle = 'italic';
+    } else {
+      btnText.textContent = placeholder || (defaultOption ? '(Default: ' + defaultOption + ')' : '(default)');
+      btnText.style.color = 'var(--text-3)';
+      btnText.style.fontStyle = 'italic';
+    }
+  }
+
+  updateBtnDisplay(current);
 
   const caret = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   caret.setAttribute('viewBox', '0 0 24 24');
+  caret.setAttribute('class', 'ic');
   caret.style.cssText = 'width: 10px; height: 10px; opacity: .6; flex-shrink: 0;';
   caret.innerHTML = '<use href="#i-caret-down"/>';
 
@@ -4257,40 +4466,43 @@ function createAdapterDropdown(opts) {
   const menu = document.createElement('div');
   menu.className = 'prov-target-menu';
   menu.style.display = 'none';
+  menu._btn = btn;
+
+  function closeMenu() {
+    menu.style.display = 'none';
+    btn.classList.remove('open');
+  }
 
   function buildMenu() {
     menu.innerHTML = '';
-    // blank / default option
-    const defItem = document.createElement('div');
-    defItem.className = 'prov-target-item';
-    defItem.style.cssText = 'font-family: var(--mono); font-size: 12px; color: var(--text-3); font-style: italic;';
-    defItem.textContent = placeholder || '(default)';
-    defItem.addEventListener('click', () => {
-      btnText.textContent = placeholder || '(default)';
-      btnText.style.color = 'var(--text-3)';
-      btn.style.borderColor = 'var(--border)';
-      btn.style.background = 'var(--input-bg)';
-      menu.style.display = 'none';
-      if (onChange) onChange('');
-    });
-    menu.appendChild(defItem);
+    if (inheritDefault) {
+      const defItem = document.createElement('div');
+      defItem.className = 'prov-target-item';
+      defItem.style.cssText = 'font-family: var(--mono); font-size: 12px; color: var(--text-3); font-style: italic;';
+      if (!current) defItem.style.fontWeight = '700';
+      defItem.textContent = '(Default: ' + inheritDefault + ')';
+      defItem.addEventListener('click', () => {
+        updateBtnDisplay('');
+        closeMenu();
+        if (onChange) onChange('');
+      });
+      menu.appendChild(defItem);
 
-    const div = document.createElement('div');
-    div.className = 'prov-target-divider';
-    menu.appendChild(div);
+      const div = document.createElement('div');
+      div.className = 'prov-target-divider';
+      menu.appendChild(div);
+    }
 
     options.forEach(opt => {
       const item = document.createElement('div');
       item.className = 'prov-target-item';
       item.style.cssText = 'font-family: var(--mono); font-size: 12px;';
+      const isDef = Boolean(defaultOption && opt === defaultOption);
+      item.textContent = isDef ? `${opt} (Default)` : opt;
       if (opt === current) item.style.fontWeight = '700';
-      item.textContent = opt;
       item.addEventListener('click', () => {
-        btnText.textContent = opt;
-        btnText.style.color = 'var(--text)';
-        btn.style.borderColor = 'var(--accent)';
-        btn.style.background = 'var(--accent-weak)';
-        menu.style.display = 'none';
+        updateBtnDisplay(opt);
+        closeMenu();
         if (onChange) onChange(opt);
       });
       menu.appendChild(item);
@@ -4316,112 +4528,167 @@ function createAdapterDropdown(opts) {
   btn.addEventListener('click', e => {
     e.stopPropagation();
     const isShowing = menu.style.display !== 'none';
-    document.querySelectorAll('.prov-target-menu').forEach(m => m.style.display = 'none');
+    document.querySelectorAll('.prov-target-menu').forEach(m => {
+      m.style.display = 'none';
+      if (m._btn) m._btn.classList.remove('open');
+    });
     if (!isShowing) {
       buildMenu();
       menu.style.display = 'flex';
+      btn.classList.add('open');
       positionMenu();
     }
   });
 
-  document.addEventListener('click', e => {
-    if (!wrap.contains(e.target) && !menu.contains(e.target)) menu.style.display = 'none';
-  });
-  document.addEventListener('scroll', e => {
-    if (!menu.contains(e.target)) menu.style.display = 'none';
-  }, { capture: true, passive: true });
+  const onDocClick = e => {
+    if (!wrap.contains(e.target) && !menu.contains(e.target)) closeMenu();
+  };
+  const onDocScroll = e => {
+    if (!menu.contains(e.target)) closeMenu();
+  };
 
-  // btn is inside wrap, menu is appended to body so it escapes overflow:hidden
+  document.addEventListener('click', onDocClick);
+  document.addEventListener('scroll', onDocScroll, { capture: true, passive: true });
+
   wrap.appendChild(btn);
   document.body.appendChild(menu);
 
-  // expose a way for callers to update the displayed value
-  wrap._setAdapterValue = (val) => {
-    btnText.textContent = val || placeholder;
-    btnText.style.color = val ? 'var(--text)' : 'var(--text-3)';
-    btn.style.borderColor = val ? 'var(--accent)' : 'var(--border)';
-    btn.style.background = val ? 'var(--accent-weak)' : 'var(--input-bg)';
+  wrap._destroy = () => {
+    document.removeEventListener('click', onDocClick);
+    document.removeEventListener('scroll', onDocScroll, { capture: true });
+    if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
   };
 
   return wrap;
 }
-function adapterList(pathArr, harnessKey) {
+function adapterList(pathArr, harnessKey, onValChange) {
   const wrap = document.createElement('div');
   wrap.className = 'adapter-wrap';
   wrap.style.flex = '1';
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems = 'flex-start';
+  wrap.style.gap = '6px';
+
   const adapters = HARNESS_ADAPTERS[harnessKey] || HARNESS_ADAPTERS['opencode'];
-  const get = () => getAt(S.effective, pathArr) || [];
-  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+  const defaultAdapter = (S.defaults && S.defaults[harnessKey] && S.defaults[harnessKey][pathArr[1]] && S.defaults[harnessKey][pathArr[1]][0]) || adapters[0] || '';
+  const get = () => {
+    const v = getAt(S.effective, pathArr);
+    if (Array.isArray(v) && v.length > 0) return v;
+    if (typeof v === 'string' && v.trim()) return [v.trim()];
+    return [defaultAdapter];
+  };
+  const set = (arr) => {
+    const toSave = (arr && arr.length) ? arr : [defaultAdapter];
+    setAt(pathArr, toSave);
+    setDirty(true);
+    if (onValChange) onValChange();
+  };
+
   function render() {
+    wrap.querySelectorAll('*').forEach(el => { if (el._destroy) el._destroy(); });
     wrap.innerHTML = '';
     const arr = get();
-    if (!arr.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = '(none)'; wrap.appendChild(e); }
+
+    const listContainer = document.createElement('div');
+    listContainer.style.cssText = 'display: flex; flex-direction: column; gap: 6px; width: 100%;';
+
     arr.forEach((item, i) => {
-      const chip = document.createElement('span');
-      chip.className = 'chip';
-      const txt = document.createElement('span');
-      txt.className = 'chip-txt';
-      txt.textContent = item;
-      chip.appendChild(txt);
-      const x = document.createElement('button');
-      x.type = 'button';
-      x.className = 'x';
-      x.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
-      x.title = 'Remove ' + item;
-      x.setAttribute('aria-label', 'Remove ' + item);
-      x.addEventListener('click', () => { const a = get().slice(); a.splice(i, 1); set(a); render(); });
-      chip.appendChild(x);
-      wrap.appendChild(chip);
-    });
-    const add = document.createElement('div');
-    add.className = 'add-row';
-    const available = adapters.filter((a) => !arr.includes(a));
+      const itemRow = document.createElement('div');
+      itemRow.style.cssText = 'display: flex; align-items: center; gap: 6px; width: 100%; max-width: 320px;';
 
-    // Track what's pending in the dropdown before the user clicks Add
-    let pendingVal = available[0] || '';
+      const isKnown = adapters.includes(item);
+      let customMode = !isKnown && Boolean(item);
 
-    const dropdownWrap = createAdapterDropdown({
-      options: [...available, 'custom…'],
-      current: pendingVal,
-      placeholder: available.length ? '' : 'custom…',
-      hasValue: false,
-      ariaLabel: 'New adapter preset',
-      onChange: (val) => {
-        pendingVal = val;
-        const isCustom = (val === 'custom…' || !val);
-        addInp.style.display = isCustom ? '' : 'none';
-        if (isCustom) addInp.focus();
-      },
-    });
-    dropdownWrap.style.cssText = 'flex: 1 1 140px; min-width: 110px; max-width: 180px;';
+      const customInp = document.createElement('input');
+      customInp.type = 'text';
+      customInp.className = 'input';
+      customInp.value = item || '';
+      customInp.placeholder = 'adapter string';
+      customInp.style.cssText = 'flex: 1; height: 28px; font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; box-sizing: border-box; ' + (customMode ? '' : 'display: none;');
 
-    const addInp = document.createElement('input');
-    addInp.type = 'text';
-    addInp.placeholder = 'adapter string';
-    addInp.setAttribute('aria-label', 'New adapter custom string');
-    addInp.style.display = available.length ? 'none' : '';
+      const ddWrap = createAdapterDropdown({
+        options: [...adapters, 'custom…'],
+        current: isKnown ? item : (item ? 'custom…' : ''),
+        placeholder: 'Select adapter…',
+        defaultOption: defaultAdapter,
+        showDefault: false,
+        ariaLabel: harnessKey + ' adapter ' + (i + 1),
+        onChange: (val) => {
+          if (val === 'custom…') {
+            customMode = true;
+            customInp.style.display = '';
+            customInp.focus();
+          } else {
+            customMode = false;
+            customInp.style.display = 'none';
+            const next = get().slice();
+            next[i] = val;
+            set(next);
+          }
+        }
+      });
+      ddWrap.style.cssText = 'flex: 1; min-width: 140px;';
 
-    const commitAdd = () => {
-      const isCustom = (pendingVal === 'custom…' || !pendingVal);
-      const val = isCustom ? addInp.value.trim() : pendingVal;
-      if (!val) return;
-      if (!get().includes(val)) {
-        set(get().concat([val]));
+      const commitCustom = () => {
+        const val = customInp.value.trim();
+        if (val && val !== arr[i]) {
+          const next = get().slice();
+          next[i] = val;
+          set(next);
+        }
+      };
+      customInp.addEventListener('change', commitCustom);
+      customInp.addEventListener('blur', commitCustom);
+      customInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitCustom(); customInp.blur(); } });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'x';
+      delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      delBtn.title = 'Remove adapter';
+      delBtn.setAttribute('aria-label', 'Remove adapter ' + (item || ''));
+
+      if (arr.length <= 1) {
+        delBtn.disabled = true;
+        delBtn.setAttribute('aria-disabled', 'true');
+        delBtn.title = 'At least one adapter required';
+        delBtn.style.opacity = '0.25';
+        delBtn.style.cursor = 'not-allowed';
+        delBtn.style.pointerEvents = 'none';
+      } else {
+        delBtn.addEventListener('click', () => {
+          if (get().length <= 1) return;
+          if (ddWrap._destroy) ddWrap._destroy();
+          const next = get().slice();
+          next.splice(i, 1);
+          set(next);
+          render();
+        });
       }
-      addInp.value = '';
-      render();
-    };
-    addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
+
+      itemRow.appendChild(ddWrap);
+      itemRow.appendChild(customInp);
+      itemRow.appendChild(delBtn);
+      listContainer.appendChild(itemRow);
+    });
+    wrap.appendChild(listContainer);
+
     const addBtn = document.createElement('button');
     addBtn.className = 'btn small';
     addBtn.type = 'button';
-    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
-    addBtn.addEventListener('click', commitAdd);
-    add.appendChild(dropdownWrap);
-    add.appendChild(addInp);
-    add.appendChild(addBtn);
-    wrap.appendChild(add);
+    addBtn.style.cssText = 'margin-top: 4px; padding: 3px 8px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width: 13px; height: 13px;"><use href="#i-plus"/></svg>Add';
+    addBtn.addEventListener('click', () => {
+      const cur = get();
+      const available = adapters.filter(a => !cur.includes(a));
+      const toAdd = available[0] || adapters[0] || '';
+      set(cur.concat([toAdd]));
+      render();
+    });
+    wrap.appendChild(addBtn);
   }
+
   render();
   return wrap;
 }
@@ -4444,149 +4711,321 @@ async function ensureProvidersLoaded(cb) {
   return providersCache;
 }
 
-function createT3DriverCell(pathArr, title) {
+function createT3DriverCell(pathArr, title, onValChange) {
   const wrap = document.createElement('div');
   wrap.className = 'adapter-wrap';
   wrap.style.flex = '1';
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems = 'flex-start';
+  wrap.style.gap = '6px';
 
   const drivers = ['claudeAgent', 'codex', 'geminiAgent', 'opencode'];
-  const get = () => getAt(S.effective, pathArr) || [];
-  const set = (arr) => { setAt(pathArr, arr); setDirty(true); };
+  const defaultDrivers = (S.defaults && S.defaults.t3 && S.defaults.t3[pathArr[1]]) || [{ driver: 'claudeAgent', '1m': true }];
+  const fallbackDriver = defaultDrivers[0] ? defaultDrivers[0] : { driver: 'claudeAgent', '1m': true };
+  const get = () => {
+    const v = getAt(S.effective, pathArr);
+    if (Array.isArray(v) && v.length > 0) return v;
+    if (typeof v === 'string' && v.trim()) return [{ driver: v.trim(), '1m': false }];
+    return [fallbackDriver];
+  };
+  const set = (arr) => {
+    const toSave = (arr && arr.length) ? arr : [fallbackDriver];
+    setAt(pathArr, toSave);
+    setDirty(true);
+    if (onValChange) onValChange();
+  };
 
   function render() {
+    wrap.querySelectorAll('*').forEach(el => { if (el._destroy) el._destroy(); });
     wrap.innerHTML = '';
     const arr = get();
 
-    if (!arr.length) {
-      const empty = document.createElement('div');
-      empty.className = 'list-empty';
-      empty.textContent = '(none)';
-      wrap.appendChild(empty);
-    } else {
-      arr.forEach((item, i) => {
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.style.cssText = 'padding: 3px 6px 3px 10px; gap: 6px;';
+    const listContainer = document.createElement('div');
+    listContainer.style.cssText = 'display: flex; flex-direction: column; gap: 6px; width: 100%;';
 
-        const txt = document.createElement('span');
-        txt.className = 'chip-txt';
-        txt.style.fontFamily = 'var(--mono)';
-        txt.style.fontSize = '12.5px';
-        txt.textContent = item.driver || 'unnamed';
-        chip.appendChild(txt);
+    arr.forEach((item, i) => {
+      const itemRow = document.createElement('div');
+      itemRow.style.cssText = 'display: flex; align-items: center; gap: 6px; width: 100%; max-width: 320px;';
 
-        // 1M toggle pill button matching screenshot 4
-        const mBtn = document.createElement('button');
-        mBtn.type = 'button';
-        mBtn.className = 'pill-1m' + (item['1m'] ? ' active' : '');
-        mBtn.textContent = '1M';
-        mBtn.title = item['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
-        mBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const list = get().slice();
-          list[i] = { ...list[i], '1m': !list[i]['1m'] };
-          set(list);
-          render();
-        });
-        chip.appendChild(mBtn);
+      const dName = item.driver || '';
+      const isKnown = drivers.includes(dName);
+      let customMode = !isKnown && Boolean(dName);
 
-        // Standard chip remove button with SVG icon
-        const del = document.createElement('button');
-        del.type = 'button';
-        del.className = 'x';
-        del.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
-        del.title = 'Remove ' + (item.driver || 'driver');
-        del.setAttribute('aria-label', 'Remove ' + (item.driver || 'driver'));
-        del.addEventListener('click', (e) => {
-          e.stopPropagation();
+      const customInp = document.createElement('input');
+      customInp.type = 'text';
+      customInp.className = 'input';
+      customInp.value = dName;
+      customInp.placeholder = 'driver name';
+      customInp.style.cssText = 'flex: 1; height: 28px; font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; box-sizing: border-box; ' + (customMode ? '' : 'display: none;');
+
+      const ddWrap = createAdapterDropdown({
+        options: [...drivers, 'custom…'],
+        current: isKnown ? dName : (dName ? 'custom…' : ''),
+        placeholder: 'Select driver…',
+        defaultOption: fallbackDriver.driver || 'claudeAgent',
+        showDefault: false,
+        ariaLabel: (title || 'Driver') + ' option ' + (i + 1),
+        onChange: (val) => {
+          if (val === 'custom…') {
+            customMode = true;
+            customInp.style.display = '';
+            customInp.focus();
+          } else {
+            customMode = false;
+            customInp.style.display = 'none';
+            const next = get().slice();
+            next[i] = { ...next[i], driver: val };
+            set(next);
+          }
+        }
+      });
+      ddWrap.style.cssText = 'flex: 1; min-width: 120px;';
+
+      const commitCustom = () => {
+        const val = customInp.value.trim();
+        if (val && val !== arr[i].driver) {
+          const next = get().slice();
+          next[i] = { ...next[i], driver: val };
+          set(next);
+        }
+      };
+      customInp.addEventListener('change', commitCustom);
+      customInp.addEventListener('blur', commitCustom);
+      customInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitCustom(); customInp.blur(); } });
+
+      const mBtn = document.createElement('button');
+      mBtn.type = 'button';
+      mBtn.className = 'pill-1m' + (item['1m'] ? ' active' : '');
+      mBtn.textContent = '1M';
+      mBtn.title = item['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
+      mBtn.style.flexShrink = '0';
+      mBtn.style.height = '28px';
+      mBtn.style.boxSizing = 'border-box';
+      mBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const list = get().slice();
+        list[i] = { ...list[i], '1m': !list[i]['1m'] };
+        set(list);
+        mBtn.className = 'pill-1m' + (list[i]['1m'] ? ' active' : '');
+        mBtn.title = list[i]['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'x';
+      delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+      delBtn.title = 'Remove ' + (item.driver || 'driver');
+      delBtn.setAttribute('aria-label', 'Remove ' + (item.driver || 'driver'));
+
+      if (arr.length <= 1) {
+        delBtn.disabled = true;
+        delBtn.setAttribute('aria-disabled', 'true');
+        delBtn.title = 'At least one driver required';
+        delBtn.style.opacity = '0.25';
+        delBtn.style.cursor = 'not-allowed';
+        delBtn.style.pointerEvents = 'none';
+      } else {
+        delBtn.addEventListener('click', () => {
+          if (get().length <= 1) return;
+          if (ddWrap._destroy) ddWrap._destroy();
           const list = get().slice();
           list.splice(i, 1);
           set(list);
           render();
         });
-        chip.appendChild(del);
+      }
 
-        wrap.appendChild(chip);
-      });
-    }
-
-    // Add Driver row matching adapterList layout
-    const add = document.createElement('div');
-    add.className = 'add-row';
-    add.style.cssText = 'margin-top: 4px; display: flex; gap: 4px; align-items: center; flex-wrap: nowrap;';
-
-    const available = drivers.filter((d) => !arr.some((item) => item.driver === d));
-    let pendingDriver = available[0] || '';
-
-    const driverDropWrap = createAdapterDropdown({
-      options: [...available, 'custom…'],
-      current: pendingDriver,
-      placeholder: available.length ? '' : 'custom…',
-      hasValue: false,
-      ariaLabel: (title || 'Driver') + ' preset',
-      onChange: (val) => {
-        pendingDriver = val;
-        const isCustom = (val === 'custom…' || !val);
-        addInp.style.display = isCustom ? '' : 'none';
-        if (isCustom) addInp.focus();
-      },
+      itemRow.appendChild(ddWrap);
+      itemRow.appendChild(customInp);
+      itemRow.appendChild(mBtn);
+      itemRow.appendChild(delBtn);
+      listContainer.appendChild(itemRow);
     });
-    driverDropWrap.style.cssText = 'flex: 1 1 110px; min-width: 90px; max-width: 150px;';
-
-    const addInp = document.createElement('input');
-    addInp.type = 'text';
-    addInp.placeholder = 'driver name';
-    addInp.style.cssText = 'flex: 1 1 110px; min-width: 80px; max-width: 120px; font-size: 12px; padding: 2px 6px;';
-    addInp.setAttribute('aria-label', (title || 'Driver') + ' custom name');
-    addInp.style.display = available.length ? 'none' : '';
-
-    let newDriver1m = false;
-    const add1mBtn = document.createElement('button');
-    add1mBtn.type = 'button';
-    add1mBtn.className = 'pill-1m';
-    add1mBtn.textContent = '1M';
-    add1mBtn.style.flexShrink = '0';
-    add1mBtn.title = 'Toggle 1M context for new driver';
-    add1mBtn.addEventListener('click', () => {
-      newDriver1m = !newDriver1m;
-      add1mBtn.className = 'pill-1m' + (newDriver1m ? ' active' : '');
-    });
+    wrap.appendChild(listContainer);
 
     const addBtn = document.createElement('button');
-    addBtn.type = 'button';
     addBtn.className = 'btn small';
-    addBtn.style.cssText = 'flex-shrink: 0; padding: 2px 7px; font-size: 12px; white-space: nowrap;';
-    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
-
-    const commitAdd = () => {
-      const isCustom = (pendingDriver === 'custom…' || !pendingDriver);
-      const val = isCustom ? addInp.value.trim() : pendingDriver;
-      if (!val) return;
-      const list = get().slice();
-      if (!list.some(item => item.driver === val)) {
-        list.push({ driver: val, '1m': newDriver1m });
-        set(list);
-      }
-      addInp.value = '';
+    addBtn.type = 'button';
+    addBtn.style.cssText = 'margin-top: 4px; padding: 3px 8px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;';
+    addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width: 13px; height: 13px;"><use href="#i-plus"/></svg>Add';
+    addBtn.addEventListener('click', () => {
+      const cur = get();
+      const available = drivers.filter(d => !cur.some(item => item.driver === d));
+      const toAdd = available[0] || drivers[0] || 'claudeAgent';
+      set(cur.concat([{ driver: toAdd, '1m': true }]));
       render();
-    };
-
-    addBtn.addEventListener('click', commitAdd);
-    addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
-
-    add.appendChild(driverDropWrap);
-    add.appendChild(addInp);
-    add.appendChild(add1mBtn);
-    add.appendChild(addBtn);
-    wrap.appendChild(add);
+    });
+    wrap.appendChild(addBtn);
   }
 
   render();
   return wrap;
 }
 
+function renderProviderAdapterCell(tdH, h, providerKey, isSolo, onRowChanged) {
+  tdH.querySelectorAll('*').forEach(el => { if (el._destroy) el._destroy(); });
+  tdH.innerHTML = '';
+  const harnessOpts = HARNESS_ADAPTERS[h] || [];
+  const inheritedDef = getHarnessDefaultAdapter(h, isSolo);
+
+  const getStored = () => {
+    const custom = getAt(S.effective, [h, 'provider_adapters', providerKey]);
+    if (Array.isArray(custom)) return custom.slice();
+    if (typeof custom === 'string' && custom.trim()) return [custom.trim()];
+    return null;
+  };
+
+  const stored = getStored();
+  const isInheriting = !stored || stored.length === 0;
+  const list = isInheriting ? ['(Default)'] : stored;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; min-width: 160px; width: 100%;';
+
+  list.forEach((item, i) => {
+    const itemRow = document.createElement('div');
+    itemRow.style.cssText = 'display: flex; align-items: center; gap: 4px; width: 100%;';
+
+    const isDefChoice = item === '(Default)';
+    const isKnown = harnessOpts.includes(item);
+    let customMode = !isDefChoice && !isKnown && Boolean(item);
+
+    const customInp = document.createElement('input');
+    customInp.type = 'text';
+    customInp.className = 'input';
+    customInp.value = isDefChoice ? '' : item;
+    customInp.placeholder = 'adapter string';
+    customInp.style.cssText = 'flex: 1; height: 28px; font-family: var(--mono); font-size: 11px; padding: 2px 5px; box-sizing: border-box; ' + (customMode ? '' : 'display: none;');
+
+    const ddWrap = createAdapterDropdown({
+      options: [...harnessOpts, 'custom…'],
+      current: isDefChoice ? '' : (isKnown ? item : (item ? 'custom…' : '')),
+      placeholder: 'Select adapter…',
+      defaultOption: inheritedDef,
+      inheritDefault: inheritedDef,
+      ariaLabel: h + ' adapter for ' + providerKey,
+      onChange: (val) => {
+        if (val === 'custom…') {
+          customMode = true;
+          customInp.style.display = '';
+          customInp.focus();
+        } else {
+          customMode = false;
+          customInp.style.display = 'none';
+          if (!val || val === '(Default)') {
+            if (list.length === 1) {
+              deleteOverrideKey([h, 'provider_adapters'], providerKey);
+            } else {
+              const next = list.slice();
+              next[i] = inheritedDef;
+              setAt([h, 'provider_adapters', providerKey], next);
+            }
+          } else {
+            const next = isInheriting ? [val] : list.slice();
+            next[i] = val;
+            setAt([h, 'provider_adapters', providerKey], next);
+          }
+          setDirty(true);
+          renderProviderAdapterCell(tdH, h, providerKey, isSolo, onRowChanged);
+          if (onRowChanged) onRowChanged();
+        }
+      }
+    });
+    ddWrap.style.cssText = 'flex: 1; min-width: 120px;';
+
+    const commitCustom = () => {
+      const val = customInp.value.trim();
+      if (val && val !== list[i]) {
+        const next = isInheriting ? [val] : list.slice();
+        next[i] = val;
+        setAt([h, 'provider_adapters', providerKey], next);
+        setDirty(true);
+        if (onRowChanged) onRowChanged();
+      }
+    };
+    customInp.addEventListener('change', commitCustom);
+    customInp.addEventListener('blur', commitCustom);
+    customInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitCustom(); customInp.blur(); } });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'x';
+    delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+    delBtn.title = 'Remove adapter override';
+    delBtn.setAttribute('aria-label', 'Remove adapter override');
+
+    if (list.length <= 1) {
+      delBtn.disabled = true;
+      delBtn.setAttribute('aria-disabled', 'true');
+      delBtn.title = 'At least one adapter required';
+      delBtn.style.opacity = '0.25';
+      delBtn.style.cursor = 'not-allowed';
+      delBtn.style.pointerEvents = 'none';
+    } else {
+      delBtn.addEventListener('click', () => {
+        if (list.length <= 1) return;
+        if (ddWrap._destroy) ddWrap._destroy();
+        const next = list.slice();
+        next.splice(i, 1);
+        if (next.length === 0 || (next.length === 1 && next[0] === '(Default)')) {
+          deleteOverrideKey([h, 'provider_adapters'], providerKey);
+        } else {
+          setAt([h, 'provider_adapters', providerKey], next);
+        }
+        setDirty(true);
+        renderProviderAdapterCell(tdH, h, providerKey, isSolo, onRowChanged);
+        if (onRowChanged) onRowChanged();
+      });
+    }
+
+    itemRow.appendChild(ddWrap);
+    itemRow.appendChild(customInp);
+    itemRow.appendChild(delBtn);
+    wrap.appendChild(itemRow);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn small';
+  addBtn.style.cssText = 'align-self: flex-start; margin-top: 4px; padding: 2px 7px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width: 12px; height: 12px;"><use href="#i-plus"/></svg>Add';
+  addBtn.addEventListener('click', () => {
+    const cur = isInheriting ? [inheritedDef] : list.slice();
+    const available = harnessOpts.filter(a => !cur.includes(a));
+    const toAdd = available[0] || harnessOpts[0] || '@ai-sdk/openai-compatible';
+    setAt([h, 'provider_adapters', providerKey], cur.concat([toAdd]));
+    setDirty(true);
+    renderProviderAdapterCell(tdH, h, providerKey, isSolo, onRowChanged);
+    if (onRowChanged) onRowChanged();
+  });
+  wrap.appendChild(addBtn);
+
+  tdH.appendChild(wrap);
+}
+
 function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNESS_NAME) {
   container.innerHTML = '';
+
+  const providerTotals = {};
+  (rows || []).forEach(r => {
+    const pName = r.provider || '';
+    providerTotals[pName] = (providerTotals[pName] || 0) + 1;
+  });
+  const providerOccs = new Map();
+  const currentOccs = {};
+  (rows || []).forEach(r => {
+    const pName = r.provider || '';
+    currentOccs[pName] = (currentOccs[pName] || 0) + 1;
+    const occ = currentOccs[pName];
+    providerOccs.set(r, {
+      occ,
+      total: providerTotals[pName],
+      key: occ === 1 ? pName : `${pName}-${occ}`,
+      displayName: providerTotals[pName] > 1 ? `${pName} (${occ})` : pName
+    });
+  });
+
   const filtered = (rows || []).filter(r => {
     const t = (r.type || '').toLowerCase();
     if (filter === 'solo') return t === 'solo';
@@ -4623,11 +5062,11 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
   const table = document.createElement('table');
   table.className = 'config-table individual-adapters-table';
   table.style.margin = '0';
-  table.style.minWidth = '920px';
+  table.style.minWidth = '1200px';
 
-  let ths = '<th style="width: 38px; text-align: right;">#</th><th style="width: 150px; text-align: left;">Provider</th><th style="width: 80px; text-align: center;">Type</th>';
+  let ths = '<th style="width: 38px; text-align: right;">#</th><th style="width: 170px; text-align: left;">Provider</th><th style="width: 80px; text-align: center;">Type</th>';
   harnesses.forEach(h => {
-    ths += '<th style="text-align: left; min-width: 140px;">' + (HARNESS_NAME[h] || h) + '</th>';
+    ths += '<th style="text-align: left; min-width: 170px;">' + (HARNESS_NAME[h] || h) + '</th>';
   });
 
   table.innerHTML = '<thead><tr>' + ths + '</tr></thead><tbody></tbody>';
@@ -4636,22 +5075,59 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
   filtered.forEach((p, idx) => {
     const tr = document.createElement('tr');
     const isSolo = (p.type || '').toLowerCase() === 'solo';
+    const pInfo = providerOccs.get(p) || { occ: 1, total: 1, key: p.provider, displayName: p.provider };
+    const providerKey = pInfo.key;
 
     // Index
     const tdNum = document.createElement('td');
-    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px;';
+    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px; vertical-align: top; padding-top: 12px;';
     tdNum.textContent = String(idx + 1);
     tr.appendChild(tdNum);
 
-    // Provider
+    // Provider cell
     const tdProv = document.createElement('td');
-    tdProv.style.cssText = 'font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text);';
-    tdProv.textContent = p.provider;
+    tdProv.style.cssText = 'vertical-align: top; padding-top: 10px; font-family: var(--mono); font-size: 12.5px;';
+    
+    function renderProvHeader() {
+      tdProv.innerHTML = '';
+      const provHead = document.createElement('div');
+      provHead.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap;';
+      
+      const provTitle = document.createElement('span');
+      provTitle.style.cssText = 'font-weight: 600; color: var(--text);';
+      provTitle.textContent = pInfo.displayName;
+      provHead.appendChild(provTitle);
+
+      const hasOverride = harnesses.some(h => {
+        const c = getAt(S.effective, [h, 'provider_adapters', providerKey]);
+        return (Array.isArray(c) && c.length > 0) || (typeof c === 'string' && c.trim());
+      });
+
+      if (hasOverride) {
+        const rst = document.createElement('button');
+        rst.type = 'button';
+        rst.className = 'icon-btn small reset-btn';
+        rst.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+        rst.title = 'Reset all harness overrides for ' + pInfo.displayName;
+        rst.setAttribute('aria-label', 'Reset all harness overrides for ' + pInfo.displayName);
+        rst.addEventListener('click', () => {
+          harnesses.forEach(h => {
+            deleteOverrideKey([h, 'provider_adapters'], providerKey);
+            if (pInfo.occ === 1) deleteOverrideKey([h, 'provider_adapters'], `${p.provider}-1`);
+          });
+          setDirty(true);
+          renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNESS_NAME);
+        });
+        provHead.appendChild(rst);
+      }
+      tdProv.appendChild(provHead);
+    }
+    renderProvHeader();
     tr.appendChild(tdProv);
 
     // Type Badge
     const tdType = document.createElement('td');
-    tdType.style.textAlign = 'center';
+    tdType.style.cssText = 'text-align: center; vertical-align: top; padding-top: 10px;';
     tdType.innerHTML = '<span class="badge ' + (isSolo ? 'badge-solo' : 'badge-rest') + '">' + (p.type || '').toUpperCase() + '</span>';
     tr.appendChild(tdType);
 
@@ -4659,39 +5135,8 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
     harnesses.forEach(h => {
       const tdH = document.createElement('td');
       tdH.style.padding = '8px 10px';
-
-      const customOverride = getAt(S.effective, [h, 'provider_adapters', p.provider]);
-      let valStr = '';
-      if (Array.isArray(customOverride)) {
-        valStr = customOverride[0] || '';
-      } else if (typeof customOverride === 'string') {
-        valStr = customOverride;
-      }
-
-      const defAdapters = isSolo
-        ? (getAt(S.effective, [h, 'solo_adapters']) || getAt(S.effective, [h, 'rest_adapters']) || [])
-        : (getAt(S.effective, [h, 'rest_adapters']) || []);
-      const defStr = defAdapters.length ? defAdapters[0] : 'default';
-      const harnessOpts = HARNESS_ADAPTERS[h] || [];
-
-      const ddWrap = createAdapterDropdown({
-        options: harnessOpts,
-        current: valStr,
-        placeholder: '(default: ' + defStr + ')',
-        hasValue: Boolean(valStr),
-        ariaLabel: h + ' adapter for ' + p.provider,
-        onChange: (val) => {
-          if (val) {
-            setAt([h, 'provider_adapters', p.provider], [val]);
-          } else {
-            const blk = getAt(S.effective, [h, 'provider_adapters']);
-            if (blk && p.provider in blk) delete blk[p.provider];
-          }
-          setDirty(true);
-        },
-      });
-
-      tdH.appendChild(ddWrap);
+      tdH.style.verticalAlign = 'top';
+      renderProviderAdapterCell(tdH, h, providerKey, isSolo, renderProvHeader);
       tr.appendChild(tdH);
     });
 
@@ -4702,8 +5147,212 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
   container.appendChild(tableWrap);
 }
 
+function renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, onRowChanged) {
+  tdDrivers.querySelectorAll('*').forEach(el => { if (el._destroy) el._destroy(); });
+  tdDrivers.innerHTML = '';
+  tdAction.innerHTML = '';
+
+  const T3_DRIVERS = ['claudeAgent', 'codex', 'geminiAgent', 'opencode'];
+  const providerKey = pInfo.key;
+
+  const getStored = () => {
+    const custom = getAt(S.effective, ['t3', 'provider_drivers', providerKey]);
+    if (Array.isArray(custom)) return custom.slice();
+    if (typeof custom === 'string' && custom.trim()) return [{ driver: custom.trim(), '1m': false }];
+    return null;
+  };
+
+  const stored = getStored();
+  const isInheriting = !stored || stored.length === 0;
+  const list = isInheriting ? [{ driver: '', '1m': defDriver['1m'] !== undefined ? Boolean(defDriver['1m']) : true }] : stored;
+  const hasCustom = !isInheriting;
+
+  // Action (Reset) button
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'icon-btn small reset-btn';
+  resetBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+  resetBtn.title = 'Reset T3 drivers for ' + pInfo.displayName;
+  resetBtn.setAttribute('aria-label', 'Reset T3 drivers for ' + pInfo.displayName);
+  resetBtn.disabled = !hasCustom;
+  resetBtn.addEventListener('click', () => {
+    tdDrivers.querySelectorAll('*').forEach(el => { if (el._destroy) el._destroy(); });
+    deleteOverrideKey(['t3', 'provider_drivers'], providerKey);
+    if (pInfo.occ === 1) deleteOverrideKey(['t3', 'provider_drivers'], `${providerKey}-1`);
+    setDirty(true);
+    renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, onRowChanged);
+    if (onRowChanged) onRowChanged();
+  });
+  tdAction.appendChild(resetBtn);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display: flex; flex-direction: column; gap: 6px; width: 100%;';
+
+  list.forEach((item, i) => {
+    const itemRow = document.createElement('div');
+    itemRow.style.cssText = 'display: flex; align-items: center; gap: 6px; width: 100%; max-width: 320px;';
+
+    const isDef = !item.driver;
+    const dName = item.driver || '';
+    const isKnown = T3_DRIVERS.includes(dName);
+    let customMode = !isDef && !isKnown && Boolean(dName);
+
+    const customInp = document.createElement('input');
+    customInp.type = 'text';
+    customInp.className = 'input';
+    customInp.value = dName;
+    customInp.placeholder = 'driver name';
+    customInp.style.cssText = 'flex: 1; height: 28px; font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; box-sizing: border-box; ' + (customMode ? '' : 'display: none;');
+
+    const ddWrap = createAdapterDropdown({
+      options: [...T3_DRIVERS, 'custom…'],
+      current: isDef ? '' : (isKnown ? dName : (dName ? 'custom…' : '')),
+      placeholder: 'Select driver…',
+      defaultOption: defDriver.driver || 'claudeAgent',
+      inheritDefault: defDriver.driver || 'claudeAgent',
+      ariaLabel: 'T3 driver for ' + pInfo.displayName,
+      onChange: (val) => {
+        if (val === 'custom…') {
+          customMode = true;
+          customInp.style.display = '';
+          customInp.focus();
+        } else {
+          customMode = false;
+          customInp.style.display = 'none';
+          if (!val || val === '(Default)') {
+            if (list.length === 1) {
+              deleteOverrideKey(['t3', 'provider_drivers'], providerKey);
+            } else {
+              const next = list.slice();
+              next[i] = { ...next[i], driver: defDriver.driver || 'claudeAgent' };
+              setAt(['t3', 'provider_drivers', providerKey], next);
+            }
+          } else {
+            const next = isInheriting ? [{ driver: val, '1m': item['1m'] }] : list.slice();
+            next[i] = { ...next[i], driver: val };
+            setAt(['t3', 'provider_drivers', providerKey], next);
+          }
+          setDirty(true);
+          renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, onRowChanged);
+          if (onRowChanged) onRowChanged();
+        }
+      }
+    });
+    ddWrap.style.cssText = 'flex: 1; min-width: 120px;';
+
+    const commitCustom = () => {
+      const val = customInp.value.trim();
+      if (val && val !== list[i].driver) {
+        const next = isInheriting ? [{ driver: val, '1m': item['1m'] }] : list.slice();
+        next[i] = { ...next[i], driver: val };
+        setAt(['t3', 'provider_drivers', providerKey], next);
+        setDirty(true);
+        if (onRowChanged) onRowChanged();
+      }
+    };
+    customInp.addEventListener('change', commitCustom);
+    customInp.addEventListener('blur', commitCustom);
+    customInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitCustom(); customInp.blur(); } });
+
+    const mBtn = document.createElement('button');
+    mBtn.type = 'button';
+    mBtn.className = 'pill-1m' + (item['1m'] ? ' active' : '');
+    mBtn.textContent = '1M';
+    mBtn.title = item['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
+    mBtn.style.flexShrink = '0';
+    mBtn.style.height = '28px';
+    mBtn.style.boxSizing = 'border-box';
+    mBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const baseDriver = item.driver || defDriver.driver || 'claudeAgent';
+      const next = isInheriting ? [{ driver: baseDriver, '1m': !item['1m'] }] : list.slice();
+      next[i] = { ...next[i], driver: baseDriver, '1m': !next[i]['1m'] };
+      setAt(['t3', 'provider_drivers', providerKey], next);
+      setDirty(true);
+      mBtn.className = 'pill-1m' + (next[i]['1m'] ? ' active' : '');
+      mBtn.title = next[i]['1m'] ? '1M Context enabled (click to disable)' : '1M Context disabled (click to enable)';
+      if (onRowChanged) onRowChanged();
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'x';
+    delBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>';
+    delBtn.title = 'Remove driver';
+    delBtn.setAttribute('aria-label', 'Remove driver');
+
+    if (list.length <= 1) {
+      delBtn.disabled = true;
+      delBtn.setAttribute('aria-disabled', 'true');
+      delBtn.title = 'At least one driver required';
+      delBtn.style.opacity = '0.25';
+      delBtn.style.cursor = 'not-allowed';
+      delBtn.style.pointerEvents = 'none';
+    } else {
+      delBtn.addEventListener('click', () => {
+        if (list.length <= 1) return;
+        if (ddWrap._destroy) ddWrap._destroy();
+        const next = list.slice();
+        next.splice(i, 1);
+        if (next.length === 0 || (next.length === 1 && !next[0].driver)) {
+          deleteOverrideKey(['t3', 'provider_drivers'], providerKey);
+        } else {
+          setAt(['t3', 'provider_drivers', providerKey], next);
+        }
+        setDirty(true);
+        renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, onRowChanged);
+        if (onRowChanged) onRowChanged();
+      });
+    }
+
+    itemRow.appendChild(ddWrap);
+    itemRow.appendChild(customInp);
+    itemRow.appendChild(mBtn);
+    itemRow.appendChild(delBtn);
+    wrap.appendChild(itemRow);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn small';
+  addBtn.style.cssText = 'align-self: flex-start; margin-top: 4px; padding: 2px 7px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;';
+  addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width: 12px; height: 12px;"><use href="#i-plus"/></svg>Add driver';
+  addBtn.addEventListener('click', () => {
+    const cur = isInheriting ? [{ driver: defDriver.driver || 'claudeAgent', '1m': defDriver['1m'] !== undefined ? Boolean(defDriver['1m']) : true }] : list.slice();
+    const available = T3_DRIVERS.filter(d => !cur.some(item => item.driver === d));
+    const toAdd = available[0] || T3_DRIVERS[0] || 'claudeAgent';
+    setAt(['t3', 'provider_drivers', providerKey], cur.concat([{ driver: toAdd, '1m': true }]));
+    setDirty(true);
+    renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, onRowChanged);
+    if (onRowChanged) onRowChanged();
+  });
+  wrap.appendChild(addBtn);
+
+  tdDrivers.appendChild(wrap);
+}
+
 function renderIndividualT3Table(container, filter, rows) {
   container.innerHTML = '';
+
+  const providerTotals = {};
+  (rows || []).forEach(r => {
+    const pName = r.provider || '';
+    providerTotals[pName] = (providerTotals[pName] || 0) + 1;
+  });
+  const providerOccs = new Map();
+  const currentOccs = {};
+  (rows || []).forEach(r => {
+    const pName = r.provider || '';
+    currentOccs[pName] = (currentOccs[pName] || 0) + 1;
+    const occ = currentOccs[pName];
+    providerOccs.set(r, {
+      occ,
+      total: providerTotals[pName],
+      key: occ === 1 ? pName : `${pName}-${occ}`,
+      displayName: providerTotals[pName] > 1 ? `${pName} (${occ})` : pName
+    });
+  });
+
   const filtered = (rows || []).filter(r => {
     const t = (r.type || '').toLowerCase();
     if (filter === 'solo') return t === 'solo';
@@ -4735,8 +5384,7 @@ function renderIndividualT3Table(container, filter, rows) {
         <th style="width: 38px; text-align: right;">#</th>
         <th style="width: 170px; text-align: left;">Provider</th>
         <th style="width: 80px; text-align: center;">Type</th>
-        <th style="text-align: left;">Custom Driver</th>
-        <th style="width: 120px; text-align: center;">1M Context</th>
+        <th style="text-align: left; min-width: 280px;">Custom Drivers</th>
         <th style="width: 90px; text-align: center;">Action</th>
       </tr>
     </thead>
@@ -4747,128 +5395,79 @@ function renderIndividualT3Table(container, filter, rows) {
   filtered.forEach((p, idx) => {
     const tr = document.createElement('tr');
     const isSolo = (p.type || '').toLowerCase() === 'solo';
+    const pInfo = providerOccs.get(p) || { occ: 1, total: 1, key: p.provider, displayName: p.provider };
+    const providerKey = pInfo.key;
 
     // Index
     const tdNum = document.createElement('td');
-    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px;';
+    tdNum.style.cssText = 'text-align: right; color: var(--text-3); font-family: var(--mono); font-size: 11.5px; vertical-align: top; padding-top: 12px;';
     tdNum.textContent = String(idx + 1);
     tr.appendChild(tdNum);
 
     // Provider
     const tdProv = document.createElement('td');
-    tdProv.style.cssText = 'font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text);';
-    tdProv.textContent = p.provider;
+    tdProv.style.cssText = 'vertical-align: top; padding-top: 10px; font-family: var(--mono); font-size: 12.5px;';
+
+    function renderProvHead() {
+      tdProv.innerHTML = '';
+      const provHead = document.createElement('div');
+      provHead.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap;';
+      
+      const provTitle = document.createElement('span');
+      provTitle.style.cssText = 'font-weight: 600; color: var(--text);';
+      provTitle.textContent = pInfo.displayName;
+      provHead.appendChild(provTitle);
+
+      const custom = getAt(S.effective, ['t3', 'provider_drivers', providerKey]);
+      const hasCustom = (Array.isArray(custom) && custom.length > 0) || (typeof custom === 'string' && custom.trim());
+
+      if (hasCustom) {
+        const rst = document.createElement('button');
+        rst.type = 'button';
+        rst.className = 'icon-btn small reset-btn';
+        rst.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+        rst.title = 'Reset T3 drivers for ' + pInfo.displayName;
+        rst.setAttribute('aria-label', 'Reset T3 drivers for ' + pInfo.displayName);
+        rst.addEventListener('click', () => {
+          deleteOverrideKey(['t3', 'provider_drivers'], providerKey);
+          if (pInfo.occ === 1) deleteOverrideKey(['t3', 'provider_drivers'], `${providerKey}-1`);
+          setDirty(true);
+          renderIndividualT3Table(container, filter, rows);
+        });
+        provHead.appendChild(rst);
+      }
+      tdProv.appendChild(provHead);
+    }
+    renderProvHead();
     tr.appendChild(tdProv);
 
     // Type
     const tdType = document.createElement('td');
-    tdType.style.textAlign = 'center';
+    tdType.style.cssText = 'text-align: center; vertical-align: top; padding-top: 10px;';
     tdType.innerHTML = '<span class="badge ' + (isSolo ? 'badge-solo' : 'badge-rest') + '">' + (p.type || '').toUpperCase() + '</span>';
     tr.appendChild(tdType);
 
-    // Determine default driver for placeholder
+    // Default driver
     const defDrivers = isSolo
       ? (getAt(S.effective, ['t3', 'solo_provider_drivers']) || getAt(S.effective, ['t3', 'rest_provider_drivers']) || [])
       : (getAt(S.effective, ['t3', 'rest_provider_drivers']) || []);
     const defDriver = defDrivers.length ? defDrivers[0] : { driver: 'claudeAgent', '1m': true };
 
-    const customDrivers = getAt(S.effective, ['t3', 'provider_drivers', p.provider]);
-    const hasCustom = Array.isArray(customDrivers) && customDrivers.length > 0;
-    const currentItem = hasCustom ? customDrivers[0] : null;
+    // Drivers cell
+    const tdDrivers = document.createElement('td');
+    tdDrivers.style.padding = '8px 10px';
+    tdDrivers.style.verticalAlign = 'top';
 
-    // Driver select
-    const tdDriver = document.createElement('td');
-    const T3_DRIVERS = ['claudeAgent', 'codex', 'geminiAgent', 'opencode'];
-    const driverSel = document.createElement('select');
-    driverSel.className = 'select';
-    driverSel.style.cssText = 'width: 100%; height: 28px; font-family: var(--mono); font-size: 12px; border-radius: var(--r-sm); border: 1px solid ' + (hasCustom ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasCustom ? 'var(--accent-weak)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
-    driverSel.setAttribute('aria-label', 'Custom driver for ' + p.provider);
-    const blankOpt = document.createElement('option');
-    blankOpt.value = '';
-    blankOpt.textContent = '(default: ' + (defDriver.driver || 'claudeAgent') + ')';
-    driverSel.appendChild(blankOpt);
-    T3_DRIVERS.forEach(d => {
-      const o = document.createElement('option');
-      o.value = d;
-      o.textContent = d;
-      driverSel.appendChild(o);
-    });
-    driverSel.value = currentItem ? (currentItem.driver || '') : '';
-    tdDriver.appendChild(driverSel);
-    tr.appendChild(tdDriver);
-
-    // 1M Context toggle
-    const td1m = document.createElement('td');
-    td1m.style.textAlign = 'center';
-    const toggle1m = document.createElement('button');
-    toggle1m.type = 'button';
-    const is1mActive = currentItem ? Boolean(currentItem['1m']) : Boolean(defDriver['1m']);
-    toggle1m.className = 'pill-1m' + (is1mActive ? ' active' : '');
-    toggle1m.textContent = '1M';
-    toggle1m.title = is1mActive ? '1M Context enabled' : '1M Context disabled';
-    td1m.appendChild(toggle1m);
-    tr.appendChild(td1m);
-
-    // Action (Revert)
+    // Action cell
     const tdAction = document.createElement('td');
     tdAction.style.textAlign = 'center';
-    const resetBtn = document.createElement('button');
-    resetBtn.type = 'button';
-    resetBtn.className = 'btn small';
-    resetBtn.textContent = 'Revert';
-    resetBtn.style.padding = '2px 8px';
-    resetBtn.style.fontSize = '11px';
-    resetBtn.disabled = !hasCustom;
-    tdAction.appendChild(resetBtn);
+    tdAction.style.verticalAlign = 'top';
+    tdAction.style.padding = '8px 10px';
+
+    renderProviderT3Cell(tdDrivers, tdAction, pInfo, isSolo, defDriver, renderProvHead);
+
+    tr.appendChild(tdDrivers);
     tr.appendChild(tdAction);
-
-    const saveOverride = (dName, mVal) => {
-      if (!dName) {
-        const blk = getAt(S.effective, ['t3', 'provider_drivers']);
-        if (blk && p.provider in blk) {
-          delete blk[p.provider];
-        }
-        driverSel.style.borderColor = 'var(--border)';
-        driverSel.style.background = 'var(--input-bg)';
-        resetBtn.disabled = true;
-      } else {
-        setAt(['t3', 'provider_drivers', p.provider], [{ driver: dName, '1m': mVal }]);
-        driverSel.style.borderColor = 'var(--accent)';
-        driverSel.style.background = 'var(--accent-weak)';
-        resetBtn.disabled = false;
-      }
-      setDirty(true);
-    };
-
-    driverSel.addEventListener('change', () => {
-      const v = driverSel.value;
-      const cur1m = toggle1m.classList.contains('active');
-      saveOverride(v, cur1m);
-    });
-
-    toggle1m.addEventListener('click', () => {
-      const nowActive = !toggle1m.classList.contains('active');
-      toggle1m.className = 'pill-1m' + (nowActive ? ' active' : '');
-      toggle1m.title = nowActive ? '1M Context enabled' : '1M Context disabled';
-      const dName = driverSel.value || defDriver.driver || 'claudeAgent';
-      if (!driverSel.value) driverSel.value = dName;
-      saveOverride(dName, nowActive);
-    });
-
-    resetBtn.addEventListener('click', () => {
-      driverSel.value = '';
-      const blk = getAt(S.effective, ['t3', 'provider_drivers']);
-      if (blk && p.provider in blk) {
-        delete blk[p.provider];
-      }
-      driverSel.style.borderColor = 'var(--border)';
-      driverSel.style.background = 'var(--input-bg)';
-      const def1m = Boolean(defDriver['1m']);
-      toggle1m.className = 'pill-1m' + (def1m ? ' active' : '');
-      resetBtn.disabled = true;
-      setDirty(true);
-    });
-
     tbody.appendChild(tr);
   });
 
@@ -5082,10 +5681,7 @@ function showSection(name, updateUrl = true) {
   // date with the current data
   refreshResetState();
   if (updateUrl && $('#config-content').style.display !== 'none') {
-    const hashStr = '#/' + name;
-    if (window.location.hash !== hashStr) {
-      window.history.replaceState(null, '', hashStr);
-    }
+    updateRouteUrl(name, false);
   }
 }
 
@@ -6293,8 +6889,47 @@ function buildAdapters() {
     const tdHarness = document.createElement('td');
     tdHarness.style.cssText = 'vertical-align: top; padding-top: 14px;';
     const hTitle = document.createElement('div');
-    hTitle.style.cssText = 'font-weight: 600; font-size: 13.5px; color: var(--text);';
-    hTitle.textContent = HARNESS_NAME[h] || h;
+    hTitle.style.cssText = 'font-weight: 600; font-size: 13.5px; color: var(--text); display: flex; align-items: center; gap: 6px;';
+    
+    const hTitleText = document.createElement('span');
+    hTitleText.textContent = HARNESS_NAME[h] || h;
+    hTitle.appendChild(hTitleText);
+
+    const rstBtn = document.createElement('button');
+    rstBtn.type = 'button';
+    rstBtn.className = 'icon-btn small harness-reset-btn reset-btn';
+    rstBtn.dataset.harness = h;
+    rstBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+    rstBtn.title = 'Reset ' + (HARNESS_NAME[h] || h) + ' adapters to default';
+    rstBtn.setAttribute('aria-label', 'Reset ' + (HARNESS_NAME[h] || h) + ' adapters to default');
+
+    function checkHarnessModified() {
+      const defs = S.defaults && S.defaults[h];
+      if (!defs) {
+        rstBtn.style.display = 'none';
+        return;
+      }
+      const isDiff = ['router_adapters', 'solo_adapters', 'rest_adapters'].some(k => {
+        const cur = getAt(S.effective, [h, k]) || [];
+        const def = defs[k] || [];
+        return JSON.stringify(cur) !== JSON.stringify(def);
+      });
+      rstBtn.style.display = isDiff ? 'inline-flex' : 'none';
+    }
+    checkHarnessModified();
+
+    rstBtn.addEventListener('click', () => {
+      const defs = S.defaults && S.defaults[h];
+      if (defs) {
+        if (defs.router_adapters) setAt([h, 'router_adapters'], deepClone(defs.router_adapters));
+        if (defs.solo_adapters) setAt([h, 'solo_adapters'], deepClone(defs.solo_adapters));
+        if (defs.rest_adapters) setAt([h, 'rest_adapters'], deepClone(defs.rest_adapters));
+      }
+      setDirty(true);
+      rebuildConfig();
+      showSection('adapters');
+    });
+    hTitle.appendChild(rstBtn);
     tdHarness.appendChild(hTitle);
 
     const hKey = document.createElement('div');
@@ -6305,17 +6940,17 @@ function buildAdapters() {
 
     const tdRouter = document.createElement('td');
     tdRouter.style.verticalAlign = 'top';
-    tdRouter.appendChild(adapterList([h, 'router_adapters'], h));
+    tdRouter.appendChild(adapterList([h, 'router_adapters'], h, checkHarnessModified));
     tr.appendChild(tdRouter);
 
     const tdSolo = document.createElement('td');
     tdSolo.style.verticalAlign = 'top';
-    tdSolo.appendChild(adapterList([h, 'solo_adapters'], h));
+    tdSolo.appendChild(adapterList([h, 'solo_adapters'], h, checkHarnessModified));
     tr.appendChild(tdSolo);
 
     const tdRest = document.createElement('td');
     tdRest.style.verticalAlign = 'top';
-    tdRest.appendChild(adapterList([h, 'rest_adapters'], h));
+    tdRest.appendChild(adapterList([h, 'rest_adapters'], h, checkHarnessModified));
     tr.appendChild(tdRest);
 
     tbody.appendChild(tr);
@@ -6393,6 +7028,7 @@ function buildAdapters() {
     onApplied: () => { rebuildConfig(); showSection('adapters'); }
   }));
 
+  setTimeout(refreshResetState, 0);
   return c;
 }
 
@@ -6435,7 +7071,9 @@ function buildT3() {
     <tbody>
       <tr>
         <td style="vertical-align: top; padding-top: 14px;">
-          <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">T3 CLI Instances</div>
+          <div style="font-weight: 600; font-size: 13.5px; color: var(--text); display: flex; align-items: center; gap: 6px;" id="t3-title-wrap">
+            <span>T3 CLI Instances</span>
+          </div>
           <div style="font-size: 11.5px; color: var(--text-3); margin-top: 3px;">Active launched driver processes</div>
         </td>
         <td style="vertical-align: top;" id="t3-cell-router"></td>
@@ -6444,9 +7082,44 @@ function buildT3() {
       </tr>
     </tbody>
   `;
-  table.querySelector('#t3-cell-router').appendChild(createT3DriverCell(['t3', 'router_drivers'], 'Router drivers'));
-  table.querySelector('#t3-cell-solo').appendChild(createT3DriverCell(['t3', 'solo_provider_drivers'], 'Solo provider drivers'));
-  table.querySelector('#t3-cell-rest').appendChild(createT3DriverCell(['t3', 'rest_provider_drivers'], 'REST provider drivers'));
+  const t3RstBtn = document.createElement('button');
+  t3RstBtn.type = 'button';
+  t3RstBtn.className = 'icon-btn small t3-reset-btn reset-btn';
+  t3RstBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reset"/></svg>';
+  t3RstBtn.title = 'Reset T3 drivers to default';
+  t3RstBtn.setAttribute('aria-label', 'Reset T3 drivers to default');
+
+  function checkT3Modified() {
+    const defs = S.defaults && S.defaults.t3;
+    if (!defs) {
+      t3RstBtn.style.display = 'none';
+      return;
+    }
+    const isDiff = ['router_drivers', 'solo_provider_drivers', 'rest_provider_drivers'].some(k => {
+      const cur = getAt(S.effective, ['t3', k]) || [];
+      const def = defs[k] || [];
+      return JSON.stringify(cur) !== JSON.stringify(def);
+    });
+    t3RstBtn.style.display = isDiff ? 'inline-flex' : 'none';
+  }
+  checkT3Modified();
+
+  t3RstBtn.addEventListener('click', () => {
+    const defs = S.defaults && S.defaults.t3;
+    if (defs) {
+      if (defs.router_drivers) setAt(['t3', 'router_drivers'], deepClone(defs.router_drivers));
+      if (defs.solo_provider_drivers) setAt(['t3', 'solo_provider_drivers'], deepClone(defs.solo_provider_drivers));
+      if (defs.rest_provider_drivers) setAt(['t3', 'rest_provider_drivers'], deepClone(defs.rest_provider_drivers));
+    }
+    setDirty(true);
+    rebuildConfig();
+    showSection('t3');
+  });
+  table.querySelector('#t3-title-wrap').appendChild(t3RstBtn);
+
+  table.querySelector('#t3-cell-router').appendChild(createT3DriverCell(['t3', 'router_drivers'], 'Router drivers', checkT3Modified));
+  table.querySelector('#t3-cell-solo').appendChild(createT3DriverCell(['t3', 'solo_provider_drivers'], 'Solo provider drivers', checkT3Modified));
+  table.querySelector('#t3-cell-rest').appendChild(createT3DriverCell(['t3', 'rest_provider_drivers'], 'REST provider drivers', checkT3Modified));
 
   tableWrap.appendChild(table);
   c.appendChild(tableWrap);
@@ -7006,10 +7679,7 @@ function showView(name, updateUrl = true) {
     });
     closeDrawer();
     if (updateUrl) {
-      const hashStr = '#/' + name;
-      if (window.location.hash !== hashStr) {
-        window.history.replaceState(null, '', hashStr);
-      }
+      updateRouteUrl(name, false);
     }
   }
   if (name === 'models') loadModels();
@@ -7019,10 +7689,40 @@ function showView(name, updateUrl = true) {
 const VALID_VIEWS = new Set(['run', 'models', 'providers']);
 const VALID_SECTIONS = new Set(['filters', 'overrides', 'capabilities', 'custom-models', 'general', 'paths', 'targets', 'adapters', 't3', 'commands']);
 
+function updateRouteUrl(route, push = false) {
+  if (window.location.protocol === 'file:') {
+    const hashStr = '#/' + route;
+    if (window.location.hash !== hashStr) {
+      if (push) window.history.pushState(null, '', hashStr);
+      else window.history.replaceState(null, '', hashStr);
+    }
+    return;
+  }
+  const targetPath = '/' + route;
+  if (window.location.pathname !== targetPath || window.location.hash) {
+    if (push) {
+      window.history.pushState(null, '', targetPath);
+    } else {
+      window.history.replaceState(null, '', targetPath);
+    }
+  }
+}
+
 function parseRoute() {
-  const raw = (window.location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
-  if (raw === 'harness-filters') return 'filters';
-  return raw;
+  // 1. Check pathname (e.g. /adapters, /t3, /models)
+  let pathPart = (window.location.pathname || '').replace(/^\/+|\/+$/g, '').trim().toLowerCase();
+  if (pathPart && pathPart !== 'index.html') {
+    if (pathPart === 'harness-filters') pathPart = 'filters';
+    if (VALID_VIEWS.has(pathPart) || VALID_SECTIONS.has(pathPart) || pathPart === 'config') {
+      return pathPart;
+    }
+  }
+  // 2. Fallback to hash if present (e.g. #/adapters or #adapters)
+  let hashPart = (window.location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
+  if (hashPart === 'harness-filters') hashPart = 'filters';
+  if (hashPart) return hashPart;
+
+  return 'general';
 }
 
 function navigateTo(target, push = false) {
@@ -7045,14 +7745,7 @@ function navigateTo(target, push = false) {
     route = 'general';
   }
 
-  const hashStr = '#/' + route;
-  if (window.location.hash !== hashStr) {
-    if (push) {
-      window.history.pushState(null, '', hashStr);
-    } else {
-      window.history.replaceState(null, '', hashStr);
-    }
-  }
+  updateRouteUrl(route, push);
 }
 
 // ===========================================================================
@@ -7096,7 +7789,7 @@ function initDrawer() {
     if (e.key === 'Escape' && drawerOpen()) { e.preventDefault(); closeDrawer(); return; }
     if (e.key !== 'Tab' || !drawerOpen()) return;
     // trap Tab inside the open drawer
-    const items = [...$('#config-nav').querySelectorAll('button:not([disabled])')];
+    const items = [...$('#config-nav').querySelectorAll('button:not([disabled]), a[href]:not([disabled])')];
     if (!items.length) return;
     const first = items[0], last = items[items.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -7711,12 +8404,17 @@ async function init() {
     el.style.cssText = 'color:var(--danger);padding:60px;text-align:center';
     const hint = document.createElement('div');
     hint.style.cssText = 'color:var(--text-3);font-size:14px;margin-top:12px';
-    hint.innerHTML = 'Open this page through the server, e.g. <code>http://127.0.0.1:47613/</code>. Run <code>omnilist gui</code> in a terminal to start it.';
+    hint.innerHTML = 'Open this page through the server, e.g. <code>http://127.0.0.1:55555/</code>. Run <code>omnilist gui</code> in a terminal to start it.';
     el.appendChild(hint);
     return;
   }
   connectSSE();
 }
+
+window.addEventListener('popstate', () => {
+  const route = parseRoute();
+  if (route) navigateTo(route, false);
+});
 
 window.addEventListener('hashchange', () => {
   const route = parseRoute();
@@ -7728,7 +8426,7 @@ $('#config-nav').addEventListener('click', (e) => {
   if (!btn) return;
   const target = btn.dataset.view || btn.dataset.sec;
   if (target) {
-    window.location.hash = '#/' + target;
+    navigateTo(target, true);
   }
   closeDrawer();
 });

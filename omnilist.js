@@ -499,13 +499,20 @@ const T3_SOLO_PROVIDER_DRIVERS = (cfg.t3 && cfg.t3.solo_provider_drivers) || cfg
 const T3_DRIVER_STRATEGY = cfg.t3.driver_strategy;
 
 // Uniform adapter getter — free-form strings, backward-compat for legacy dsh.router_apis/rest_apis, dedup + normalize.
-function getAdapters(harness, side, providerName) {
+function getAdapters(harness, side, providerName, idx, totalForProvider) {
   // harness: 'opencode'|'kilo'|'pi'|'zcode'|'opencodex'|'dsh'; side: 'router'|'solo'|'rest'
   const blk = (cfg && cfg[harness] && typeof cfg[harness] === 'object') ? cfg[harness] : null;
 
   // 1) Per-provider adapter override
   if (providerName && blk && blk.provider_adapters && typeof blk.provider_adapters === 'object') {
-    const custom = blk.provider_adapters[providerName];
+    let custom = null;
+    if (idx !== undefined && idx > 0) {
+      custom = blk.provider_adapters[`${providerName}-${idx + 1}`];
+    } else {
+      custom = blk.provider_adapters[providerName] !== undefined
+        ? blk.provider_adapters[providerName]
+        : blk.provider_adapters[`${providerName}-1`];
+    }
     let customArr = null;
     if (Array.isArray(custom) && custom.length) customArr = custom;
     else if (typeof custom === 'string' && custom.trim()) customArr = [custom.trim()];
@@ -1895,18 +1902,27 @@ async function syncT3Providers() {
       providerModelsAll.push(name);
       if (m.in >= 1000000) providerModelsAll.push(name + '[1m]');
     }
-    let drivers = isSolo ? activeSoloDrivers : activeRestDrivers;
-    if (cfg.t3 && cfg.t3.provider_drivers && typeof cfg.t3.provider_drivers === 'object' && cfg.t3.provider_drivers[provider]) {
-      const custom = cfg.t3.provider_drivers[provider];
-      if (Array.isArray(custom) && custom.length) {
-        const filteredCustom = custom.filter(e => e && typeof e === 'object' && e.driver);
-        if (filteredCustom.length) drivers = filteredCustom;
-      } else if (typeof custom === 'string' && custom.trim()) {
-        drivers = [{ driver: custom.trim(), '1m': false }];
-      }
-    }
-    if (drivers.length === 0) continue;
     keys.forEach((row, idx) => {
+      let drivers = isSolo ? activeSoloDrivers : activeRestDrivers;
+      if (cfg.t3 && cfg.t3.provider_drivers && typeof cfg.t3.provider_drivers === 'object') {
+        let custom = null;
+        if (keys.length > 1 && idx > 0) {
+          custom = cfg.t3.provider_drivers[`${provider}-${idx + 1}`];
+        } else {
+          custom = cfg.t3.provider_drivers[provider] !== undefined
+            ? cfg.t3.provider_drivers[provider]
+            : cfg.t3.provider_drivers[`${provider}-1`];
+        }
+        if (custom) {
+          if (Array.isArray(custom) && custom.length) {
+            const filteredCustom = custom.filter(e => e && typeof e === 'object' && e.driver);
+            if (filteredCustom.length) drivers = filteredCustom;
+          } else if (typeof custom === 'string' && custom.trim()) {
+            drivers = [{ driver: custom.trim(), '1m': false }];
+          }
+        }
+      }
+      if (drivers.length === 0) return;
       drivers.forEach((driverEntry, driverIdx) => {
         const driverName = driverEntry.driver;
         const supports1m = !!driverEntry['1m'];
@@ -2133,7 +2149,7 @@ async function syncOpencodeRestProviders() {
               };
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
-      const providerAdapters = getAdapters('opencode', isSolo ? 'solo' : 'rest', providerName);
+      const providerAdapters = getAdapters('opencode', isSolo ? 'solo' : 'rest', providerName, idx, providerRows.length);
       for (const adapter of providerAdapters) {
         const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         config.provider[key] = {
@@ -2214,7 +2230,7 @@ async function syncKiloRestProviders() {
               };
         });
       const modelsObj = providerModels.reduce((acc, m) => { acc[m.name] = m; return acc; }, {});
-      const providerAdapters = getAdapters('kilo', isSolo ? 'solo' : 'rest', providerName);
+      const providerAdapters = getAdapters('kilo', isSolo ? 'solo' : 'rest', providerName, idx, providerRows.length);
       for (const adapter of providerAdapters) {
         const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         config.provider[key] = {
@@ -3262,8 +3278,8 @@ async function syncDSHRestProviders() {
       providerModelCandidates = applyHarnessTopN(modelRows.filter(m => m.id.startsWith(prefix) && !m.id.endsWith('[1m]')), 'dsh');
     }
     const simp = simplifyName(provider);
-    const providerApis = getAdapters('dsh', isSolo ? 'solo' : 'rest', provider);
     providerRows.forEach((row, idx) => {
+      const providerApis = getAdapters('dsh', isSolo ? 'solo' : 'rest', provider, idx, providerRows.length);
       for (const api of providerApis) {
         const key = `${PREFIX}${simp}${instancePart(idx, providerRows.length)}${adapterSuffix(api, providerApis)}`;
         const envVar = PREFIX_UPPER + (providerRows.length > 1 ? simp.toUpperCase() + '_' + (idx + 1) : simp.toUpperCase()) + '_API_KEY';
@@ -3356,7 +3372,7 @@ async function syncPiRestProviders() {
           maxTokens: m.out
         };
       });
-      const providerAdapters = getAdapters('pi', isSolo ? 'solo' : 'rest', providerName);
+      const providerAdapters = getAdapters('pi', isSolo ? 'solo' : 'rest', providerName, idx, providerRows.length);
       for (const adapter of providerAdapters) {
         const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: adapter, models };
@@ -3451,8 +3467,8 @@ async function syncOpencodexRestProviders() {
       const prefix = provider + '/';
       providerModels = applyHarnessTopN(modelRows.filter((m) => m.id.startsWith(prefix)), 'ocx');
     }
-    const providerAdapters = getAdapters('opencodex', isSolo ? 'solo' : 'rest', provider);
     providerRows.forEach((row, idx) => {
+      const providerAdapters = getAdapters('opencodex', isSolo ? 'solo' : 'rest', provider, idx, providerRows.length);
       for (const adapter of providerAdapters) {
         const key = `${PREFIX}${simplifyName(provider)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         doc.providers[key] = ocxProviderEntry(row, adapter);
@@ -3662,7 +3678,7 @@ async function syncZcodeRestProviders() {
       const row = group[idx - 1];
       const withoutAdapter = PREFIX + base + (idx > 1 ? `-${idx}` : '');
       const isSolo = isSoloRow(row);
-      const providerAdapters = getAdapters('zcode', isSolo ? 'solo' : 'rest', row.provider);
+      const providerAdapters = getAdapters('zcode', isSolo ? 'solo' : 'rest', row.provider, idx - 1, group.length);
       for (const adapter of providerAdapters) {
         const suffix = providerAdapters.length > 1 ? '-' + simplifyName(adapter) : '';
         const logical = withoutAdapter + suffix;
@@ -4260,7 +4276,7 @@ Other Targets:
 Options:
   -mi, --min-input-context N   Skip models with input context < N (default: 0 = none)
   -mo, --min-output-limit N    Skip models with output < N (default: 0 = none)
-  -p,  --port N                Port for the GUI dashboard (default: 47613, auto-increments if busy)
+  -p,  --port N                Port for the GUI dashboard (default: 55555, auto-increments if busy)
        --clean / --noclean     Enable/disable cleanup step (default: --clean)
 
 Configuration:
@@ -4482,7 +4498,7 @@ async function stopGui(specifiedPort) {
     portsToCheck.push(specifiedPort);
   } else {
     if (savedPort) portsToCheck.push(savedPort);
-    if (!portsToCheck.includes(47613)) portsToCheck.push(47613);
+    if (!portsToCheck.includes(55555)) portsToCheck.push(55555);
   }
 
   let stoppedAny = false;
@@ -4505,7 +4521,7 @@ async function stopGui(specifiedPort) {
 
 async function restartGui(specifiedPort) {
   const savedPort = getSavedGuiPort();
-  const targetPort = specifiedPort || savedPort || 47613;
+  const targetPort = specifiedPort || savedPort || 55555;
 
   const portsToCheck = [targetPort];
   if (savedPort && savedPort !== targetPort) portsToCheck.push(savedPort);
@@ -4525,7 +4541,7 @@ async function restartGui(specifiedPort) {
 }
 
 function startGuiInBackground(opts) {
-  const wantedPort = (opts && opts.port) || 47613;
+  const wantedPort = (opts && opts.port) || 55555;
   const forceFresh = !!(opts && opts.forceFresh);
   return new Promise(async (resolve, reject) => {
     if (!forceFresh) {

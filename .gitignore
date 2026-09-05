@@ -13,3 +13,5 @@ test/
 *.bak
 .gui.port
 design-exploration/
+DESIGN-cursor.md
+*.pid
