@@ -25,6 +25,8 @@ const {
 } = require('./omnilist.js');
 
 const DEFAULT_PORT = 47613;
+let currentServer = null;
+let currentPort = DEFAULT_PORT;
 const SCRIPT = path.join(__dirname, 'omnilist.js');
 
 // Canonical harness ids shown in dropdowns (labels the UI maps itself).
@@ -198,6 +200,7 @@ const RUN_WORDS = new Set([
   'dsh', 'dshrest', 'pi', 'pirest', 'zcode', 'zcoderest', 'opencodex',
   'opencodexrest', 'ocx', 'ocxrest', 'cleanup', 'cleanupproviders', 'cleanmodels',
   'removemodels', 'commands', 'all', 'allpro',
+  '--router', '--rest', '--solo',
 ]);
 
 let run = null; // { child, lines: [{stream, text}], done, exitCode, startedAt, cmdline }
@@ -230,7 +233,7 @@ function startRun(body) {
 
   // Fresh process so a just-saved config is picked up (config is frozen at
   // require time inside omnilist.js).
-  const child = spawn(process.execPath, args, { cwd: __dirname });
+  const child = spawn(process.execPath, args, { cwd: __dirname, windowsHide: true });
   run = { child, lines: [], done: false, exitCode: null, startedAt: Date.now(), cmdline: 'omnilist ' + targets.join(' ') };
 
   const emit = (stream) => {
@@ -830,12 +833,34 @@ function handleApi(req, res, url) {
     return sendJson(res, r.error ? r.status : 200, r.error ? { error: r.error } : r);
   }
 
+  if (req.method === 'GET' && route === '/api/ping') {
+    return sendJson(res, 200, { ok: true, app: 'omnilist', port: currentPort, pid: process.pid });
+  }
+
   // GUI-initiated shutdown: reply first, then let the server close so the
   // terminal that ran `omnilist gui` exits cleanly.
   if (req.method === 'POST' && route === '/api/shutdown') {
     sendJson(res, 200, { ok: true });
     stopRun();
     setTimeout(() => process.exit(0), 150);
+    return;
+  }
+
+  if (req.method === 'POST' && route === '/api/restart') {
+    const port = currentPort;
+    sendJson(res, 200, { ok: true, port });
+    stopRun();
+    setTimeout(() => {
+      const { spawn } = require('child_process');
+      const child = spawn(process.execPath, [__filename, String(port)], {
+        cwd: __dirname,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      try { child.unref(); } catch (e) {}
+      process.exit(0);
+    }, 150);
     return;
   }
 
@@ -872,7 +897,7 @@ function createServer() {
     if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
     if (url.pathname === '/favicon.ico') {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
-      return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%230070f3"/><path d="M8 10h16M8 16h16M8 22h10" stroke="%23ffffff" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="22" r="2.5" fill="%23ffffff"/></svg>');
+      return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%23f54e00"/><path d="M8 10h16M8 16h16M8 22h10" stroke="%23ffffff" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="22" r="2.5" fill="%23ffffff"/></svg>');
     }
     if (req.method !== 'GET' || (url.pathname !== '/' && url.pathname !== '/index.html')) {
       return sendJson(res, 404, { error: 'not found' });
@@ -905,7 +930,10 @@ function start(opts) {
       }
     });
     server.listen(p, '127.0.0.1', () => {
+      currentServer = server;
+      currentPort = p;
       try { fs.writeFileSync(path.join(__dirname, '.gui.port'), String(p), 'utf8'); } catch (e) {}
+      try { fs.writeFileSync(path.join(__dirname, '.gui.pid'), String(process.pid), 'utf8'); } catch (e) {}
       console.log('');
       console.log('  Omnilist GUI running at:  http://127.0.0.1:' + p);
       if (p !== wanted) console.log('  (port ' + wanted + ' was busy, using the next free one)');
@@ -919,6 +947,10 @@ function start(opts) {
     try {
       const pf = path.join(__dirname, '.gui.port');
       if (fs.existsSync(pf)) fs.unlinkSync(pf);
+    } catch (e) {}
+    try {
+      const pidf = path.join(__dirname, '.gui.pid');
+      if (fs.existsSync(pidf)) fs.unlinkSync(pidf);
     } catch (e) {}
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();

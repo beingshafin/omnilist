@@ -266,7 +266,7 @@ function resolvePath(p) {
   if (!p) return '';
   p = p.replace(/^~($|\/|\\)/, home + '$1');
   if (!path.isAbsolute(p)) p = path.join(__dirname, p);
-  return p;
+  return path.normalize(p);
 }
 
 // Resolve a catalog CSV path (raw catalog or per-harness preview). Absolute
@@ -275,7 +275,7 @@ function resolvePath(p) {
 function resolveCatalogPath(name) {
   if (!name) return '';
   if (name.startsWith('~') || path.isAbsolute(name)) return resolvePath(name);
-  return path.join(path.dirname(MODELS_CSV), name);
+  return path.normalize(path.join(path.dirname(MODELS_CSV), name));
 }
 
 function loadConfig() {
@@ -308,20 +308,20 @@ function loadConfig() {
 const cfg = loadConfig();
 
 // ---------- resolved paths ----------
-const MODELS_CSV = process.env.MODELS_TEST || resolvePath(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv');
-const PROVIDERS_CSV = resolvePath(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv');
-const OPENCODE_FILE = process.env.JSONC_TEST || resolvePath(cfg.paths.opencode_file);
-const KILO_FILE = process.env.KILO_TEST || resolvePath(cfg.paths.kilo_file);
+const MODELS_CSV = path.normalize(process.env.MODELS_TEST || resolvePath(cfg.paths.models_csv) || path.join(__dirname, 'models-filtered.csv'));
+const PROVIDERS_CSV = path.normalize(resolvePath(cfg.paths.providers_csv) || path.join(__dirname, 'providers.csv'));
+const OPENCODE_FILE = path.normalize(process.env.JSONC_TEST || resolvePath(cfg.paths.opencode_file));
+const KILO_FILE = path.normalize(process.env.KILO_TEST || resolvePath(cfg.paths.kilo_file));
 // T3 userdata dir. Override with T3_DATA_DIR if T3 keeps its data elsewhere.
-const T3_DATA_DIR = process.env.T3_DATA_DIR || resolvePath(cfg.paths.t3_data_dir);
-const T3_SETTINGS_FILE = resolvePath(cfg.paths.t3_settings_file) || path.join(T3_DATA_DIR, 'settings.json');
-const T3_LOGS_DIR = resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs');
-const DSH_SETTINGS_FILE = process.env.DSH_SETTINGS_FILE || resolvePath(cfg.paths.dsh_settings_file);
-const DSH_CREDENTIALS_FILE = process.env.DSH_CREDENTIALS_FILE || resolvePath(cfg.paths.dsh_credentials_file);
-const PI_FILE = process.env.PI_FILE || resolvePath(cfg.paths.pi_file);
-const ZCODE_FILE = process.env.ZCODE_FILE || resolvePath(cfg.paths.zcode_file);
-const OPENCODEX_FILE = process.env.OPENCODEX_FILE || process.env.OCX_FILE || resolvePath(cfg.paths.opencodex_file);
-const ALL_MODELS_CSV = process.env.ALL_MODELS_TEST || resolveCatalogPath(cfg.paths.all_models_csv) || path.join(path.dirname(MODELS_CSV), 'models-all.csv');
+const T3_DATA_DIR = path.normalize(process.env.T3_DATA_DIR || resolvePath(cfg.paths.t3_data_dir));
+const T3_SETTINGS_FILE = path.normalize(resolvePath(cfg.paths.t3_settings_file) || path.join(T3_DATA_DIR, 'settings.json'));
+const T3_LOGS_DIR = path.normalize(resolvePath(cfg.paths.t3_logs_dir) || path.join(T3_DATA_DIR, 'logs'));
+const DSH_SETTINGS_FILE = path.normalize(process.env.DSH_SETTINGS_FILE || resolvePath(cfg.paths.dsh_settings_file));
+const DSH_CREDENTIALS_FILE = path.normalize(process.env.DSH_CREDENTIALS_FILE || resolvePath(cfg.paths.dsh_credentials_file));
+const PI_FILE = path.normalize(process.env.PI_FILE || resolvePath(cfg.paths.pi_file));
+const ZCODE_FILE = path.normalize(process.env.ZCODE_FILE || resolvePath(cfg.paths.zcode_file));
+const OPENCODEX_FILE = path.normalize(process.env.OPENCODEX_FILE || process.env.OCX_FILE || resolvePath(cfg.paths.opencodex_file));
+const ALL_MODELS_CSV = path.normalize(process.env.ALL_MODELS_TEST || resolveCatalogPath(cfg.paths.all_models_csv) || path.join(path.dirname(MODELS_CSV), 'models-all.csv'));
 
 function soloAllCsvPath(provider) {
   const simp = simplifyName(provider);
@@ -417,6 +417,78 @@ const ZCODE_REST = !!cfg.targets.zcode_rest;
 const OPENCODEX_SOLO = cfg.targets.opencodex_solo !== undefined ? !!cfg.targets.opencodex_solo : true;
 const OPENCODEX_ROUTER = !!cfg.targets.opencodex_router;
 const OPENCODEX_REST = !!cfg.targets.opencodex_rest;
+
+const runtimeModes = {
+  hasFlags: false,
+  router: false,
+  rest: false,
+  solo: false,
+};
+
+function normalizeHarnessName(name) {
+  const n = String(name || '').toLowerCase();
+  if (n === 'ocx' || n === 'opencodex') return 'opencodex';
+  return n;
+}
+
+function isRouterActive(harnessId) {
+  if (runtimeModes.hasFlags) return runtimeModes.router;
+  const hid = normalizeHarnessName(harnessId);
+  return !!cfg.targets[`${hid}_router`];
+}
+
+function isSoloActive(harnessId) {
+  if (runtimeModes.hasFlags) return runtimeModes.solo;
+  const hid = normalizeHarnessName(harnessId);
+  if (hid === 'zcode') return !!cfg.targets.zcode_solo;
+  return cfg.targets[`${hid}_solo`] !== undefined ? !!cfg.targets[`${hid}_solo`] : true;
+}
+
+function isRestActive(harnessId) {
+  if (runtimeModes.hasFlags) return runtimeModes.rest;
+  const hid = normalizeHarnessName(harnessId);
+  return !!cfg.targets[`${hid}_rest`];
+}
+
+const HARNESS_SPEC = {
+  opencode: { router: 'opencode', rest: 'opencoderest' },
+  kilo: { router: 'kilo', rest: 'kilorest', pro: 'kilopro' },
+  t3: { router: 't3models', rest: 't3rest' },
+  dsh: { router: 'dsh', rest: 'dshrest' },
+  pi: { router: 'pi', rest: 'pirest' },
+  zcode: { router: 'zcode', rest: 'zcoderest' },
+  opencodex: { router: 'opencodex', rest: 'opencodexrest' },
+  ocx: { router: 'opencodex', rest: 'opencodexrest' },
+};
+
+function targetsForHarness(harnessId) {
+  const hid = normalizeHarnessName(harnessId);
+  const spec = HARNESS_SPEC[hid];
+  if (!spec) return [];
+  const t = [];
+  if (isRouterActive(hid)) t.push(spec.router);
+
+  let hasSolo = true;
+  let hasRest = true;
+  if (!runtimeModes.hasFlags) {
+    try {
+      if (fs.existsSync(PROVIDERS_CSV)) {
+        const rows = readProvidersCsv();
+        hasSolo = getSoloRows(rows).length > 0;
+        hasRest = getRestRows(rows).length > 0;
+      }
+    } catch (e) {}
+  }
+
+  const soloEligible = isSoloActive(hid) && hasSolo;
+  const restEligible = isRestActive(hid) && hasRest;
+
+  if (soloEligible || restEligible) {
+    t.push(spec.rest);
+  }
+  if (spec.pro && KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK && isRouterActive(hid)) t.push(spec.pro);
+  return t;
+}
 
 const REMOVE_IF_FALSE_PROVIDER = cfg.cleanup_providers.remove_if_false_provider;
 const REMOVE_IF_PROVIDER_DOESNT_EXIST = cfg.cleanup_providers.remove_if_provider_doesnt_exist;
@@ -806,12 +878,16 @@ function previewAllowed(harnessId) {
   return RAW_CATALOG.has(norm);
 }
 
+const writtenPreviews = new Set();
 function writeHarnessPreview(harnessId, rows) {
   if (!previewAllowed(harnessId)) return;
-  const p = harnessModelsPath(harnessId);
+  const norm = normalizeHarnessId(harnessId);
+  if (writtenPreviews.has(norm)) return;
+  writtenPreviews.add(norm);
+  const p = harnessModelsPath(norm);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, csvRowsToText(rows), 'utf8');
-  console.log(`Wrote ${harnessId} preview to ${p}`);
+  console.log(`Wrote ${norm} preview to ${p}`);
 }
 
 // Delete per-harness model list CSVs that shouldn't exist under the current
@@ -1794,11 +1870,12 @@ async function syncT3Providers() {
   const activeSoloDrivers = (T3_SOLO_PROVIDER_DRIVERS || activeRestDrivers).filter(e => e && typeof e === 'object' && e.driver);
 
   let count = 0;
+  let totalModels = 0;
   for (const [provider, keys] of Object.entries(byProvider)) {
     if (routerName && provider === routerName) continue;
     const isSolo = isSoloRow(keys[0]);
-    if (isSolo && !T3_SOLO) continue;
-    if (!isSolo && !T3_REST) continue;
+    if (isSolo && !isSoloActive('t3')) continue;
+    if (!isSolo && !isRestActive('t3')) continue;
     let topNFiltered;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(provider);
@@ -1847,13 +1924,14 @@ async function syncT3Providers() {
           prevEnabled.hasOwnProperty(key) ? prevEnabled[key] : false
         );
         count++;
+        totalModels += providerModels.length;
       });
     });
   }
 
   fs.mkdirSync(path.dirname(T3_SETTINGS_FILE), { recursive: true });
   fs.writeFileSync(T3_SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-  return count;
+  return { apis: count, models: totalModels };
 }
 
 // Controlled by: --clean / --noclean, default is true (CLEANUP_DEFAULT).
@@ -2030,8 +2108,8 @@ async function syncOpencodeRestProviders() {
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     if (routerName && providerName === routerName) continue;
     const isSolo = isSoloRow(providerRows[0]);
-    if (isSolo && !OPENCODE_SOLO) continue;
-    if (!isSolo && !OPENCODE_REST) continue;
+    if (isSolo && !isSoloActive('opencode')) continue;
+    if (!isSolo && !isRestActive('opencode')) continue;
     let candidateModels;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(providerName);
@@ -2072,7 +2150,10 @@ async function syncOpencodeRestProviders() {
   }
 
   fs.writeFileSync(OPENCODE_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => isManagedKey(k) && !(routerName && k.startsWith(routerKeyBase(routerName)))).length;
+  const restKeys = Object.keys(config.provider).filter(k => isManagedKey(k) && !(routerName && k.startsWith(routerKeyBase(routerName))));
+  let totalModels = 0;
+  for (const k of restKeys) totalModels += Object.keys(config.provider[k].models || {}).length;
+  return { apis: restKeys.length, models: totalModels };
 }
 
 async function syncKiloRestProviders() {
@@ -2108,8 +2189,8 @@ async function syncKiloRestProviders() {
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     if (routerName && providerName === routerName) continue;
     const isSolo = isSoloRow(providerRows[0]);
-    if (isSolo && !KILO_SOLO) continue;
-    if (!isSolo && !KILO_REST) continue;
+    if (isSolo && !isSoloActive('kilo')) continue;
+    if (!isSolo && !isRestActive('kilo')) continue;
     let candidateModels;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(providerName);
@@ -2150,7 +2231,10 @@ async function syncKiloRestProviders() {
   }
 
   fs.writeFileSync(KILO_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(config.provider).filter(k => isManagedKey(k) && !(routerName && k.startsWith(routerKeyBase(routerName)))).length;
+  const restKeys = Object.keys(config.provider).filter(k => isManagedKey(k) && !(routerName && k.startsWith(routerKeyBase(routerName))));
+  let totalModels = 0;
+  for (const k of restKeys) totalModels += Object.keys(config.provider[k].models || {}).length;
+  return { apis: restKeys.length, models: totalModels };
 }
 
 // ---------- cleanupProviders: reconcile c-* providers in all config files ----------
@@ -2383,8 +2467,9 @@ function cleanupDSHProviders(byProvider, routerName) {
   }
   for (const provider of Object.keys(grouped)) {
     const isRouter = routerSimp && provider === routerSimp;
-    const flag = isRouter ? DSH_ROUTER : DSH_REST;
     const csvRows = byProvider[provider];
+    const isSolo = csvRows && isSoloRow(csvRows[0]);
+    const flag = isRouter ? DSH_ROUTER : (isSolo ? DSH_SOLO : DSH_REST);
     const entries = grouped[provider];
     if (REMOVE_IF_PROVIDER_DOESNT_EXIST && !csvRows) {
       for (const e of entries) { delete providers[e.key]; removed++; }
@@ -2520,8 +2605,9 @@ function cleanupPiProviders(byProvider, routerName) {
   }
   for (const provider of Object.keys(grouped)) {
     const isRouter = routerSimp && provider === routerSimp;
-    const flag = isRouter ? PI_ROUTER : PI_REST;
     const csvRows = byProvider[provider];
+    const isSolo = csvRows && isSoloRow(csvRows[0]);
+    const flag = isRouter ? PI_ROUTER : (isSolo ? PI_SOLO : PI_REST);
     const entries = grouped[provider];
     if (REMOVE_IF_PROVIDER_DOESNT_EXIST && !csvRows) {
       for (const e of entries) { delete providers[e.key]; removed++; }
@@ -2791,7 +2877,21 @@ async function syncRouterProvider(targetFile, harnessId) {
   }
 
   fs.writeFileSync(targetFile, JSON.stringify(config, null, 2) + '\n', 'utf8');
-  return Object.keys(models).length;
+  return { apis: effectiveAdapters.length, models: Object.keys(models).length };
+}
+
+function formatApiModels(res, defaultApis = 1, defaultModels = 0) {
+  let apis = defaultApis;
+  let models = defaultModels;
+  if (typeof res === 'object' && res !== null) {
+    if (typeof res.apis === 'number') apis = res.apis;
+    else if (typeof res.providers === 'number') apis = res.providers;
+    if (typeof res.models === 'number') models = res.models;
+  } else if (typeof res === 'number') {
+    models = res;
+  }
+  const apiLabel = apis === 1 ? 'api' : 'apis';
+  return `${apis} ${apiLabel}, ${models} models`;
 }
 
 // ---------- yaml helpers (DSH) — zero-dep minimal ----------
@@ -3022,12 +3122,6 @@ function parseZcodeCustomKey(key) {
   if (m) return { base: m[1], idx: parseInt(m[2], 10) };
   return { base: rest, idx: 1 };
 }
-let _zcodeUpdateOnlyWarned = false;
-function warnZcodeUpdateOnly() {
-  if (_zcodeUpdateOnlyWarned) return;
-  _zcodeUpdateOnlyWarned = true;
-  console.log('Note: zcode sync inserts missing c-* providers into ~/.zcode/v2/config.json and updates existing ones (baseURL/apiKey/models). Legacy c_* entries are renamed to the new c-* format in place.');
-}
 
 // ---------- opencodex helpers ----------
 const crypto = (() => { try { return require('crypto'); } catch (_) { return null; } })();
@@ -3131,7 +3225,7 @@ async function syncDSHRouter() {
   }
   writeYamlFile(DSH_SETTINGS_FILE, settings);
   writeCredentialsFile(DSH_CREDENTIALS_FILE, creds);
-  return routerAdapters.length;
+  return { apis: routerAdapters.length, models: models.length };
 }
 
 async function syncDSHRestProviders() {
@@ -3152,11 +3246,12 @@ async function syncDSHRestProviders() {
   const providers = settings['llm-pi-ai'].providers;
   const creds = readCredentialsFile(DSH_CREDENTIALS_FILE);
   let count = 0;
+  let totalModels = 0;
   const restAdapters = getAdapters('dsh', 'rest');
   for (const [provider, providerRows] of Object.entries(byProvider)) {
     const isSolo = isSoloRow(providerRows[0]);
-    if (isSolo && !DSH_SOLO) continue;
-    if (!isSolo && !DSH_REST) continue;
+    if (isSolo && !isSoloActive('dsh')) continue;
+    if (!isSolo && !isRestActive('dsh')) continue;
     let providerModelCandidates;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(provider);
@@ -3191,12 +3286,13 @@ async function syncDSHRestProviders() {
           models: dshModels,
         };
         count++;
+        totalModels += dshModels.length;
       }
     });
   }
   writeYamlFile(DSH_SETTINGS_FILE, settings);
   writeCredentialsFile(DSH_CREDENTIALS_FILE, creds);
-  return count;
+  return { apis: count, models: totalModels };
 }
 
 // ---------- pi sync ----------
@@ -3215,7 +3311,7 @@ async function syncPiRouter() {
     const key = `${routerKeyBase(routerName)}${adapterSuffix(adapter, routerAdapters)}`;
     doc.providers[key] = { name: key, baseUrl: routerRow.base_url, apiKey: routerRow.api_key, api: adapter, models: piModelsForSync(modelRows) };
   }
-  ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc); return modelRows.length * routerAdapters.length || modelRows.length;
+  ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc); return { apis: routerAdapters.length || 1, models: modelRows.length };
 }
 async function syncPiRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
@@ -3232,10 +3328,12 @@ async function syncPiRestProviders() {
     byProvider[row.provider].push(row);
   }
   const restAdapters = getAdapters('pi', 'rest');
+  let count = 0;
+  let totalModels = 0;
   for (const [providerName, providerRows] of Object.entries(byProvider)) {
     const isSolo = isSoloRow(providerRows[0]);
-    if (isSolo && !PI_SOLO) continue;
-    if (!isSolo && !PI_REST) continue;
+    if (isSolo && !isSoloActive('pi')) continue;
+    if (!isSolo && !isRestActive('pi')) continue;
     let providerModels;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(providerName);
@@ -3262,11 +3360,13 @@ async function syncPiRestProviders() {
       for (const adapter of providerAdapters) {
         const key = `${PREFIX}${simplifyName(providerName)}${instancePart(idx, providerRows.length)}${adapterSuffix(adapter, providerAdapters)}`;
         doc.providers[key] = { name: key, baseUrl: row.base_url, apiKey: row.api_key, api: adapter, models };
+        count++;
+        totalModels += models.length;
       }
     });
   }
   ensureParentDir(PI_FILE); writeJsonFile(PI_FILE, doc);
-  return Object.keys(byProvider).reduce((n, k) => n + byProvider[k].length, 0) * (restAdapters.length || 1);
+  return { apis: count, models: totalModels };
 }
 
 // ---------- opencodex sync ----------
@@ -3318,7 +3418,7 @@ async function syncOpencodexRouter() {
   ensureParentDir(OPENCODEX_FILE);
   writeJsonFile(OPENCODEX_FILE, doc);
   maybeWarnClaudeSettings(didEnsure);
-  return modelRows.length * (routerAdapters.length || 1);
+  return { apis: routerAdapters.length || 1, models: modelRows.length };
 }
 
 async function syncOpencodexRestProviders() {
@@ -3340,8 +3440,8 @@ async function syncOpencodexRestProviders() {
   // create/update providers c_* keys for rest — instance outer, adapter inner
   for (const [provider, providerRows] of Object.entries(byProvider)) {
     const isSolo = isSoloRow(providerRows[0]);
-    if (isSolo && !OPENCODEX_SOLO) continue;
-    if (!isSolo && !OPENCODEX_REST) continue;
+    if (isSolo && !isSoloActive('opencodex')) continue;
+    if (!isSolo && !isRestActive('opencodex')) continue;
     let providerModels;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(provider);
@@ -3380,7 +3480,10 @@ async function syncOpencodexRestProviders() {
     writeJsonFile(OPENCODEX_FILE, doc);
   }
   maybeWarnClaudeSettings(didEnsure);
-  return Object.keys(byProvider).reduce((n, k) => n + byProvider[k].length, 0);
+  const routerBase = routerName ? routerKeyBase(routerName) : null;
+  const restKeys = Object.keys(doc.providers).filter(k => isManagedKey(k) && !(routerBase && k.startsWith(routerBase)));
+  const totalModels = doc.customModels.filter(e => e && e.provider && isManagedKey(e.provider) && !(routerBase && e.provider.startsWith(routerBase))).length;
+  return { apis: restKeys.length, models: totalModels };
 }
 
 // ---------- zcode sync (insert-if-missing + update; router keeps full id, REST strips its own prefix) ----------
@@ -3444,7 +3547,7 @@ async function syncZcodeRouter() {
       doc.provider[routerCustom] = cur;
     }
     // if single -> bare key stays; if we added suffix but there was only one adapter now, keep bare (no suffix).
-    ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc); return modelRows.length;
+    ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc); return { apis: routerAdapters.length || 1, models: modelRows.length };
   }
   // Multi-adapter: create one entry per adapter
   const routerBase = routerKeyBase(routerName);
@@ -3474,7 +3577,7 @@ async function syncZcodeRouter() {
       doc.provider[key] = cur;
     }
   }
-  ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc); return modelRows.length * routerAdapters.length;
+  ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc); return { apis: routerAdapters.length || 1, models: modelRows.length };
 }
 async function syncZcodeRestProviders() {
   if (!fs.existsSync(PROVIDERS_CSV)) throw new Error('providers.csv not found: ' + PROVIDERS_CSV);
@@ -3520,8 +3623,8 @@ async function syncZcodeRestProviders() {
     const group = byProvider[base]; if (!group) continue;
     const row = group[idx - 1]; if (!row) continue;
     const isSolo = isSoloRow(row);
-    if (isSolo && !ZCODE_SOLO) continue;
-    if (!isSolo && !ZCODE_REST) continue;
+    if (isSolo && !isSoloActive('zcode')) continue;
+    if (!isSolo && !isRestActive('zcode')) continue;
     let providerModels;
     if (isSolo) {
       const soloCsv = soloFilteredCsvPath(row.provider);
@@ -3593,7 +3696,12 @@ async function syncZcodeRestProviders() {
     }
   }
   ensureParentDir(ZCODE_FILE); writeJsonFile(ZCODE_FILE, doc);
-  return Object.keys(doc.provider).filter(k => isManagedKey(zcodeLogicalName(k, doc.provider[k]))).length;
+  const restKeys = Object.keys(doc.provider).filter(k => isManagedKey(zcodeLogicalName(k, doc.provider[k])) && !(routerCustom && (zcodeLogicalName(k, doc.provider[k]) === routerCustom || zcodeLogicalName(k, doc.provider[k]) === routerCustom1)));
+  let totalModels = 0;
+  for (const k of restKeys) {
+    totalModels += Object.keys(doc.provider[k].models || {}).length;
+  }
+  return { apis: restKeys.length, models: totalModels };
 }
 
 // Helper: strip JSONC comments while preserving strings
@@ -3664,7 +3772,7 @@ async function syncT3Models(minInput = 0, minOutput = 0) {
 
   fs.mkdirSync(path.dirname(T3_SETTINGS_FILE), { recursive: true });
   fs.writeFileSync(T3_SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-  return customModels.length;
+  return { apis: routerEntries.length || 1, models: customModels.length };
 }
 
 // ---------- run ----------
@@ -3700,7 +3808,7 @@ function runPs(script) {
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
   return execFileSync('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded,
-  ], { encoding: 'utf8' });
+  ], { encoding: 'utf8', windowsHide: true });
 }
 
 function getUserPath() {
@@ -4058,6 +4166,7 @@ async function runCustomCommands() {
           let psStderr = '';
           const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
             stdio: ['ignore', 'ignore', 'pipe'],
+            windowsHide: true,
           });
           child.stderr.on('data', (d) => (psStderr += d));
           const bgExitCode = await new Promise((resolve) => {
@@ -4082,7 +4191,7 @@ async function runCustomCommands() {
           continue;
         }
       }
-      const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(cmd, { shell: true, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       const captured = { stdout: '', stderr: '' };
       child.stdout.on('data', (d) => (captured.stdout += d));
       child.stderr.on('data', (d) => (captured.stderr += d));
@@ -4112,124 +4221,80 @@ async function runCustomCommands() {
 // ---------- usage ----------
 function printUsage() {
   console.log(`
-${CLI_COMMAND_NAME}.js — fetch model catalogs and sync into AI harness configs
+${CLI_COMMAND_NAME} — fetch model catalogs and sync into AI harness configs
 
 Usage:
-  ${CLI_COMMAND_NAME} run [targets...] [options]   Run the sync pipeline (default)
-  ${CLI_COMMAND_NAME} start [port] [options]        Start GUI in background and run sync pipeline
-  ${CLI_COMMAND_NAME} gui [port]                   Start GUI in background only (doesn't hijack terminal)
-  ${CLI_COMMAND_NAME} [targets...] [options]       Directly invoke specific targets or sync all
+  ${CLI_COMMAND_NAME} run [options]         Run the full sync pipeline
+  ${CLI_COMMAND_NAME} [targets...] [options] Run specific sync targets
+  ${CLI_COMMAND_NAME} start [port]          Start GUI in background and run sync pipeline
+  ${CLI_COMMAND_NAME} gui [port]            Start GUI in background only
+  ${CLI_COMMAND_NAME} stop [port]           Stop running GUI server
+  ${CLI_COMMAND_NAME} restart [port]        Stop and relaunch GUI server in background
+  ${CLI_COMMAND_NAME} install               Register "${CLI_COMMAND_NAME}" as a global command
+  ${CLI_COMMAND_NAME} uninstall             Remove the registered command
+  ${CLI_COMMAND_NAME} -h, --help            Print this help
 
-Providers:
-  Providers are configured in providers.csv. Supports both "Router" gateways
-  (which aggregate models from multiple providers) and "Solo" direct providers
-  (OpenAI-compatible endpoints with their own /models catalog).
+Harness Targets:
+  opencode        Sync OpenCode (configured settings or --router, --solo, --rest)
+  kilo            Sync Kilo (configured settings or --router, --solo, --rest)
+  t3              Sync T3 (configured settings or --router, --solo, --rest)
+  dsh             Sync DSH (configured settings or --router, --solo, --rest)
+  pi              Sync pi agent (configured settings or --router, --solo, --rest)
+  zcode           Sync zcode (configured settings or --router, --solo, --rest)
+  opencodex / ocx Sync opencodex (configured settings or --router, --solo, --rest)
 
-Targets (default if none given: fetch + enabled targets + cleanup):
-  fetch           Fetch models -> models-filtered.csv from the Router's {base_url}/models
-  opencode        Sync router provider block into opencode.jsonc
-  opencoderest    Sync per-key c-* REST provider blocks into opencode.jsonc
-  kilo            Sync router provider block into kilo.jsonc
-  kilorest        Sync per-key c-* REST provider blocks into kilo.jsonc
-  t3              Sync flat model list into T3 router.customModels
-  t3rest          Sync per-provider c-* instances in T3 settings.json
-  dsh             Sync Router models into DSH (settings.yaml)
-  dshrest         Sync per-provider instances into DSH
-  pi              Sync Router models into pi agent (models.json)
-  pirest          Sync per-provider instances into pi agent
-  zcode           Sync Router models into zcode (config.json)
-  zcoderest       Sync per-provider instances into zcode
-  opencodex       Sync Router models into opencodex (config.json) — c-* provider
-  opencodexrest   Sync per-provider instances into opencodex — c-* providers
-  ocx             Alias for opencodex
-  ocxrest         Alias for opencodexrest
-  cleanupproviders  Reconcile script-managed c-* providers (legacy c_ keys are removed as stale) (opt-in via flags)
+Target Mode Options:
+  --router        Sync only router models/providers for selected harness(es)
+  --solo          Sync only solo provider models/blocks for selected harness(es)
+  --rest          Sync only rest provider models/blocks for selected harness(es)
+  (If no mode flag is given, runs all modes enabled in config for that harness)
+
+Other Targets:
+  fetch           Fetch models -> models-filtered.csv from Router {base_url}/models
+  cleanmodels     Clean models catalog
+  cleanupproviders Reconcile script-managed c-* providers
   cleanup         Delete transient files (e.g. T3 logs dir)
-  gui             Start the web dashboard (config editor + runner) on http://127.0.0.1
-  install         Register "${CLI_COMMAND_NAME}" as a command (shim + User PATH + npm shim)
-  uninstall       Remove the registered command
+  commands        Run configured custom commands
+  all             Run all enabled targets
 
 Options:
   -mi, --min-input-context N   Skip models with input context < N (default: 0 = none)
   -mo, --min-output-limit N    Skip models with output < N (default: 0 = none)
-  -p, --port N                 Port for the gui dashboard (default: 47613, auto-increments if busy)
-  --clean / --noclean          Enable/disable cleanup step (default: --clean)
-  -h, --help                   Print usage
+  -p,  --port N                Port for the GUI dashboard (default: 47613, auto-increments if busy)
+       --clean / --noclean     Enable/disable cleanup step (default: --clean)
 
 Configuration:
-  All behavior is configured in config.jsonc (next to this script).
-  Personal overrides can go in config.local.jsonc (gitignored). See README.
-
-Legacy aliases:
-  1 2 3 4 1-4
+  config.jsonc            Main config (next to this script)
+  config.local.jsonc      Personal overrides (gitignored, layered on top)
 
 Examples:
-  node ${CLI_COMMAND_NAME}.js                  # default: fetch + enabled targets + cleanup
-  node ${CLI_COMMAND_NAME}.js t3               # only T3 flat list
-  node ${CLI_COMMAND_NAME}.js t3rest         # only T3 per-provider instances
-  node ${CLI_COMMAND_NAME}.js -mi 0 all        # fetch everything, no input filter
+  ${CLI_COMMAND_NAME} run                  # fetch + sync all enabled targets + cleanup
+  ${CLI_COMMAND_NAME} run --solo           # run sync pipeline for solo mode only
+  ${CLI_COMMAND_NAME} opencode             # sync OpenCode using configured settings
+  ${CLI_COMMAND_NAME} opencode --router    # sync OpenCode router provider only
+  ${CLI_COMMAND_NAME} opencode --solo      # sync OpenCode solo providers only
+  ${CLI_COMMAND_NAME} opencode --rest      # sync OpenCode REST providers only
+  ${CLI_COMMAND_NAME} ocx --solo --rest    # sync opencodex solo and rest providers
+  ${CLI_COMMAND_NAME} fetch opencode       # fetch and sync OpenCode
+  ${CLI_COMMAND_NAME} gui                  # open web dashboard in background
+  ${CLI_COMMAND_NAME} stop                 # stop running GUI server
+  ${CLI_COMMAND_NAME} restart              # stop and relaunch GUI server
+  ${CLI_COMMAND_NAME} start                # GUI in background + run sync
+  node ${CLI_COMMAND_NAME}.js run          # run directly with node
 `);
 }
+
 
 // Atomic targets, in fixed execution order:
 function buildOrder() {
   const order = ['fetch', 'cleanup'];
-  if (OPENCODE_ROUTER) order.splice(1, 0, 'opencode');
-  if (OPENCODE_SOLO || OPENCODE_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'opencoderest');
-  }
-  if (KILO_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'kilo');
-  }
-  if (KILO_SOLO || KILO_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'kilorest');
-  }
-  if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'kilopro');
-  }
-  if (T3_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 't3models');
-  }
-  if (T3_SOLO || T3_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 't3rest');
-  }
-  if (DSH_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'dsh');
-  }
-  if (DSH_SOLO || DSH_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'dshrest');
-  }
-  if (PI_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'pi');
-  }
-  if (PI_SOLO || PI_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'pirest');
-  }
-  if (ZCODE_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'zcode');
-  }
-  if (ZCODE_SOLO || ZCODE_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'zcoderest');
-  }
-  if (OPENCODEX_ROUTER) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'opencodex');
-  }
-  if (OPENCODEX_SOLO || OPENCODEX_REST) {
-    const idx = order.indexOf('cleanup');
-    order.splice(idx, 0, 'opencodexrest');
+  const harnesses = ['opencode', 'kilo', 't3', 'dsh', 'pi', 'zcode', 'opencodex'];
+  for (const h of harnesses) {
+    const targets = targetsForHarness(h);
+    for (const tgt of targets) {
+      const idx = order.indexOf('cleanup');
+      order.splice(idx, 0, tgt);
+    }
   }
   const cleanupIdx = order.indexOf('cleanup');
   order.splice(cleanupIdx, 0, 'cleanupproviders');
@@ -4244,8 +4309,10 @@ const WORD_MAP = {
   opencoderest: ['opencoderest'],
   kilo: ['kilo'],
   kilorest: ['kilorest'],
+  kilopro: ['kilopro'],
   t3: ['t3models'],
   t3rest: ['t3models', 't3rest'],
+  t3models: ['t3models'],
   dsh: ['dsh'],
   dshrest: ['dshrest'],
   dshrouter: ['dsh'],
@@ -4255,7 +4322,7 @@ const WORD_MAP = {
   zcoderest: ['zcoderest'],
   opencodex: ['opencodex'],
   opencodexrest: ['opencodexrest'],
-  ocx: ['opencodex'],
+  ocx: ['opencodex', 'opencodexrest'],
   ocxrest: ['opencodexrest'],
   cleanup: ['cleanup'],
   cleanupproviders: ['cleanupproviders'],
@@ -4264,50 +4331,16 @@ const WORD_MAP = {
   commands: ['commands'],
   custom_commands: ['commands'],
   gui: ['gui'],
+  stop: ['stop'],
+  restart: ['restart'],
   install: ['install'],
   uninstall: ['uninstall'],
-  all: (() => {
-    const t = ['fetch', 'cleanup'];
-    if (OPENCODE_ROUTER) t.push('opencode');
-    if (OPENCODE_REST) t.push('opencoderest');
-    if (KILO_ROUTER) t.push('kilo');
-    if (KILO_REST) t.push('kilorest');
-    if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
-    if (T3_ROUTER) t.push('t3models');
-    if (T3_REST) t.push('t3rest');
-    if (DSH_ROUTER) t.push('dsh');
-    if (DSH_REST) t.push('dshrest');
-    if (PI_ROUTER) t.push('pi');
-    if (PI_REST) t.push('pirest');
-    if (ZCODE_ROUTER) t.push('zcode');
-    if (ZCODE_REST) t.push('zcoderest');
-    if (OPENCODEX_ROUTER) t.push('opencodex');
-    if (OPENCODEX_REST) t.push('opencodexrest');
-    t.push('cleanupproviders');
-    t.push('commands');
-    return t;
-  })(),
-  allpro: (() => {
-    const t = ['fetch', 'cleanup'];
-    if (OPENCODE_ROUTER) t.push('opencode');
-    if (OPENCODE_REST) t.push('opencoderest');
-    if (KILO_ROUTER) t.push('kilo');
-    if (KILO_REST) t.push('kilorest');
-    if (KILO_COPY_OPENCODE_FULL_PROVIDER_BLOCK) t.push('kilopro');
-    if (T3_ROUTER) t.push('t3models');
-    if (T3_REST) t.push('t3rest');
-    if (DSH_ROUTER) t.push('dsh');
-    if (DSH_REST) t.push('dshrest');
-    if (PI_ROUTER) t.push('pi');
-    if (PI_REST) t.push('pirest');
-    if (ZCODE_ROUTER) t.push('zcode');
-    if (ZCODE_REST) t.push('zcoderest');
-    if (OPENCODEX_ROUTER) t.push('opencodex');
-    if (OPENCODEX_REST) t.push('opencodexrest');
-    t.push('cleanupproviders');
-    t.push('commands');
-    return t;
-  })(),
+  get all() {
+    return buildOrder();
+  },
+  get allpro() {
+    return buildOrder();
+  },
 };
 
 // Legacy numeric step -> atomic targets
@@ -4329,37 +4362,190 @@ function getSavedGuiPort() {
   return 0;
 }
 
+function getSavedGuiPid() {
+  const pidFile = path.join(__dirname, '.gui.pid');
+  try {
+    if (fs.existsSync(pidFile)) {
+      const p = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
+      if (!isNaN(p) && p > 0) return p;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function cleanGuiFiles() {
+  try {
+    const pf = path.join(__dirname, '.gui.port');
+    if (fs.existsSync(pf)) fs.unlinkSync(pf);
+  } catch (e) {}
+  try {
+    const pidf = path.join(__dirname, '.gui.pid');
+    if (fs.existsSync(pidf)) fs.unlinkSync(pidf);
+  } catch (e) {}
+}
+
+function findPidByPort(port) {
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('netstat -ano -p tcp', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const line of out.split(/\r?\n/)) {
+      if (line.includes(`:${port}`) && line.includes('LISTENING')) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(pid) && pid > 0) return pid;
+      }
+    }
+  } catch (e) {}
+  return 0;
+}
+
 function checkGuiRunning(port) {
   return new Promise((resolve) => {
     const http = require('http');
-    const req = http.get(`http://127.0.0.1:${port}/`, (res) => {
-      resolve(res.statusCode >= 200 && res.statusCode < 500);
+    const req = http.get(`http://127.0.0.1:${port}/api/ping`, (res) => {
+      let data = '';
+      res.on('data', (c) => (data += c));
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          if (j && j.app === 'omnilist') return resolve(j);
+        } catch (e) {}
+        resolve(res.statusCode >= 200 && res.statusCode < 500);
+      });
     });
     req.on('error', () => resolve(false));
-    req.setTimeout(600, () => {
+    req.setTimeout(1500, () => {
       try { req.destroy(); } catch (e) {}
       resolve(false);
     });
   });
 }
 
+function shutdownPort(port, pid) {
+  return new Promise((resolve) => {
+    const http = require('http');
+    const req = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: port,
+        path: '/api/shutdown',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': 0,
+        },
+        timeout: 1500,
+      },
+      () => {}
+    );
+    req.on('error', () => {});
+    req.on('timeout', () => {
+      try { req.destroy(); } catch (e) {}
+    });
+    req.end();
+
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      const stillRunning = await checkGuiRunning(port);
+      if (!stillRunning) {
+        clearInterval(interval);
+        cleanGuiFiles();
+        console.log(`\n  Omnilist GUI on port ${port} has been stopped.\n`);
+        return resolve(true);
+      }
+      if (attempts >= 10) { // 1 second
+        clearInterval(interval);
+        const killPid = pid || getSavedGuiPid() || findPidByPort(port);
+        if (killPid) {
+          try {
+            process.kill(killPid, 'SIGTERM');
+          } catch (e) {
+            try {
+              const { execSync } = require('child_process');
+              execSync(`taskkill /F /PID ${killPid}`, { stdio: 'ignore' });
+            } catch (err) {}
+          }
+        }
+        cleanGuiFiles();
+        console.log(`\n  Omnilist GUI on port ${port} has been stopped.\n`);
+        return resolve(true);
+      }
+    }, 100);
+  });
+}
+
+async function stopGui(specifiedPort) {
+  const savedPort = getSavedGuiPort();
+  const portsToCheck = [];
+  if (specifiedPort) {
+    portsToCheck.push(specifiedPort);
+  } else {
+    if (savedPort) portsToCheck.push(savedPort);
+    if (!portsToCheck.includes(47613)) portsToCheck.push(47613);
+  }
+
+  let stoppedAny = false;
+  for (const p of portsToCheck) {
+    const running = await checkGuiRunning(p);
+    if (running) {
+      const pid = (typeof running === 'object' && running.pid) || getSavedGuiPid() || findPidByPort(p);
+      await shutdownPort(p, pid);
+      stoppedAny = true;
+    }
+  }
+
+  cleanGuiFiles();
+  if (!stoppedAny) {
+    console.log(`\n  No running Omnilist GUI found.\n`);
+    return false;
+  }
+  return true;
+}
+
+async function restartGui(specifiedPort) {
+  const savedPort = getSavedGuiPort();
+  const targetPort = specifiedPort || savedPort || 47613;
+
+  const portsToCheck = [targetPort];
+  if (savedPort && savedPort !== targetPort) portsToCheck.push(savedPort);
+
+  for (const p of portsToCheck) {
+    const running = await checkGuiRunning(p);
+    if (running) {
+      const pid = (typeof running === 'object' && running.pid) || getSavedGuiPid() || findPidByPort(p);
+      await shutdownPort(p, pid);
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  cleanGuiFiles();
+  console.log(`\n  Relaunching Omnilist GUI...`);
+  return await startGuiInBackground({ port: targetPort, forceFresh: true });
+}
+
 function startGuiInBackground(opts) {
   const wantedPort = (opts && opts.port) || 47613;
+  const forceFresh = !!(opts && opts.forceFresh);
   return new Promise(async (resolve, reject) => {
-    const savedPort = getSavedGuiPort();
-    const portsToCheck = [wantedPort];
-    if (savedPort && savedPort !== wantedPort) portsToCheck.unshift(savedPort);
+    if (!forceFresh) {
+      const savedPort = getSavedGuiPort();
+      const portsToCheck = [];
+      if (wantedPort) portsToCheck.push(wantedPort);
+      if (savedPort && !portsToCheck.includes(savedPort)) portsToCheck.unshift(savedPort);
 
-    for (const p of portsToCheck) {
-      if (await checkGuiRunning(p)) {
-        console.log(`\n  Omnilist GUI is already running at:  http://127.0.0.1:${p}\n`);
-        return resolve(p);
+      for (const p of portsToCheck) {
+        if (await checkGuiRunning(p)) {
+          console.log(`\n  Omnilist GUI is already running at:  http://127.0.0.1:${p}\n`);
+          return resolve(p);
+        }
       }
     }
 
     const { spawn } = require('child_process');
     const guiScript = path.join(__dirname, 'gui.js');
     const child = spawn(process.execPath, [guiScript, String(wantedPort)], {
+      cwd: __dirname,
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
@@ -4402,11 +4588,41 @@ function parseArgs() {
   };
   const raw = process.argv.slice(2).filter((a) => a.length > 0);
 
+  // Bare invocation with no arguments: show error + help
+  if (raw.length === 0) {
+    console.error(`error: expected a command or flag\n`);
+    printUsage();
+    process.exit(1);
+  }
+
+  // Pre-scan for mode flags: --router, --solo, --rest
+  for (const a of raw) {
+    const low = a.toLowerCase();
+    if (low === '--router') {
+      runtimeModes.router = true;
+      runtimeModes.hasFlags = true;
+    } else if (low === '--solo') {
+      runtimeModes.solo = true;
+      runtimeModes.hasFlags = true;
+    } else if (low === '--rest') {
+      runtimeModes.rest = true;
+      runtimeModes.hasFlags = true;
+    }
+  }
+
+  let hasRunCommand = false;
+  const requestedHarnesses = [];
+
   for (let i = 0; i < raw.length; i++) {
     const a = raw[i];
     const word = a.toLowerCase();
 
-    // ----- action commands: run, start, gui -----
+    // Mode flags already handled in pre-scan
+    if (word === '--router' || word === '--solo' || word === '--rest') {
+      continue;
+    }
+
+    // ----- action commands: run, start, gui, stop, restart -----
     if (word === 'gui') {
       args.action = 'gui';
       if (i + 1 < raw.length && /^\d+$/.test(raw[i + 1])) {
@@ -4421,9 +4637,38 @@ function parseArgs() {
       }
       continue;
     }
+    if (word === 'stop') {
+      args.action = 'stop';
+      if (i + 1 < raw.length && /^\d+$/.test(raw[i + 1])) {
+        args.port = parseInt(raw[++i], 10);
+      }
+      continue;
+    }
+    if (word === 'restart') {
+      args.action = 'restart';
+      if (i + 1 < raw.length && /^\d+$/.test(raw[i + 1])) {
+        args.port = parseInt(raw[++i], 10);
+      }
+      continue;
+    }
     if (word === 'run') {
+      hasRunCommand = true;
       args.action = 'run';
       continue;
+    }
+    if (word === 'install') {
+      args.targets.add('install');
+      continue;
+    }
+    if (word === 'uninstall') {
+      args.targets.add('uninstall');
+      continue;
+    }
+
+    // ----- help -----
+    if (word === 'help' || a === '-h' || a === '--help') {
+      printUsage();
+      process.exit(0);
     }
 
     // ----- filter flags -----
@@ -4472,27 +4717,23 @@ function parseArgs() {
       continue;
     }
 
-    // ----- help -----
-    if (a.toLowerCase() === 'help' || a === '-h' || a === '--help') {
-      printUsage();
-      process.exit(0);
-    }
-
     // ----- legacy: -a / -all -> allpro -----
     if (a === '-a' || a === '-all') {
       WORD_MAP.allpro.forEach((t) => args.targets.add(t));
       continue;
     }
 
-    // ----- named target words -----
-    if (WORD_MAP[word]) {
-      WORD_MAP[word].forEach((t) => args.targets.add(t));
+    // ----- harness targets (opencode, kilo, t3, dsh, pi, zcode, ocx, opencodex) -----
+    if (HARNESS_SPEC[word]) {
+      requestedHarnesses.push(word);
+      const tgts = targetsForHarness(word);
+      tgts.forEach((t) => args.targets.add(t));
       continue;
     }
 
-    // ----- "gui 8080": a bare number after gui sets the dashboard port -----
-    if (args.targets.has('gui') && /^\d+$/.test(a)) {
-      args.port = parseInt(a, 10);
+    // ----- named target words -----
+    if (WORD_MAP[word]) {
+      WORD_MAP[word].forEach((t) => args.targets.add(t));
       continue;
     }
 
@@ -4510,18 +4751,35 @@ function parseArgs() {
       continue;
     }
 
-    console.error(`Unknown argument: "${a}" (try: opencode, kilo, t3, t3rest, all, help)`);
-    console.error('Run "node ' + CLI_COMMAND_NAME + '.js help" for usage.');
+    console.error(`error: unknown argument: "${a}"\n`);
+    printUsage();
     process.exit(1);
   }
 
-  // Default: everything except kilopro
-  if (args.targets.size === 0) {
-    buildOrder().forEach((t) => args.targets.add(t));
+  // If harness(es) were requested but had no active modes enabled:
+  if (requestedHarnesses.length > 0 && args.targets.size === 0) {
+    console.log(`No active modes (router/solo/rest) enabled for: ${requestedHarnesses.join(', ')}`);
+    process.exit(0);
+  }
+
+  // If action is run or start, and no specific targets were provided:
+  // if 'run' was explicitly passed or start action, run full pipeline;
+  // otherwise if only flags were passed with no command/target, show error + help.
+  if (args.action === 'run' || args.action === 'start') {
+    if (args.targets.size === 0) {
+      if (hasRunCommand || args.action === 'start') {
+        buildOrder().forEach((t) => args.targets.add(t));
+      } else {
+        console.error(`error: expected a command or flag\n`);
+        printUsage();
+        process.exit(1);
+      }
+    }
   }
 
   return args;
 }
+
 
 // Re-exported for gui.js: the config schema, loader/merger, JSONC parser, and
 // filter-expression parsers (all pure/side-effect-free helpers). Assigned
@@ -4553,6 +4811,13 @@ module.exports = {
   soloFilteredCsvPath,
   checkGuiRunning,
   startGuiInBackground,
+  stopGui,
+  restartGui,
+  getSavedGuiPort,
+  getSavedGuiPid,
+  shutdownPort,
+  cleanGuiFiles,
+  findPidByPort,
 };
 
 // The CLI entry runs only when the script is invoked directly. gui.js requires
@@ -4563,6 +4828,14 @@ if (require.main === module)
   const has = (t) => args.targets.has(t);
   let failed = false;
   try {
+    if (args.action === 'stop') {
+      await stopGui(args.port);
+      return;
+    }
+    if (args.action === 'restart') {
+      await restartGui(args.port);
+      return;
+    }
     if (args.action === 'gui') {
       await startGuiInBackground({ port: args.port });
       return;
@@ -4604,13 +4877,7 @@ if (require.main === module)
     ];
 
     for (const target of executionOrder) {
-      if (!has(target)) {
-        if (target === 'commands' && Array.isArray(cfg.custom_commands) && cfg.custom_commands.length > 0 && !has('install') && !has('uninstall')) {
-          // Auto-run custom_commands after sync pipeline
-        } else {
-          continue;
-        }
-      }
+      if (!has(target)) continue;
       try {
         switch (target) {
           case 'fetch': {
@@ -4628,7 +4895,7 @@ if (require.main === module)
               break;
             }
             const n = await syncRouterProvider(OPENCODE_FILE, 'opencode');
-            console.log(`Synced router provider block in ${OPENCODE_FILE} (${n} models)`);
+            console.log(`Synced router provider block in ${OPENCODE_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'kilo': {
@@ -4641,7 +4908,7 @@ if (require.main === module)
               break;
             }
             const n = await syncRouterProvider(KILO_FILE, 'kilo');
-            console.log(`Synced router provider block in ${KILO_FILE} (${n} models)`);
+            console.log(`Synced router provider block in ${KILO_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'kilopro': {
@@ -4659,12 +4926,12 @@ if (require.main === module)
               break;
             }
             const n = await syncT3Models(args.minInput, args.minOutput);
-            console.log(`Synced flat customModels in ${T3_SETTINGS_FILE} (${n} entries)`);
+            console.log(`Synced flat customModels in ${T3_SETTINGS_FILE} (${formatApiModels(n, 1, n)})`);
             break;
           }
           case 't3rest': {
             const n = await syncT3Providers();
-            console.log(`Synced per-provider claudeAgent instances in ${T3_SETTINGS_FILE} (${n} instances)`);
+            console.log(`Synced per-provider claudeAgent instances in ${T3_SETTINGS_FILE} (${formatApiModels(n, n, 0)})`);
             break;
           }
           case 'opencoderest': {
@@ -4673,7 +4940,7 @@ if (require.main === module)
               break;
             }
             const n = await syncOpencodeRestProviders();
-            console.log(`Synced REST provider blocks in ${OPENCODE_FILE} (${n} providers)`);
+            console.log(`Synced REST provider blocks in ${OPENCODE_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'kilorest': {
@@ -4682,65 +4949,101 @@ if (require.main === module)
               break;
             }
             const n = await syncKiloRestProviders();
-            console.log(`Synced REST provider blocks in ${KILO_FILE} (${n} providers)`);
+            console.log(`Synced REST provider blocks in ${KILO_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'dsh': {
+            if (!isRouterActive('dsh')) {
+              console.log(`Skipped dsh router block (disabled in config)`);
+              break;
+            }
             if (!getRouterRow(readProvidersCsv())) {
               console.log(`Skipped dsh router block (no router configured)`);
               break;
             }
-            const n = await syncDSHRouter();
-            console.log(`Synced DSH router providers in ${DSH_SETTINGS_FILE} (${n} apis)`);
+            const res = await syncDSHRouter();
+            console.log(`Synced DSH router providers in ${DSH_SETTINGS_FILE} (${formatApiModels(res)})`);
             break;
           }
           case 'dshrest': {
+            if (!isSoloActive('dsh') && !isRestActive('dsh')) {
+              console.log(`Skipped DSH REST/Solo blocks (disabled in config)`);
+              break;
+            }
+            const rows = readProvidersCsv();
+            const hasSolo = getSoloRows(rows).length > 0;
+            const hasRest = getRestRows(rows).length > 0;
+            if ((!isSoloActive('dsh') || !hasSolo) && (!isRestActive('dsh') || !hasRest)) {
+              console.log(`Skipped DSH REST/Solo blocks (disabled in config or no matching providers)`);
+              break;
+            }
             const n = await syncDSHRestProviders();
-            console.log(`Synced DSH REST providers in ${DSH_SETTINGS_FILE} (${n} providers)`);
+            console.log(`Synced DSH REST providers in ${DSH_SETTINGS_FILE} (${formatApiModels(n, 0, 0)})`);
             break;
           }
           case 'pi': {
+            if (!isRouterActive('pi')) {
+              console.log(`Skipped pi router block (disabled in config)`);
+              break;
+            }
             if (!getRouterRow(readProvidersCsv())) {
               console.log(`Skipped pi router block (no router configured)`);
               break;
             }
             const n = await syncPiRouter();
-            console.log(`Synced pi router provider in ${PI_FILE} (${n} models)`);
+            console.log(`Synced pi router provider in ${PI_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'pirest': {
+            if (!isSoloActive('pi') && !isRestActive('pi')) {
+              console.log(`Skipped pi REST/Solo blocks (disabled in config)`);
+              break;
+            }
+            const rows = readProvidersCsv();
+            const hasSolo = getSoloRows(rows).length > 0;
+            const hasRest = getRestRows(rows).length > 0;
+            if ((!isSoloActive('pi') || !hasSolo) && (!isRestActive('pi') || !hasRest)) {
+              console.log(`Skipped pi REST/Solo blocks (disabled in config or no matching providers)`);
+              break;
+            }
             const n = await syncPiRestProviders();
-            console.log(`Synced pi REST providers in ${PI_FILE} (${n} providers)`);
+            console.log(`Synced pi REST providers in ${PI_FILE} (${formatApiModels(n, 0, 0)})`);
             break;
           }
           case 'zcode': {
-            if (ZCODE_ROUTER || ZCODE_REST) warnZcodeUpdateOnly();
             if (!getRouterRow(readProvidersCsv())) {
               console.log(`Skipped zcode router block (no router configured)`);
               break;
             }
             const n = await syncZcodeRouter();
-            console.log(`Synced zcode router provider in ${ZCODE_FILE} (${n} models)`);
+            console.log(`Synced zcode router provider in ${ZCODE_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'zcoderest': {
-            if (ZCODE_ROUTER || ZCODE_REST) warnZcodeUpdateOnly();
             const n = await syncZcodeRestProviders();
-            console.log(`Synced zcode REST providers in ${ZCODE_FILE} (${n} providers)`);
+            console.log(`Synced zcode REST providers in ${ZCODE_FILE} (${formatApiModels(n, 0, 0)})`);
             break;
           }
           case 'opencodex': {
+            if (!isRouterActive('opencodex')) {
+              console.log(`Skipped opencodex router block (disabled in config)`);
+              break;
+            }
             if (!getRouterRow(readProvidersCsv())) {
               console.log(`Skipped opencodex router block (no router configured)`);
               break;
             }
             const n = await syncOpencodexRouter();
-            console.log(`Synced opencodex router provider in ${OPENCODEX_FILE} (${n} models)`);
+            console.log(`Synced opencodex router provider in ${OPENCODEX_FILE} (${formatApiModels(n)})`);
             break;
           }
           case 'opencodexrest': {
+            if (!isSoloActive('opencodex') && !isRestActive('opencodex')) {
+              console.log(`Skipped opencodex REST/Solo blocks (disabled in config)`);
+              break;
+            }
             const n = await syncOpencodexRestProviders();
-            console.log(`Synced opencodex REST providers in ${OPENCODEX_FILE} (${n} providers)`);
+            console.log(`Synced opencodex REST providers in ${OPENCODEX_FILE} (${formatApiModels(n, 0, 0)})`);
             break;
           }
           case 'cleanupproviders': {

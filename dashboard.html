@@ -4,124 +4,182 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OmniList — Model Catalog & Harness Sync</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230070f3'/%3E%3Cpath d='M8 10h16M8 16h16M8 22h10' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='22' r='2.5' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f54e00'/%3E%3Cpath d='M8 10h16M8 16h16M8 22h10' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='22' r='2.5' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
-  // Default to dark mode; remember the user's explicit choice.
+  // Default to Cursor signature warm cream light mode; remember the user's explicit choice.
   (function () {
     try {
       var t = localStorage.getItem('omnilist-theme');
-      document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
     } catch (e) {
-      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.setAttribute('data-theme', 'light');
     }
   })();
 </script>
 <style>
   :root, :root[data-theme="light"] {
-    --bg: #fafafa;
+    --canvas: #f7f7f4;
+    --canvas-soft: #fafaf7;
+    --bg: #f7f7f4;
     --panel: #ffffff;
-    --panel-2: #fafbfc;
-    --border: #e8e8e8;
-    --border-2: #ededed;
-    --text: #0a0a0a;
-    --text-2: #4b4b4b;
-    --text-3: #8b8b8b;
-    --accent: #0070f3;
-    --accent-weak: #e8f1fe;
-    --danger: #e5484d;
-    --danger-weak: #fdeaec;
-    --success: #30a46c;
-    --success-weak: #e9f7f0;
-    --warning: #f5a524;
-    --warning-weak: #fdf2e3;
-    --purple: #8a4baf;
-    --table-th-bg: var(--panel);
-    --table-th-color: var(--text-2);
+    --panel-2: #fafaf7;
+    --panel-strong: #e6e5e0;
+    --border: rgba(38, 37, 30, 0.1);
+    --border-2: rgba(38, 37, 30, 0.07);
+    --border-strong: rgba(38, 37, 30, 0.10);
+    --border-hover: rgba(38, 37, 30, 0.10);
+    --text: #26251e;
+    --text-2: #5a5852;
+    --text-3: #807d72;
+    --text-muted-soft: #a09c92;
+    --accent: #f54e00;
+    --accent-hover: #d04200;
+    --accent-weak: rgba(245, 78, 0, 0.08);
+    --accent-weak-border: rgba(245, 78, 0, 0.22);
+    --danger: #cf2d56;
+    --danger-weak: rgba(207, 45, 86, 0.08);
+    --danger-border: rgba(207, 45, 86, 0.3);
+    --success: #1f8a65;
+    --success-weak: rgba(31, 138, 101, 0.1);
+    --warning: #c08532;
+    --warning-weak: rgba(192, 133, 50, 0.1);
+    --purple: #c0a8dd;
+    --timeline-thinking: #dfa88f;
+    --timeline-grep: #9fc9a2;
+    --timeline-read: #9fbbe0;
+    --timeline-edit: #c0a8dd;
+    --timeline-done: #c08532;
+    --table-th-bg: var(--panel-2);
+    --table-th-color: var(--text-3);
     --table-row-hover: var(--panel-2);
-    /* one radius scale: 4/6/8/10/12/20px chaos collapses onto these four */
-    --r-sm: 6px;
-    --r-md: 10px;
-    --r-lg: 14px;
-    --r-pill: 999px;
-    --radius: var(--r-sm);    /* kept: existing rules reference --radius */
-    /* one spacing rhythm, 4px base */
+    /* Cursor design system radius scale */
+    --r-xs: 2px;
+    --r-sm: 3px;
+    --r-md: 4px;
+    --r-lg: 6px;
+    --r-pill: 9999px;
+    --radius: var(--r-md);
+    /* spacing rhythm, 4px base */
     --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
     --s-5: 24px; --s-6: 32px; --s-7: 48px;
     /* measure caps */
     --measure: 68ch;
     --measure-page: 100%;
-    /* one elevation scale */
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
-    --shadow-md: 0 4px 16px rgba(0,0,0,.08);
-    --shadow-lg: 0 18px 48px rgba(0,0,0,.14);
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
-    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
-    --btn-primary-bg: #1f2328;
-    --btn-primary-fg: #fff;
-    --btn-primary-hover: #2f343c;
-    --btn-hover-border: #d4d4d4;
-    --danger-border: #f1c0c2;
-    --toggle-off: #d0d0d0;
-    --toggle-on: #000;
-    --toggle-knob: #fff;
-    --toggle-knob-on: #fff;
-    --bar-bg: rgba(255,255,255,.92);
-    --placeholder: #b5b5b5;
-    --focus-ring: rgba(0,112,243,.12);
-    --invalid-ring: rgba(229,72,77,.12);
-    /* theme-aware syntax colours for .expr-preview (was hardcoded dark) */
-    --expr-bg: #f5f5f5;
-    --expr-fg: #2a2a2a;
-    --expr-pfx: #9c2b4e;
-    --expr-field: #1a5f8a;
-    --expr-str: #1d6b3d;
-    --expr-arrow: #8a5a10;
+    /* Hairline-only depth — no drop shadows */
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: 0 4px 20px rgba(38, 37, 30, 0.08);
+    --font: 'CursorGothic', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --btn-primary-bg: #f54e00;
+    --btn-primary-fg: #ffffff;
+    --btn-primary-hover: #d04200;
+    --btn-hover-border: rgba(38, 37, 30, 0.10);
+    --toggle-off: #cfcdc4;
+    --toggle-on: #26251e;
+    --toggle-knob: #ffffff;
+    --toggle-knob-on: #ffffff;
+    --bar-bg: rgba(255, 255, 255, 0.94);
+    --placeholder: #a09c92;
+    --focus-ring: rgba(245, 78, 0, 0.14);
+    --invalid-ring: rgba(207, 45, 86, 0.14);
+    /* theme-aware syntax colours for .expr-preview */
+    --expr-bg: #fafaf7;
+    --expr-fg: #26251e;
+    --expr-pfx: #cf2d56;
+    --expr-field: #1f8a65;
+    --expr-str: #807d72;
+    --expr-arrow: #f54e00;
+    --scrollbar-thumb: rgba(38, 37, 30, 0.20);
+    --scrollbar-thumb-hover: rgba(38, 37, 30, 0.38);
+    --scrollbar-track: transparent;
   }
   :root[data-theme="dark"] {
-    --bg: #0a0a0a;
-    --panel: #111111;
-    --panel-2: #1a1a1a;
-    --border: #262626;
-    --border-2: #1f1f1f;
-    --text: #f4f4f4;
-    --text-2: #c4c4c4;
-    --text-3: #8a8a8a;
-    --accent: #4d9fff;
-    --accent-weak: rgba(77,159,255,.16);
-    --danger: #ff6369;
-    --danger-weak: rgba(255,99,105,.14);
-    --success: #3fb68b;
-    --success-weak: rgba(63,182,139,.15);
-    --warning: #f5a524;
-    --warning-weak: rgba(245,165,36,.15);
-    --purple: #a78bfa;
-    --table-th-bg: var(--panel);
-    --table-th-color: var(--text-2);
+    --canvas: #14120b;
+    --canvas-soft: #1a1810;
+    --bg: #14120b;
+    --panel: #1b1913;
+    --panel-2: #1b1912;
+    --panel-strong: #2c2a1e;
+    --border: rgba(247, 247, 244, 0.05);
+    --border-2: rgba(247, 247, 244, 0.07);
+    --border-strong: rgba(247, 247, 244, 0.1);
+    --border-hover: rgba(247, 247, 244, 0.1);
+    --text: #f7f7f4;
+    --text-2: #b3b0a6;
+    --text-3: #807d72;
+    --text-muted-soft: #636159;
+    --accent: #dc652d;
+    --accent-hover: #e57a44;
+    --accent-weak: rgba(220, 101, 45, 0.14);
+    --accent-weak-border: rgba(220, 101, 45, 0.28);
+    --danger: #e0446b;
+    --danger-weak: rgba(224, 68, 107, 0.15);
+    --danger-border: rgba(224, 68, 107, 0.35);
+    --success: #2bb384;
+    --success-weak: rgba(43, 179, 132, 0.15);
+    --warning: #d4953c;
+    --warning-weak: rgba(212, 149, 60, 0.15);
+    --purple: #c0a8dd;
+    --timeline-thinking: #dfa88f;
+    --timeline-grep: #9fc9a2;
+    --timeline-read: #9fbbe0;
+    --timeline-edit: #c0a8dd;
+    --timeline-done: #c08532;
+    --table-th-bg: var(--panel-2);
+    --table-th-color: var(--text-3);
     --table-row-hover: var(--panel-2);
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
-    --shadow-md: 0 4px 16px rgba(0,0,0,.5);
-    --shadow-lg: 0 18px 48px rgba(0,0,0,.6);
-    --btn-primary-bg: #2a2a2a;
-    --btn-primary-fg: #f5f5f5;
-    --btn-primary-hover: #383838;
-    --btn-hover-border: #404040;
-    --danger-border: rgba(255,99,105,.45);
-    --toggle-off: #3a3a3a;
-    --toggle-on: #fff;
-    --toggle-knob: #fff;
-    --toggle-knob-on: #0a0a0a;
-    --bar-bg: rgba(17,17,17,.92);
-    --placeholder: #5a5a5a;
-    --focus-ring: rgba(77,159,255,.25);
-    --invalid-ring: rgba(255,99,105,.25);
-    --expr-bg: #0e0e0e;
-    --expr-fg: #d4e4ff;
-    --expr-pfx: #ff8ba7;
-    --expr-field: #8bd3ff;
-    --expr-str: #a8f0c8;
-    --expr-arrow: #ffd479;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.55);
+    --btn-primary-bg: #dc652d;
+    --btn-primary-fg: #ffffff;
+    --btn-primary-hover: #e57a44;
+    --btn-hover-border: rgba(247, 247, 244, 0.09);
+    --toggle-off: #312f22;
+    --toggle-on: #dc652d;
+    --toggle-knob: #b3b0a6;
+    --toggle-knob-on: #ffffff;
+    --bar-bg: rgba(30, 28, 20, 0.94);
+    --placeholder: #636159;
+    --focus-ring: rgba(220, 101, 45, 0.22);
+    --invalid-ring: rgba(224, 68, 107, 0.25);
+    --expr-bg: #1a1810;
+    --expr-fg: #f7f7f4;
+    --expr-pfx: #e0446b;
+    --expr-field: #2bb384;
+    --expr-str: #807d72;
+    --expr-arrow: #dc652d;
+    --scrollbar-thumb: rgba(247, 247, 244, 0.20);
+    --scrollbar-thumb-hover: rgba(247, 247, 244, 0.38);
+    --scrollbar-track: transparent;
   }
   * { box-sizing: border-box; }
+  /* Slim stylized scrollbars that match the theme */
+  html, body, * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--r-pill);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
   html, body { margin: 0; padding: 0; height: 100%; }
   body {
     background: var(--bg);
@@ -143,50 +201,63 @@
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     font: 500 14px var(--font);
-    border-radius: var(--radius);
-    padding: 6px 14px;
-    height: 32px;
+    border-radius: var(--r-md);
+    padding: 7px 15px;
+    height: 34px;
     cursor: pointer;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     background: var(--panel);
     color: var(--text);
-    transition: background .12s, border-color .12s;
+    transition: background .12s, border-color .12s, color .12s;
+    box-shadow: none;
   }
   /* leading glyph in a labelled button: optically balance the tighter left edge */
   .btn > .ic:first-child { width: 14px; height: 14px; flex-shrink: 0; margin-left: -2px; }
-  .btn:hover { border-color: var(--btn-hover-border); background: var(--panel-2); }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-  .btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: var(--btn-primary-fg); }
-  .btn.primary:hover { background: var(--btn-primary-hover); }
-  .btn.primary:disabled { background: var(--text-3); border-color: var(--text-3); color: var(--btn-primary-fg); }
-  .btn.danger { color: var(--danger); border-color: var(--danger-border); }
-  .btn.danger:hover { background: var(--danger-weak); }
-  .btn.small { padding: 3px 9px; font-size: 13px; height: 32px; }
-  .btn.ghost { border-color: transparent; background: none; color: var(--text-3); }
+  .btn:hover { border-color: var(--text); background: var(--panel-2); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: var(--btn-primary-fg); font-weight: 500; }
+  .btn.primary:hover { background: var(--btn-primary-hover); border-color: var(--btn-primary-hover); }
+  .btn.primary:disabled { background: var(--text-muted-soft); border-color: var(--text-muted-soft); color: var(--btn-primary-fg); opacity: .6; }
+  .btn.danger { color: var(--danger); border-color: var(--danger-border); background: transparent; }
+  .btn.danger:hover { background: var(--danger-weak); border-color: var(--danger); }
+  .btn.small { padding: 4px 10px; font-size: 13px; height: 30px; border-radius: var(--r-sm); }
+  .btn.ghost { border-color: transparent; background: none; color: var(--text-2); }
   .btn.ghost:hover { color: var(--text); background: var(--panel-2); }
   .btn .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); margin-right: 6px; vertical-align: 1px; }
 
   /* ---------- layout ---------- */
   main { flex: 1; display: flex; min-height: 0; height: 100vh; }
   .sidebar {
-    width: 232px;
+    width: 236px;
     flex-shrink: 0;
-    background: var(--panel);
+    background: var(--panel-2);
     border-right: 1px solid var(--border);
     overflow-y: auto;
-    padding: 14px 8px 12px;
+    padding: 14px 10px 12px;
     display: flex;
     flex-direction: column;
   }
   .sidebar-scroll { flex: 1; min-height: 0; padding-top: 4px; }
-  .sidebar-title { padding: 14px 14px 14px; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.02em; margin: 0; }
+  .sidebar-title {
+    padding: 14px 12px 16px;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.03em;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.2;
+  }
+  .sidebar-title svg { color: var(--accent); width: 20px; height: 20px; flex-shrink: 0; }
   .nav-group-label {
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.88px;
     color: var(--text-3);
-    padding: 14px 12px 6px;
+    padding: 16px 12px 6px;
     user-select: none;
   }
   .nav-group-label:first-of-type {
@@ -199,29 +270,35 @@
     width: 100%;
     text-align: left;
     background: none;
-    border: none;
+    border: 1px solid transparent;
     color: var(--text-2);
     padding: 7px 12px;
-    border-radius: var(--radius);
+    border-radius: var(--r-md);
     cursor: pointer;
-    font: 500 14.5px var(--font);
+    font: 500 13.5px var(--font);
+    transition: background .12s, color .12s, border-color .12s;
   }
-  .nav-item .ico { width: 16px; height: 16px; display: block; color: var(--text-3); flex-shrink: 0; }
-  .nav-item:hover { background: var(--panel-2); color: var(--text); }
-  .nav-item.active { background: var(--accent-weak); color: var(--accent); }
+  .nav-item .ico { width: 15px; height: 15px; display: block; color: var(--text-3); flex-shrink: 0; transition: color .12s; }
+  .nav-item:hover { background: var(--border-2); color: var(--text); }
+  .nav-item.active {
+    background: var(--accent-weak);
+    color: var(--accent);
+    border-color: var(--accent-weak-border);
+    font-weight: 600;
+  }
   .nav-item.active .ico { color: var(--accent); }
   /* the four utility actions (reset, reload, theme, shutdown) anchored to the
      sidebar's bottom edge; auto layout so the four share the full row width */
   .sidebar-tools {
     display: flex;
     align-items: stretch;
-    gap: 2px;
-    padding: 10px 6px 2px;
+    gap: 3px;
+    padding: 10px 4px 2px;
     margin-top: 12px;
-    border-top: 1px solid var(--border-2);
+    border-top: 1px solid var(--border);
   }
-  .sidebar-tools .icon-btn { flex: 1 1 0; }
-  .sidebar-tools #shutdown-btn:hover { color: var(--danger); background: var(--danger-weak); }
+  .sidebar-tools .icon-btn { flex: 1 1 0; border-radius: var(--r-md); }
+  .sidebar-tools #shutdown-btn:hover { color: var(--danger); background: var(--danger-weak); border-color: var(--danger-border); }
   .content { flex: 1; overflow-y: auto; padding: 32px 44px 140px; }
   /* Cap the reading measure. Without this, description copy ran ~99 chars per
      line even at a modest window width. The inner wrapper keeps the scroll
@@ -343,7 +420,7 @@
   .rule-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
   .rule-exc { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-2); flex-wrap: wrap; }
   .rule-exc label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-  .rule-exc input[type="checkbox"] { accent-color: var(--toggle-on); }
+  .rule-exc input[type="checkbox"] { accent-color: var(--accent); }
 
   /* chained-condition rule builder */
   .rule-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -494,7 +571,7 @@
   .rule-head.ovr-head .rule-ops { margin-left: 0; }
   .ovr-targets { row-gap: 6px; }
   .ovr-h { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; color: var(--text-2); }
-  .ovr-h input[type="checkbox"] { accent-color: var(--toggle-on); margin: 0; width: auto; }
+  .ovr-h input[type="checkbox"] { accent-color: var(--accent); margin: 0; width: auto; }
 
   .list-empty { color: var(--text-3); font-size: 13.5px; padding: 8px 2px; }
   /* inside a bordered .rule-list the empty line needs the row's own inset */
@@ -514,9 +591,10 @@
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    padding: 20px 22px;
-    margin-bottom: 18px;
+    border-radius: var(--r-lg);
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    box-shadow: none;
   }
   .card .card {
     background: transparent;
@@ -529,42 +607,43 @@
     margin-bottom: 24px;
   }
   .sub-section-title {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 500;
     margin: 0 0 4px;
-    letter-spacing: -.005em;
+    letter-spacing: -0.015em;
     color: var(--text);
   }
   .sub-section-desc {
     color: var(--text-3);
     font-size: 13px;
     margin: 0 0 12px;
-    line-height: 1.4;
+    line-height: 1.45;
   }
   .card-h1, .page-head h1 {
-    font-size: 20px;
-    font-weight: 650;
-    margin: 0 0 4px;
-    letter-spacing: -.015em;
+    font-size: 24px;
+    font-weight: 400;
+    margin: 0 0 6px;
+    letter-spacing: -0.025em;
     color: var(--text);
+    line-height: 1.25;
   }
   .card-h2, .sub-title {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 500;
     margin: 0 0 4px;
-    letter-spacing: -.005em;
+    letter-spacing: -0.015em;
     color: var(--text);
   }
   .card-desc, .page-head p {
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 13.5px;
-    margin: 0 0 16px;
+    margin: 0 0 18px;
     max-width: var(--measure);
-    line-height: 1.45;
+    line-height: 1.5;
   }
 
-  .field { display: grid; grid-template-columns: 260px 1fr; gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--border-2); align-items: start; }
-  .field:first-of-type { border-top: none; }
+  .field { display: grid; grid-template-columns: 260px 1fr; gap: 8px 20px; padding: 12px 0; border-top: none; align-items: start; }
+  #sec-paths .field { padding: 10px 0; }
 
   /* the label column: label text first, the per-field reset icon immediately
      after it (<label> <reset> <flex space> <controls>). Top-aligned so the
@@ -572,7 +651,7 @@
      a tall control stack; the -6px nudge lines the glyph's top edge up with
      the text's cap height (the glyph is optically centered in a 32px button) */
   .field-side { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding-top: 7px; }
-  .field-label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 550; color: var(--text); line-height: 19px; min-width: 0; }
+  .field-label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 500; color: var(--text); line-height: 19px; min-width: 0; }
   .field-label .field-text { min-width: 0; }
   .field-label .hint { display: block; color: var(--text-3); font-weight: 400; font-size: 13px; margin-top: 3px; line-height: 17px; max-width: var(--measure); }
   .field-reset { visibility: hidden; flex-shrink: 0; margin-top: -6px; }
@@ -586,24 +665,26 @@
     color: var(--text);
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 5px 10px;
+    border-radius: var(--r-md);
+    padding: 6px 11px;
     width: 100%;
     box-sizing: border-box;
+    transition: border-color .12s, box-shadow .12s;
   }
   /* single-line inputs and selects share one control height with the buttons
      that sit beside them in a row (add-rows, adapter rows, path rows) so a
      form group never mixes tall and short controls */
-  input[type="text"], input[type="number"], input[type="url"], input[type="password"], select { height: 32px; }
+  input[type="text"], input[type="number"], input[type="url"], input[type="password"], select { height: 34px; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+  input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
   select { width: auto; min-width: 120px; cursor: pointer; font-size: 13px; line-height: normal; padding: 4px 26px 4px 10px; }
   input::placeholder, textarea::placeholder { color: var(--placeholder); }
   input.invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--invalid-ring); }
 
-  .toggle { position: relative; width: 40px; height: 22px; background: var(--toggle-off); border-radius: 22px; cursor: pointer; flex-shrink: 0; transition: background .15s; }
-  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--toggle-knob); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s, background .15s; }
+  .toggle { position: relative; width: 38px; height: 22px; background: var(--toggle-off); border-radius: 22px; cursor: pointer; flex-shrink: 0; transition: background .15s; }
+  .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--toggle-knob); transition: transform .15s, background .15s; }
   .toggle.on { background: var(--toggle-on); }
-  .toggle.on::after { transform: translateX(18px); background: var(--toggle-knob-on); }
+  .toggle.on::after { transform: translateX(16px); background: var(--toggle-knob-on); }
 
   /* section card heading: the conditional reset icon is pushed to the far
      right edge of the title row — it only exists while some field in the
@@ -767,16 +848,16 @@
   /* ---------- filter rules & multi-select ---------- */
   .rule-row.rule-disabled { opacity: 0.52; }
   .rule-row.rule-disabled .manual-expr { text-decoration: line-through; color: var(--text-3); }
-  .rule-row.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
+  .rule-row.selected { border-color: var(--accent); background: var(--accent-weak); }
 
   /* Checkboxes: placed on far left before drag handle with reserved space */
   .rule-select-cb {
     appearance: none;
     -webkit-appearance: none;
     width: 17px; height: 17px;
-    border: 1.5px solid var(--border-2, #6b7280);
-    border-radius: 4px;
-    background: var(--panel-2, #18181b);
+    border: 1.5px solid var(--border-strong);
+    border-radius: var(--r-xs);
+    background: var(--panel);
     cursor: pointer;
     position: relative;
     transition: opacity .15s ease, border-color .15s ease, background .15s ease;
@@ -838,15 +919,15 @@
 
   .rule-list-header {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    height: 44px; min-height: 44px; max-height: 44px; box-sizing: border-box;
-    padding: 0 14px; background: var(--panel);
+    height: 40px; min-height: 40px; max-height: 40px; box-sizing: border-box;
+    padding: 0 14px; background: var(--panel-2);
     border: 1px solid var(--border); border-bottom: 1px solid var(--border);
     border-top-left-radius: var(--r-md); border-top-right-radius: var(--r-md);
-    font-size: 12px; color: var(--text-2); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.03em;
+    font-size: 11px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.88px;
   }
   .rule-list-header.selection-active {
-    background: var(--panel);
+    background: var(--panel-2);
     border-color: var(--border);
   }
   .rule-list-header .header-left {
@@ -856,8 +937,8 @@
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
   .rule-list-header .header-col-title {
-    color: var(--text-2); font-weight: 600; font-size: 12px;
-    text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--text-3); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.88px;
   }
 
   .cb-slot {
@@ -870,25 +951,25 @@
 
   .bulk-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 8px 14px; background: var(--panel-2); border: 1px solid var(--accent);
-    border-radius: var(--radius); margin-bottom: 10px; animation: fadeIn .15s ease;
+    padding: 8px 14px; background: var(--accent-weak); border: 1px solid var(--accent);
+    border-radius: var(--r-md); margin-bottom: 10px; animation: fadeIn .15s ease;
   }
   .bulk-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .rule-scope-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 14px;
     padding: 12px 16px; background: var(--panel); border: 1px solid var(--border);
-    border-radius: var(--radius); margin-bottom: 16px; flex-wrap: wrap;
+    border-radius: var(--r-lg); margin-bottom: 16px; flex-wrap: wrap;
   }
   .raw-leakage-card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
     padding: 14px 16px; margin-bottom: 16px;
   }
   .raw-leakage-desc {
     font-size: 12.5px; color: var(--text-3); line-height: 1.5; margin: 6px 0 10px;
   }
   .custom-ctx-menu {
-    position: fixed; z-index: 1000; background: var(--panel); border: 1px solid var(--border);
-    border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 4px; min-width: 190px;
+    position: fixed; z-index: 1000; background: var(--panel); border: 1px solid var(--border-strong);
+    border-radius: var(--r-md); box-shadow: var(--shadow-lg); padding: 4px; min-width: 190px;
     display: flex; flex-direction: column; gap: 2px;
   }
   .ctx-item {
@@ -897,7 +978,7 @@
     cursor: pointer; border-radius: var(--r-sm);
   }
   .ctx-item:hover { background: var(--panel-2); color: var(--accent); }
-  .ctx-item.danger:hover { color: var(--danger); }
+  .ctx-item.danger:hover { color: var(--danger); background: var(--danger-weak); }
   .ctx-divider { height: 1px; background: var(--border); margin: 3px 0; }
   .raw-summary { cursor: pointer; color: var(--text-3); font-size: 13px; width: fit-content; }
   .raw-summary:hover { color: var(--text-2); }
@@ -929,17 +1010,18 @@
   /* ---------- mini tables ---------- */
   table.mini {
     border-collapse: collapse; width: 100%;
-    background: var(--panel-2);
+    background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     overflow: hidden;
   }
   table.mini th {
-    text-align: left; font-size: 12px; color: var(--text-3); font-weight: 600;
-    padding: 8px 12px; border-bottom: 1px solid var(--border);
-    background: var(--panel);
+    text-align: left; font-size: 11px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.88px;
+    padding: 9px 12px; border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
   }
-  table.mini td { padding: 6px 12px; border-bottom: 1px solid var(--border-2); }
+  table.mini td { padding: 7px 12px; border-bottom: 1px solid var(--border-2); }
   table.mini tr:last-child td { border-bottom: none; }
   table.mini th:first-child, table.mini td:first-child { padding-left: 12px; padding-right: 8px; width: 100%; }
   table.mini th.col-1m, table.mini td.col-1m { width: 1%; white-space: nowrap; text-align: center; padding-inline: 8px; }
@@ -953,8 +1035,8 @@
     background: var(--panel);
     color: var(--text-3);
     border-radius: var(--r-sm);
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -967,20 +1049,22 @@
   table.mini .del:hover {
     color: var(--danger);
     border-color: var(--danger);
+    background: var(--danger-weak);
   }
   table.mini .del .ic { width: 13px; height: 13px; }
   .table-add { margin-top: 8px; }
 
   /* ---------- file browser modal ---------- */
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    position: fixed; inset: 0; background: rgba(38, 37, 30, 0.45);
     display: flex; align-items: center; justify-content: center; z-index: 60;
   }
+  :root[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, 0.72); }
   @supports (backdrop-filter: blur(1px)) {
-    .modal-backdrop { backdrop-filter: blur(6px) saturate(1.1); }
+    .modal-backdrop { backdrop-filter: blur(8px); }
   }
   .modal {
-    background: var(--panel); border: 1px solid var(--border);
+    background: var(--panel); border: 1px solid var(--border-strong);
     border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
     width: 560px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
   }
@@ -989,12 +1073,12 @@
   .path-code {
     font-family: var(--mono); font-size: 12.5px;
     background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: var(--r-sm); padding: 1px 5px;
+    border-radius: var(--r-sm); padding: 1px 6px;
     color: var(--text-2); word-break: break-all;
   }
 
   .modal-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-  .modal-head .path { font-family: var(--mono); font-size: 13.5px; color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-head .path { font-family: var(--mono); font-size: 13px; color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .modal-head .close {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; flex-shrink: 0;
@@ -1009,7 +1093,7 @@
     display: flex; align-items: center; gap: 10px; width: 100%;
     padding: 7px 10px; border: none; background: none; text-align: left;
     border-radius: var(--r-sm); cursor: pointer;
-    font: 14px var(--font); color: var(--text);
+    font: 13.5px var(--font); color: var(--text);
   }
   .modal-row:hover { background: var(--panel-2); }
   .modal-row .ic { color: var(--text-3); width: 16px; height: 16px; flex-shrink: 0; }
@@ -1027,16 +1111,25 @@
   .run-actions input[type="number"] { width: 100px; }
   /* keeps a numeric label glued to its own input across a flex wrap */
   .run-field { display: inline-flex; align-items: center; gap: 8px; }
-  .run-status { padding: 10px 14px; border-radius: var(--radius); margin: 14px 0; font-size: 14px; display: none; }
-  .run-status.running { display: block; background: var(--accent-weak); border: 1px solid var(--accent); color: var(--accent); }
-  .run-status.ok { display: block; background: var(--success-weak); border: 1px solid var(--success); color: var(--success); }
-  .run-status.fail { display: block; background: var(--danger-weak); border: 1px solid var(--danger); color: var(--danger); }
+  .run-status { padding: 10px 14px; border-radius: var(--r-md); margin: 14px 0; font-size: 13.5px; display: none; font-weight: 500; }
+  .run-status.running {
+    display: block; background: rgba(223, 168, 143, 0.18); border: 1px solid rgba(223, 168, 143, 0.55); color: #8c4c2f;
+  }
+  :root[data-theme="dark"] .run-status.running {
+    background: rgba(223, 168, 143, 0.2); border-color: rgba(223, 168, 143, 0.45); color: #dfa88f;
+  }
+  .run-status.ok {
+    display: block; background: var(--success-weak); border: 1px solid rgba(31, 138, 101, 0.35); color: var(--success);
+  }
+  .run-status.fail {
+    display: block; background: var(--danger-weak); border: 1px solid var(--danger-border); color: var(--danger);
+  }
   #console {
-    background: var(--panel);
+    background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    padding: 14px 16px;
-    font: 14.5px/1.6 var(--mono);
+    border-radius: var(--r-lg);
+    padding: 16px 18px;
+    font: 13.5px/1.6 var(--mono);
     overflow-y: auto;
     /* was calc(100vh - 320px), a magic number tied to the old header height */
     min-height: 320px;
@@ -1066,55 +1159,62 @@
   table.models th.num-col { text-align: right; }
   table.models th:hover { color: var(--text); }
   table.models td.num { font-family: var(--mono); text-align: right; font-size: 13px; }
-  .cap { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); }
-  .cap.y { background: var(--success-weak); color: var(--success); }
-  .cap.n { background: var(--border-2); color: var(--text-3); }
-  .cap.na { background: var(--warning-weak); color: var(--warning); }
+  .cap { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: var(--r-pill); text-transform: uppercase; letter-spacing: 0.04em; }
+  .cap.y { background: var(--success-weak); color: var(--success); border: 1px solid rgba(31, 138, 101, 0.3); }
+  .cap.n { background: var(--border-2); color: var(--text-3); border: 1px solid var(--border); }
+  .cap.na { background: var(--warning-weak); color: var(--warning); border: 1px solid rgba(192, 133, 50, 0.3); }
   .missing-note { color: var(--text-2); font-size: 14px; padding: 24px 0; }
   .providers { margin-top: 8px; }
-  .router-tag { font-size: 11px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent-weak); color: var(--accent); }
+  .router-tag {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill);
+    background: rgba(223, 168, 143, 0.22); color: #8c4c2f; border: 1px solid rgba(223, 168, 143, 0.5);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  :root[data-theme="dark"] .router-tag {
+    background: rgba(223, 168, 143, 0.2); color: #dfa88f; border-color: rgba(223, 168, 143, 0.45);
+  }
 
   /* ---------- floating save bar ---------- */
   /* a centered floating card, not an edge-anchored strip: horizontal center
      via left:50% + translate(-50%), the same r-md corners as cards, and the
      translate-only slide-up retained for the show animation */
   #save-bar {
-    position: fixed; bottom: 20px; left: 50%;
+    position: fixed; bottom: 24px; left: 50%;
     background: var(--bar-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
     box-shadow: var(--shadow-lg);
-    padding: 8px 12px;
-    display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px;
+    display: flex; align-items: center; gap: 14px;
     transform: translate(-50%, 140%);
-    transition: transform .25s;
+    transition: transform .22s cubic-bezier(0.16, 1, 0.3, 1);
     z-index: 50;
     max-width: min(92vw, 560px);
   }
   @supports (backdrop-filter: blur(1px)) {
-    #save-bar { backdrop-filter: blur(20px) saturate(1.4); }
+    #save-bar { backdrop-filter: blur(16px); }
   }
   #save-bar.show { transform: translate(-50%, 0); }
   #save-bar .msg { font-size: 14px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #save-bar .msg b { color: var(--text); }
+  #save-bar .msg b { color: var(--text); font-weight: 600; }
   /* the persistent destination pill: always visible at the bottom-right,
      telling you where edits land even when nothing is dirty. Sits just below
      the (transient) save bar so the two stack as one column. */
   #write-target {
-    position: fixed; bottom: 20px; right: 20px; z-index: 49;
+    position: fixed; bottom: 24px; right: 24px; z-index: 49;
     display: flex; align-items: center; gap: 8px;
     background: var(--bar-bg);
     border: 1px solid var(--border);
     border-radius: var(--r-pill);
-    box-shadow: var(--shadow-md);
-    font-size: 13px;
+    box-shadow: none;
+    font-size: 12.5px;
     color: var(--text-3);
     padding: 7px 16px;
   }
   @supports (backdrop-filter: blur(1px)) {
-    #write-target { backdrop-filter: blur(20px) saturate(1.4); }
+    #write-target { backdrop-filter: blur(16px); }
   }
-  #write-target b { color: var(--text-2); font-weight: 600; }
+  #write-target b { color: var(--text); font-weight: 500; font-family: var(--mono); font-size: 12px; }
 
   /* ---------- toast ---------- */
   #toast {
@@ -1142,13 +1242,16 @@
   /* ---------- Providers & Badges ---------- */
   .badge {
     display: inline-flex; align-items: center; gap: 5px;
-    padding: 2px 7px; border-radius: var(--r-sm);
-    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
     white-space: nowrap; line-height: 1.4;
   }
-  .badge-router { background: rgba(59,130,246,.15); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
-  .badge-solo { background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
-  .badge-rest { background: rgba(139,92,246,.15); color: #8b5cf6; border: 1px solid rgba(139,92,246,.3); }
+  .badge-router { background: rgba(223, 168, 143, 0.25); color: #8c4c2f; border: 1px solid rgba(223, 168, 143, 0.55); }
+  :root[data-theme="dark"] .badge-router { background: rgba(223, 168, 143, 0.2); color: #dfa88f; border-color: rgba(223, 168, 143, 0.45); }
+  .badge-solo { background: rgba(159, 201, 162, 0.25); color: #28632e; border: 1px solid rgba(159, 201, 162, 0.55); }
+  :root[data-theme="dark"] .badge-solo { background: rgba(159, 201, 162, 0.2); color: #9fc9a2; border-color: rgba(159, 201, 162, 0.45); }
+  .badge-rest { background: rgba(192, 168, 221, 0.25); color: #5c348f; border: 1px solid rgba(192, 168, 221, 0.55); }
+  :root[data-theme="dark"] .badge-rest { background: rgba(192, 168, 221, 0.2); color: #c0a8dd; border-color: rgba(192, 168, 221, 0.45); }
 
   .provider-stats-bar {
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;
@@ -1162,7 +1265,7 @@
     box-sizing: border-box;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     overflow: hidden;
     overflow-x: auto;
     margin: 12px 0 20px 0;
@@ -1178,15 +1281,15 @@
   }
   .table-wrap th,
   table.models th, table.providers-table th, table.config-table th {
-    height: 44px;
+    height: 42px;
     padding: 0 14px;
-    background: var(--panel);
+    background: var(--panel-2);
     border-bottom: 1px solid var(--border);
-    color: var(--text-2);
+    color: var(--text-3);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.88px;
     vertical-align: middle;
     text-align: left;
     box-sizing: border-box;
@@ -1194,7 +1297,7 @@
   .table-wrap td,
   table.models td, table.providers-table td, table.config-table td {
     padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-2);
     vertical-align: middle;
     background: var(--panel);
     color: var(--text);
@@ -1242,7 +1345,7 @@
     gap: 6px;
   }
 
-  /* 1M Pill Toggle Badge (matching screenshot 4) */
+  /* 1M Pill Toggle Badge (matching timeline gold) */
   .pill-1m {
     display: inline-flex;
     align-items: center;
@@ -1265,15 +1368,15 @@
     color: var(--accent);
   }
   .pill-1m.active {
-    border: 1.5px solid #3b82f6;
-    color: #2563eb;
-    background: rgba(59, 130, 246, 0.12);
-    font-weight: 700;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    background: var(--accent-weak);
+    font-weight: 600;
   }
   :root[data-theme="dark"] .pill-1m.active {
-    border-color: #3b82f6;
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.18);
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-weak);
   }
   .chip .pill-1m {
     margin-left: 2px;
@@ -1284,18 +1387,20 @@
   }
 
   /* Modal Form Controls */
-  .modal-form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-  .modal-form .form-group { display: flex; flex-direction: column; gap: 5px; }
-  .modal-form label { font-size: 13px; font-weight: 600; color: var(--text); }
+  .modal-form { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-form .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .modal-form label { font-size: 13px; font-weight: 500; color: var(--text); }
   .modal-form label .req { color: var(--danger); }
   .modal-form input[type="text"], .modal-form input[type="url"], .modal-form input[type="password"] {
     width: 100%; font-size: 13.5px;
     background: var(--panel);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 6px 10px;
+    border-radius: var(--r-md);
+    padding: 6px 11px;
+    height: 34px;
     box-sizing: border-box;
+    transition: border-color .12s, box-shadow .12s;
   }
   .modal-form input:focus {
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring);
@@ -1312,14 +1417,14 @@
     display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 2px;
   }
   .radio-card {
-    display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--border);
     border-radius: var(--r-md); cursor: pointer; transition: border-color .15s, background .15s;
     background: var(--panel); position: relative;
   }
   .radio-card input { position: absolute; opacity: 0; }
   .radio-card:hover { border-color: var(--border-hover); background: var(--panel-2); }
   .radio-card.selected {
-    border-color: var(--accent); background: var(--panel-2); box-shadow: 0 0 0 1px var(--accent);
+    border-color: var(--accent); background: var(--accent-weak); box-shadow: none;
   }
   .radio-card-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; justify-content: space-between; }
   .radio-card-desc { font-size: 11.5px; color: var(--text-3); line-height: 1.35; }
@@ -1327,21 +1432,22 @@
   /* Provider target dropdown on filter rule rows */
   .prov-target-wrap { position: relative; display: inline-flex; margin: 0 4px; flex-shrink: 0; }
   .prov-target-btn {
-    display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
-    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md);
     font-size: 12px; color: var(--text-2); cursor: pointer; font-family: var(--font);
-    height: 30px; transition: border-color .15s, color .15s; max-width: 240px;
+    height: 32px; transition: border-color .15s, color .15s; max-width: 240px;
     white-space: nowrap;
   }
   .prov-target-btn:hover { border-color: var(--border-hover); color: var(--text); }
   .prov-target-btn .prov-count-badge {
     background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
-    border-radius: 9px; padding: 0 5px; min-width: 15px; text-align: center;
+    border-radius: var(--r-pill); padding: 0 6px; min-width: 16px; text-align: center;
   }
   .prov-target-menu {
-    position: absolute; top: calc(100% + 4px); right: 0; z-index: 55;
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md);
-    box-shadow: var(--shadow-lg); padding: 6px; min-width: 190px; max-height: 250px;
+    position: fixed; z-index: 9999;
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg); padding: 6px; min-width: 190px;
+    max-height: calc(100vh - 24px);
     overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
   }
   .prov-target-item {
@@ -1349,7 +1455,7 @@
     cursor: pointer; font-size: 12.5px; color: var(--text); user-select: none;
   }
   .prov-target-item:hover { background: var(--panel-2); }
-  .prov-target-item input[type="checkbox"] { margin: 0; cursor: pointer; }
+  .prov-target-item input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: var(--accent); }
   .prov-target-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
   @media (max-width: 760px) {
@@ -1427,7 +1533,7 @@
 <main>
   <aside class="sidebar" id="config-nav" aria-label="Dashboard sections">
     <div class="sidebar-scroll">
-      <h1 class="sidebar-title">OmniList</h1>
+      <h1 class="sidebar-title"><span>OmniList</span></h1>
 
       <div class="nav-group-label">Workspace</div>
       <button class="nav-item" data-view="run"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-terminal"/></svg>Run</button>
@@ -1478,11 +1584,11 @@
         <button class="btn" data-run="fetch">Fetch</button>
         <button class="btn" data-run="opencode">OpenCode</button>
         <button class="btn" data-run="kilo">Kilo</button>
-        <button class="btn" data-run="t3 t3rest">T3</button>
+        <button class="btn" data-run="t3">T3</button>
         <button class="btn" data-run="dsh">DSH</button>
         <button class="btn" data-run="pi">pi</button>
         <button class="btn" data-run="zcode">zcode</button>
-        <button class="btn" data-run="opencodex">ocx</button>
+        <button class="btn" data-run="ocx">ocx</button>
         <div class="sep" aria-hidden="true"></div>
         <button class="btn" data-run="cleanup" title="Delete transient cache files (e.g. T3 logs)">Clean cache</button>
         <button class="btn danger" data-run="cleanmodels" title="Remove all script-added models and c-* providers across all harness configs">Remove models</button>
@@ -2357,13 +2463,17 @@ function createProviderTargetDropdown(initialTargets, onChange) {
       renderMenu();
       menu.style.display = 'flex';
       const rect = btn.getBoundingClientRect();
-      const menuHeight = 240;
-      if (rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight) {
-        menu.style.top = 'auto';
-        menu.style.bottom = 'calc(100% + 4px)';
+      const menuHeight = menu.offsetHeight;
+      const menuWidth = Math.max(190, rect.width);
+      menu.style.minWidth = menuWidth + 'px';
+      menu.style.right = 'auto';
+      menu.style.left = Math.max(4, rect.right - menuWidth) + 'px';
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+        menu.style.top = Math.max(8, rect.top - menuHeight - 4) + 'px';
       } else {
-        menu.style.top = 'calc(100% + 4px)';
-        menu.style.bottom = 'auto';
+        menu.style.top = (rect.bottom + 4) + 'px';
       }
     }
   };
@@ -2371,6 +2481,7 @@ function createProviderTargetDropdown(initialTargets, onChange) {
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target)) menu.style.display = 'none';
   });
+  document.addEventListener('scroll', (e) => { if (!menu.contains(e.target)) menu.style.display = 'none'; }, { capture: true, passive: true });
 
   wrap.appendChild(btn);
   wrap.appendChild(menu);
@@ -2393,8 +2504,8 @@ function createHarnessTargetDropdown(initialHarnesses, onChange) {
 
   function updateBtnText() {
     if (!current.length || current.includes('all')) {
-      btn.innerHTML = `<span>All harnesses</span> <svg class="ic" style="width:10px;height:10px;opacity:.7;flex-shrink:0" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
-      btn.title = 'Target harnesses: All harnesses';
+      btn.innerHTML = `<span>All</span> <svg class="ic" style="width:10px;height:10px;opacity:.7;flex-shrink:0" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+      btn.title = 'Target harnesses: All';
     } else {
       const labels = current.map(h => HARNESS_LABEL[String(h).toLowerCase()] || h).join(', ');
       btn.innerHTML = `<span style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(labels)}</span> <svg class="ic" style="width:10px;height:10px;opacity:.7;flex-shrink:0" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
@@ -2426,7 +2537,7 @@ function createHarnessTargetDropdown(initialHarnesses, onChange) {
       onChange(current);
     };
     allLabel.appendChild(allCb);
-    allLabel.appendChild(document.createTextNode('All harnesses'));
+    allLabel.appendChild(document.createTextNode('All'));
     menu.appendChild(allLabel);
 
     const div = document.createElement('div');
@@ -2468,13 +2579,17 @@ function createHarnessTargetDropdown(initialHarnesses, onChange) {
       renderMenu();
       menu.style.display = 'flex';
       const rect = btn.getBoundingClientRect();
-      const menuHeight = 240;
-      if (rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight) {
-        menu.style.top = 'auto';
-        menu.style.bottom = 'calc(100% + 4px)';
+      const menuHeight = menu.offsetHeight;
+      const menuWidth = Math.max(190, rect.width);
+      menu.style.minWidth = menuWidth + 'px';
+      menu.style.right = 'auto';
+      menu.style.left = Math.max(4, rect.right - menuWidth) + 'px';
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+        menu.style.top = Math.max(8, rect.top - menuHeight - 4) + 'px';
       } else {
-        menu.style.top = 'calc(100% + 4px)';
-        menu.style.bottom = 'auto';
+        menu.style.top = (rect.bottom + 4) + 'px';
       }
     }
   };
@@ -2482,6 +2597,7 @@ function createHarnessTargetDropdown(initialHarnesses, onChange) {
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target)) menu.style.display = 'none';
   });
+  document.addEventListener('scroll', (e) => { if (!menu.contains(e.target)) menu.style.display = 'none'; }, { capture: true, passive: true });
 
   wrap.appendChild(btn);
   wrap.appendChild(menu);
@@ -3857,14 +3973,14 @@ function buildCustomModelsEditor() {
         const menu = document.createElement('div');
         menu.id = 'rule-context-menu';
         menu.className = 'context-menu';
-        menu.style.cssText = `position:fixed;top:${e.clientY}px;left:${e.clientX}px;z-index:99999;background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,0.5);padding:4px 0;min-width:170px;display:flex;flex-direction:column;font-size:12.5px;`;
+        menu.style.cssText = `position:fixed;top:${e.clientY}px;left:${e.clientX}px;z-index:99999;background:var(--panel);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:4px;min-width:170px;display:flex;flex-direction:column;gap:2px;font-size:12.5px;`;
 
         const addAction = (label, icon, onClick, isDanger = false) => {
           const item = document.createElement('div');
           item.className = 'context-menu-item' + (isDanger ? ' danger' : '');
-          item.style.cssText = `padding:7px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:${isDanger ? 'var(--danger)' : 'var(--text)'};`;
+          item.style.cssText = `padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;border-radius:var(--r-sm);color:${isDanger ? 'var(--danger)' : 'var(--text)'};`;
           item.innerHTML = `<svg class="ic" style="width:14px;height:14px;opacity:.8" viewBox="0 0 24 24"><use href="${icon}"/></svg>${esc(label)}`;
-          item.onmouseenter = () => item.style.background = 'var(--panel-2)';
+          item.onmouseenter = () => item.style.background = isDanger ? 'var(--danger-weak)' : 'var(--panel-2)';
           item.onmouseleave = () => item.style.background = 'transparent';
           item.onclick = () => { menu.remove(); onClick(); };
           menu.appendChild(item);
@@ -4098,6 +4214,137 @@ const HARNESS_ADAPTERS = {
   kilo: ['@ai-sdk/anthropic', '@ai-sdk/openai-compatible', '@ai-sdk/openai', '@ai-sdk/google', '@ai-sdk/google-vertex', '@ai-sdk/amazon-bedrock', '@ai-sdk/azure', '@ai-sdk/cerebras', '@ai-sdk/groq', '@ai-sdk/deepseek', '@ai-sdk/cohere', '@ai-sdk/mistral', '@ai-sdk/xai', '@ai-sdk/togetherai', '@ai-sdk/fireworks'],
   pi: ['anthropic-messages', 'openai-completions', 'openai-responses', 'openai-codex-responses', 'azure-openai-responses', 'bedrock-converse-stream', 'google-generative-ai', 'google-gemini-cli', 'google-vertex', 'mistral-conversations'],
 };
+
+// Shared fixed-position adapter dropdown.
+// opts.options   : string[] — the known adapter names for this harness
+// opts.current   : string  — currently selected value ('' = default/none)
+// opts.placeholder: string — shown in btn when nothing selected
+// opts.hasValue  : bool    — true = highlight border in accent color
+// opts.onChange  : fn(val: string) — called when user picks an option
+// opts.ariaLabel : string
+function createAdapterDropdown(opts) {
+  const { options = [], current = '', placeholder = '', hasValue = false, onChange, ariaLabel = 'Adapter' } = opts;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position: relative; display: inline-block; width: 100%;';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', ariaLabel);
+  btn.style.cssText = [
+    'display: inline-flex; align-items: center; justify-content: space-between; gap: 4px;',
+    'width: 100%; height: 28px; padding: 2px 6px 2px 8px;',
+    'font-family: var(--mono); font-size: 11.5px; color: var(--text);',
+    'background: ' + (hasValue ? 'var(--accent-weak)' : 'var(--input-bg)') + ';',
+    'border: 1px solid ' + (hasValue ? 'var(--accent)' : 'var(--border)') + ';',
+    'border-radius: var(--r-sm); cursor: pointer; white-space: nowrap;',
+    'overflow: hidden; box-sizing: border-box;',
+  ].join('');
+
+  const btnText = document.createElement('span');
+  btnText.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;';
+  btnText.textContent = current || placeholder;
+  if (!current) btnText.style.color = 'var(--text-3)';
+
+  const caret = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  caret.setAttribute('viewBox', '0 0 24 24');
+  caret.style.cssText = 'width: 10px; height: 10px; opacity: .6; flex-shrink: 0;';
+  caret.innerHTML = '<use href="#i-caret-down"/>';
+
+  btn.appendChild(btnText);
+  btn.appendChild(caret);
+
+  const menu = document.createElement('div');
+  menu.className = 'prov-target-menu';
+  menu.style.display = 'none';
+
+  function buildMenu() {
+    menu.innerHTML = '';
+    // blank / default option
+    const defItem = document.createElement('div');
+    defItem.className = 'prov-target-item';
+    defItem.style.cssText = 'font-family: var(--mono); font-size: 12px; color: var(--text-3); font-style: italic;';
+    defItem.textContent = placeholder || '(default)';
+    defItem.addEventListener('click', () => {
+      btnText.textContent = placeholder || '(default)';
+      btnText.style.color = 'var(--text-3)';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background = 'var(--input-bg)';
+      menu.style.display = 'none';
+      if (onChange) onChange('');
+    });
+    menu.appendChild(defItem);
+
+    const div = document.createElement('div');
+    div.className = 'prov-target-divider';
+    menu.appendChild(div);
+
+    options.forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'prov-target-item';
+      item.style.cssText = 'font-family: var(--mono); font-size: 12px;';
+      if (opt === current) item.style.fontWeight = '700';
+      item.textContent = opt;
+      item.addEventListener('click', () => {
+        btnText.textContent = opt;
+        btnText.style.color = 'var(--text)';
+        btn.style.borderColor = 'var(--accent)';
+        btn.style.background = 'var(--accent-weak)';
+        menu.style.display = 'none';
+        if (onChange) onChange(opt);
+      });
+      menu.appendChild(item);
+    });
+  }
+
+  function positionMenu() {
+    const rect = btn.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight;
+    const menuWidth = Math.max(180, rect.width);
+    menu.style.minWidth = menuWidth + 'px';
+    menu.style.left = Math.max(4, rect.right - menuWidth) + 'px';
+    menu.style.right = 'auto';
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      menu.style.top = Math.max(8, rect.top - menuHeight - 4) + 'px';
+    } else {
+      menu.style.top = (rect.bottom + 4) + 'px';
+    }
+  }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const isShowing = menu.style.display !== 'none';
+    document.querySelectorAll('.prov-target-menu').forEach(m => m.style.display = 'none');
+    if (!isShowing) {
+      buildMenu();
+      menu.style.display = 'flex';
+      positionMenu();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target) && !menu.contains(e.target)) menu.style.display = 'none';
+  });
+  document.addEventListener('scroll', e => {
+    if (!menu.contains(e.target)) menu.style.display = 'none';
+  }, { capture: true, passive: true });
+
+  // btn is inside wrap, menu is appended to body so it escapes overflow:hidden
+  wrap.appendChild(btn);
+  document.body.appendChild(menu);
+
+  // expose a way for callers to update the displayed value
+  wrap._setAdapterValue = (val) => {
+    btnText.textContent = val || placeholder;
+    btnText.style.color = val ? 'var(--text)' : 'var(--text-3)';
+    btn.style.borderColor = val ? 'var(--accent)' : 'var(--border)';
+    btn.style.background = val ? 'var(--accent-weak)' : 'var(--input-bg)';
+  };
+
+  return wrap;
+}
 function adapterList(pathArr, harnessKey) {
   const wrap = document.createElement('div');
   wrap.className = 'adapter-wrap';
@@ -4128,27 +4375,35 @@ function adapterList(pathArr, harnessKey) {
     });
     const add = document.createElement('div');
     add.className = 'add-row';
-    // fixed-width preset dropdown (mirrors the Capabilities add-field input's
-    // ~150px footprint) with a custom… entry; picking custom reveals a text
-    // input that fills the rest of the row before the Add button
     const available = adapters.filter((a) => !arr.includes(a));
-    const addSel = document.createElement('select');
-    let opts = available.map((a) => '<option value="' + esc(a) + '">' + esc(a) + '</option>').join('');
-    opts += '<option value="__custom">custom…</option>';
-    addSel.innerHTML = opts;
-    addSel.setAttribute('aria-label', 'New adapter preset');
+
+    // Track what's pending in the dropdown before the user clicks Add
+    let pendingVal = available[0] || '';
+
+    const dropdownWrap = createAdapterDropdown({
+      options: [...available, 'custom…'],
+      current: pendingVal,
+      placeholder: available.length ? '' : 'custom…',
+      hasValue: false,
+      ariaLabel: 'New adapter preset',
+      onChange: (val) => {
+        pendingVal = val;
+        const isCustom = (val === 'custom…' || !val);
+        addInp.style.display = isCustom ? '' : 'none';
+        if (isCustom) addInp.focus();
+      },
+    });
+    dropdownWrap.style.cssText = 'flex: 1 1 140px; min-width: 110px; max-width: 180px;';
+
     const addInp = document.createElement('input');
     addInp.type = 'text';
     addInp.placeholder = 'adapter string';
     addInp.setAttribute('aria-label', 'New adapter custom string');
-    if (!available.length) {
-      addSel.value = '__custom';
-      addInp.style.display = '';
-    } else {
-      addInp.style.display = 'none';
-    }
+    addInp.style.display = available.length ? 'none' : '';
+
     const commitAdd = () => {
-      const val = addSel.value === '__custom' ? addInp.value.trim() : addSel.value;
+      const isCustom = (pendingVal === 'custom…' || !pendingVal);
+      const val = isCustom ? addInp.value.trim() : pendingVal;
       if (!val) return;
       if (!get().includes(val)) {
         set(get().concat([val]));
@@ -4156,18 +4411,13 @@ function adapterList(pathArr, harnessKey) {
       addInp.value = '';
       render();
     };
-    addSel.addEventListener('change', () => {
-      const custom = addSel.value === '__custom';
-      addInp.style.display = custom ? '' : 'none';
-      if (custom) addInp.focus();
-    });
     addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
     const addBtn = document.createElement('button');
     addBtn.className = 'btn small';
     addBtn.type = 'button';
     addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
     addBtn.addEventListener('click', commitAdd);
-    add.appendChild(addSel);
+    add.appendChild(dropdownWrap);
     add.appendChild(addInp);
     add.appendChild(addBtn);
     wrap.appendChild(add);
@@ -4266,35 +4516,34 @@ function createT3DriverCell(pathArr, title) {
     add.style.cssText = 'margin-top: 4px; display: flex; gap: 4px; align-items: center; flex-wrap: nowrap;';
 
     const available = drivers.filter((d) => !arr.some((item) => item.driver === d));
-    const addSel = document.createElement('select');
-    addSel.style.cssText = 'flex: 1 1 110px; min-width: 90px; max-width: 130px; font-size: 12.5px; padding: 2px 4px;';
-    let opts = available.map((d) => '<option value="' + esc(d) + '">' + esc(d) + '</option>').join('');
-    opts += '<option value="__custom">custom…</option>';
-    addSel.innerHTML = opts;
-    addSel.setAttribute('aria-label', (title || 'Driver') + ' preset');
+    let pendingDriver = available[0] || '';
+
+    const driverDropWrap = createAdapterDropdown({
+      options: [...available, 'custom…'],
+      current: pendingDriver,
+      placeholder: available.length ? '' : 'custom…',
+      hasValue: false,
+      ariaLabel: (title || 'Driver') + ' preset',
+      onChange: (val) => {
+        pendingDriver = val;
+        const isCustom = (val === 'custom…' || !val);
+        addInp.style.display = isCustom ? '' : 'none';
+        if (isCustom) addInp.focus();
+      },
+    });
+    driverDropWrap.style.cssText = 'flex: 1 1 110px; min-width: 90px; max-width: 150px;';
 
     const addInp = document.createElement('input');
     addInp.type = 'text';
     addInp.placeholder = 'driver name';
     addInp.style.cssText = 'flex: 1 1 110px; min-width: 80px; max-width: 120px; font-size: 12px; padding: 2px 6px;';
     addInp.setAttribute('aria-label', (title || 'Driver') + ' custom name');
-    if (!available.length) {
-      addSel.value = '__custom';
-      addInp.style.display = '';
-    } else {
-      addInp.style.display = 'none';
-    }
+    addInp.style.display = available.length ? 'none' : '';
 
-    addSel.addEventListener('change', () => {
-      const custom = addSel.value === '__custom';
-      addInp.style.display = custom ? '' : 'none';
-      if (custom) addInp.focus();
-    });
-
-    let newDriver1m = true;
+    let newDriver1m = false;
     const add1mBtn = document.createElement('button');
     add1mBtn.type = 'button';
-    add1mBtn.className = 'pill-1m active';
+    add1mBtn.className = 'pill-1m';
     add1mBtn.textContent = '1M';
     add1mBtn.style.flexShrink = '0';
     add1mBtn.title = 'Toggle 1M context for new driver';
@@ -4310,7 +4559,8 @@ function createT3DriverCell(pathArr, title) {
     addBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg>Add';
 
     const commitAdd = () => {
-      const val = addSel.value === '__custom' ? addInp.value.trim() : addSel.value;
+      const isCustom = (pendingDriver === 'custom…' || !pendingDriver);
+      const val = isCustom ? addInp.value.trim() : pendingDriver;
       if (!val) return;
       const list = get().slice();
       if (!list.some(item => item.driver === val)) {
@@ -4324,7 +4574,7 @@ function createT3DriverCell(pathArr, title) {
     addBtn.addEventListener('click', commitAdd);
     addInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitAdd(); });
 
-    add.appendChild(addSel);
+    add.appendChild(driverDropWrap);
     add.appendChild(addInp);
     add.appendChild(add1mBtn);
     add.appendChild(addBtn);
@@ -4413,7 +4663,7 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
       const customOverride = getAt(S.effective, [h, 'provider_adapters', p.provider]);
       let valStr = '';
       if (Array.isArray(customOverride)) {
-        valStr = customOverride.join(', ');
+        valStr = customOverride[0] || '';
       } else if (typeof customOverride === 'string') {
         valStr = customOverride;
       }
@@ -4422,34 +4672,26 @@ function renderIndividualAdaptersTable(container, filter, rows, harnesses, HARNE
         ? (getAt(S.effective, [h, 'solo_adapters']) || getAt(S.effective, [h, 'rest_adapters']) || [])
         : (getAt(S.effective, [h, 'rest_adapters']) || []);
       const defStr = defAdapters.length ? defAdapters[0] : 'default';
+      const harnessOpts = HARNESS_ADAPTERS[h] || [];
 
-      const hasVal = Boolean(valStr);
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.setAttribute('list', 'dl-adapter-' + h);
-      inp.value = valStr;
-      inp.placeholder = '(default: ' + defStr + ')';
-      inp.style.cssText = 'width: 100%; height: 28px; padding: 2px 8px; font-family: var(--mono); font-size: 11.5px; border-radius: var(--r-sm); border: 1px solid ' + (hasVal ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasVal ? 'rgba(59,130,246,0.06)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
-
-      inp.addEventListener('input', () => {
-        const v = inp.value.trim();
-        if (v) {
-          const arr = v.split(',').map(s => s.trim()).filter(Boolean);
-          setAt([h, 'provider_adapters', p.provider], arr);
-          inp.style.borderColor = 'var(--accent)';
-          inp.style.background = 'rgba(59,130,246,0.06)';
-        } else {
-          const blk = getAt(S.effective, [h, 'provider_adapters']);
-          if (blk && p.provider in blk) {
-            delete blk[p.provider];
+      const ddWrap = createAdapterDropdown({
+        options: harnessOpts,
+        current: valStr,
+        placeholder: '(default: ' + defStr + ')',
+        hasValue: Boolean(valStr),
+        ariaLabel: h + ' adapter for ' + p.provider,
+        onChange: (val) => {
+          if (val) {
+            setAt([h, 'provider_adapters', p.provider], [val]);
+          } else {
+            const blk = getAt(S.effective, [h, 'provider_adapters']);
+            if (blk && p.provider in blk) delete blk[p.provider];
           }
-          inp.style.borderColor = 'var(--border)';
-          inp.style.background = 'var(--input-bg)';
-        }
-        setDirty(true);
+          setDirty(true);
+        },
       });
 
-      tdH.appendChild(inp);
+      tdH.appendChild(ddWrap);
       tr.appendChild(tdH);
     });
 
@@ -4534,15 +4776,25 @@ function renderIndividualT3Table(container, filter, rows) {
     const hasCustom = Array.isArray(customDrivers) && customDrivers.length > 0;
     const currentItem = hasCustom ? customDrivers[0] : null;
 
-    // Driver input
+    // Driver select
     const tdDriver = document.createElement('td');
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.setAttribute('list', 'dl-t3-common-drivers');
-    inp.value = currentItem ? (currentItem.driver || '') : '';
-    inp.placeholder = '(default: ' + (defDriver.driver || 'claudeAgent') + ')';
-    inp.style.cssText = 'width: 100%; height: 28px; padding: 2px 8px; font-family: var(--mono); font-size: 12px; border-radius: var(--r-sm); border: 1px solid ' + (hasCustom ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasCustom ? 'rgba(59,130,246,0.06)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
-    tdDriver.appendChild(inp);
+    const T3_DRIVERS = ['claudeAgent', 'codex', 'geminiAgent', 'opencode'];
+    const driverSel = document.createElement('select');
+    driverSel.className = 'select';
+    driverSel.style.cssText = 'width: 100%; height: 28px; font-family: var(--mono); font-size: 12px; border-radius: var(--r-sm); border: 1px solid ' + (hasCustom ? 'var(--accent)' : 'var(--border)') + '; background: ' + (hasCustom ? 'var(--accent-weak)' : 'var(--input-bg)') + '; color: var(--text); box-sizing: border-box;';
+    driverSel.setAttribute('aria-label', 'Custom driver for ' + p.provider);
+    const blankOpt = document.createElement('option');
+    blankOpt.value = '';
+    blankOpt.textContent = '(default: ' + (defDriver.driver || 'claudeAgent') + ')';
+    driverSel.appendChild(blankOpt);
+    T3_DRIVERS.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d;
+      o.textContent = d;
+      driverSel.appendChild(o);
+    });
+    driverSel.value = currentItem ? (currentItem.driver || '') : '';
+    tdDriver.appendChild(driverSel);
     tr.appendChild(tdDriver);
 
     // 1M Context toggle
@@ -4576,20 +4828,20 @@ function renderIndividualT3Table(container, filter, rows) {
         if (blk && p.provider in blk) {
           delete blk[p.provider];
         }
-        inp.style.borderColor = 'var(--border)';
-        inp.style.background = 'var(--input-bg)';
+        driverSel.style.borderColor = 'var(--border)';
+        driverSel.style.background = 'var(--input-bg)';
         resetBtn.disabled = true;
       } else {
         setAt(['t3', 'provider_drivers', p.provider], [{ driver: dName, '1m': mVal }]);
-        inp.style.borderColor = 'var(--accent)';
-        inp.style.background = 'rgba(59,130,246,0.06)';
+        driverSel.style.borderColor = 'var(--accent)';
+        driverSel.style.background = 'var(--accent-weak)';
         resetBtn.disabled = false;
       }
       setDirty(true);
     };
 
-    inp.addEventListener('input', () => {
-      const v = inp.value.trim();
+    driverSel.addEventListener('change', () => {
+      const v = driverSel.value;
       const cur1m = toggle1m.classList.contains('active');
       saveOverride(v, cur1m);
     });
@@ -4598,19 +4850,19 @@ function renderIndividualT3Table(container, filter, rows) {
       const nowActive = !toggle1m.classList.contains('active');
       toggle1m.className = 'pill-1m' + (nowActive ? ' active' : '');
       toggle1m.title = nowActive ? '1M Context enabled' : '1M Context disabled';
-      const dName = inp.value.trim() || defDriver.driver || 'claudeAgent';
-      inp.value = dName;
+      const dName = driverSel.value || defDriver.driver || 'claudeAgent';
+      if (!driverSel.value) driverSel.value = dName;
       saveOverride(dName, nowActive);
     });
 
     resetBtn.addEventListener('click', () => {
-      inp.value = '';
+      driverSel.value = '';
       const blk = getAt(S.effective, ['t3', 'provider_drivers']);
       if (blk && p.provider in blk) {
         delete blk[p.provider];
       }
-      inp.style.borderColor = 'var(--border)';
-      inp.style.background = 'var(--input-bg)';
+      driverSel.style.borderColor = 'var(--border)';
+      driverSel.style.background = 'var(--input-bg)';
       const def1m = Boolean(defDriver['1m']);
       toggle1m.className = 'pill-1m' + (def1m ? ' active' : '');
       resetBtn.disabled = true;
@@ -4814,7 +5066,7 @@ function buildConfigUI() {
 function currentSection() {
   return $('#config-nav .nav-item[data-sec].active')?.dataset.sec || 'general';
 }
-function showSection(name) {
+function showSection(name, updateUrl = true) {
   if (name === 'harness-filters') name = 'filters';
   $$('#config-root .section').forEach((s) => s.classList.remove('active'));
   const el = $('#sec-' + name);
@@ -4829,6 +5081,12 @@ function showSection(name) {
   // a freshly entered section needs its conditional reset icons brought up to
   // date with the current data
   refreshResetState();
+  if (updateUrl && $('#config-content').style.display !== 'none') {
+    const hashStr = '#/' + name;
+    if (window.location.hash !== hashStr) {
+      window.history.replaceState(null, '', hashStr);
+    }
+  }
 }
 
 // ===========================================================================
@@ -5641,7 +5899,7 @@ function buildFilters() {
             const b = selRow.querySelector('.prov-target-btn');
             if (b) {
               if (!newHarnesses.length || newHarnesses.includes('all')) {
-                b.innerHTML = `<span>All harnesses</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
+                b.innerHTML = `<span>All</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
               } else if (newHarnesses.length === 1) {
                 b.innerHTML = `<span style="font-weight:600;color:var(--text)">${esc(newHarnesses[0])}</span> <svg class="ic" style="width:10px;height:10px;opacity:.7" viewBox="0 0 24 24"><use href="#i-caret-down"/></svg>`;
               } else {
@@ -6728,7 +6986,7 @@ function rebuildConfig() {
 
 // Views are sidebar entries: 'run' and 'models' are leaf views, 'config'
 // returns to whichever config section was last active.
-function showView(name) {
+function showView(name, updateUrl = true) {
   $('#config-content').style.display = name === 'config' ? '' : 'none';
   $('#tab-run').style.display = name === 'run' ? '' : 'none';
   $('#tab-models').style.display = name === 'models' ? '' : 'none';
@@ -6747,9 +7005,54 @@ function showView(name) {
       b.removeAttribute('aria-current');
     });
     closeDrawer();
+    if (updateUrl) {
+      const hashStr = '#/' + name;
+      if (window.location.hash !== hashStr) {
+        window.history.replaceState(null, '', hashStr);
+      }
+    }
   }
   if (name === 'models') loadModels();
   if (name === 'providers') loadProviders();
+}
+
+const VALID_VIEWS = new Set(['run', 'models', 'providers']);
+const VALID_SECTIONS = new Set(['filters', 'overrides', 'capabilities', 'custom-models', 'general', 'paths', 'targets', 'adapters', 't3', 'commands']);
+
+function parseRoute() {
+  const raw = (window.location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
+  if (raw === 'harness-filters') return 'filters';
+  return raw;
+}
+
+function navigateTo(target, push = false) {
+  let route = (target || '').replace(/^#\/?/, '').trim().toLowerCase();
+  if (route === 'harness-filters') route = 'filters';
+
+  if (VALID_VIEWS.has(route)) {
+    showView(route, false);
+  } else if (VALID_SECTIONS.has(route)) {
+    showView('config', false);
+    showSection(route, false);
+  } else if (route === 'config') {
+    showView('config', false);
+    const sec = currentSection() || 'general';
+    showSection(sec, false);
+    route = sec;
+  } else {
+    showView('config', false);
+    showSection('general', false);
+    route = 'general';
+  }
+
+  const hashStr = '#/' + route;
+  if (window.location.hash !== hashStr) {
+    if (push) {
+      window.history.pushState(null, '', hashStr);
+    } else {
+      window.history.replaceState(null, '', hashStr);
+    }
+  }
 }
 
 // ===========================================================================
@@ -7010,7 +7313,7 @@ function openProviderModal(existing = null) {
     </div>
     <div class="form-group" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
-        <input type="checkbox" id="p-form-enabled" ${(!isEdit || !existing.disabled) ? 'checked' : ''} style="accent-color:var(--toggle-on);width:16px;height:16px;margin:0;cursor:pointer">
+        <input type="checkbox" id="p-form-enabled" ${(!isEdit || !existing.disabled) ? 'checked' : ''} style="accent-color:var(--accent);width:16px;height:16px;margin:0;cursor:pointer">
         <span>Enabled</span>
       </label>
       <span class="field-note" style="margin-left:24px">When disabled, this provider is commented out with # and excluded from sync, catalog generation, and model lists.</span>
@@ -7400,7 +7703,8 @@ async function init() {
     const shortTarget = esc(cfg.writeTarget.split(/[\\/]/).pop());
     $('#write-target').innerHTML = 'saving to <b>' + shortTarget + '</b>';
     buildConfigUI();
-    showSection('general');
+    const initialRoute = parseRoute() || 'general';
+    navigateTo(initialRoute, false);
   } catch (e) {
     const el = $('#config-loading');
     el.textContent = 'Could not reach the omnilist server: ' + e.message;
@@ -7414,11 +7718,18 @@ async function init() {
   connectSSE();
 }
 
+window.addEventListener('hashchange', () => {
+  const route = parseRoute();
+  if (route) navigateTo(route, false);
+});
+
 $('#config-nav').addEventListener('click', (e) => {
   const btn = e.target.closest('.nav-item');
   if (!btn) return;
-  if (btn.dataset.view) showView(btn.dataset.view);
-  else if (btn.dataset.sec) { showView('config'); showSection(btn.dataset.sec); }
+  const target = btn.dataset.view || btn.dataset.sec;
+  if (target) {
+    window.location.hash = '#/' + target;
+  }
   closeDrawer();
 });
 initDrawer();
