@@ -284,9 +284,9 @@ function resolveCatalogPath(name) {
   return path.normalize(path.join(path.dirname(MODELS_CSV), name));
 }
 
-function loadDefaults() {
+function loadDefaults(rootDir = PROJECT_ROOT) {
   const cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULTS)), {});
-  const defFile = path.join(PROJECT_ROOT, 'config', 'default.jsonc');
+  const defFile = path.join(rootDir, 'config', 'default.jsonc');
   if (fs.existsSync(defFile)) {
     try {
       const raw = fs.readFileSync(defFile, 'utf8');
@@ -299,28 +299,54 @@ function loadDefaults() {
   return cfg;
 }
 
-function loadConfig() {
-  const cfg = loadDefaults();
+// Ensures a primary configuration file exists on disk. If none of the candidate
+// configuration files exist (config/config.jsonc, config.jsonc, etc.), it auto-generates
+// config/config.jsonc from config/default.jsonc (or built-in DEFAULTS).
+function ensureConfigFile(rootDir = PROJECT_ROOT) {
+  const p1 = path.join(rootDir, 'config', 'config.jsonc');
+  const p2 = path.join(rootDir, 'config.jsonc');
+  const p3 = path.join(rootDir, 'config', 'config.json');
+  const p4 = path.join(rootDir, 'config.json');
+
+  if (fs.existsSync(p1)) return p1;
+  if (fs.existsSync(p2)) return p2;
+  if (fs.existsSync(p3)) return p3;
+  if (fs.existsSync(p4)) return p4;
+
+  const defFile = path.join(rootDir, 'config', 'default.jsonc');
+  const configDir = path.join(rootDir, 'config');
+  try {
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    if (fs.existsSync(defFile)) {
+      const defContent = fs.readFileSync(defFile, 'utf8');
+      const bodyIndex = defContent.indexOf('{');
+      const body = bodyIndex >= 0 ? defContent.slice(bodyIndex) : defContent;
+      const header = `/*\n  OMNILIST CONFIGURATION (config.jsonc)\n\n  Every key is OPTIONAL; anything left out falls back to baseline defaults in default.jsonc.\n  Personal overrides belong in config.local.jsonc (gitignored).\n  Auto-generated from config/default.jsonc.\n*/\n\n`;
+      fs.writeFileSync(p1, header + body, 'utf8');
+    } else {
+      fs.writeFileSync(p1, JSON.stringify(DEFAULTS, null, 2) + '\n', 'utf8');
+    }
+  } catch (e) {
+    console.error('Failed to auto-generate ' + p1 + ' from default.jsonc: ' + e.message);
+  }
+  return p1;
+}
+
+function loadConfig(rootDir = PROJECT_ROOT) {
+  const cfg = loadDefaults(rootDir);
   // Primary: config/config.jsonc (shipped/user config). Fallback to root config.jsonc or config.json.
   let primary = process.env.OMNILIST_CONFIG;
   if (!primary) {
-    const p1 = path.join(PROJECT_ROOT, 'config', 'config.jsonc');
-    const p2 = path.join(PROJECT_ROOT, 'config.jsonc');
-    const p3 = path.join(PROJECT_ROOT, 'config', 'config.json');
-    const p4 = path.join(PROJECT_ROOT, 'config.json');
-    if (fs.existsSync(p1)) primary = p1;
-    else if (fs.existsSync(p2)) primary = p2;
-    else if (fs.existsSync(p3)) primary = p3;
-    else if (fs.existsSync(p4)) primary = p4;
-    else primary = p1;
+    primary = ensureConfigFile(rootDir);
   }
   const files = [primary];
   if (!process.env.OMNILIST_CONFIG) {
-    const l1 = path.join(PROJECT_ROOT, 'config', 'config.local.jsonc');
-    const l2 = path.join(PROJECT_ROOT, 'config.local.jsonc');
+    const l1 = path.join(rootDir, 'config', 'config.local.jsonc');
+    const l2 = path.join(rootDir, 'config.local.jsonc');
     if (fs.existsSync(l1)) files.push(l1);
     else if (fs.existsSync(l2)) files.push(l2);
-    else files.push(l1);
   }
   for (const file of files) {
     if (!fs.existsSync(file)) continue;
@@ -5037,6 +5063,7 @@ module.exports = {
   DEFAULTS,
   loadDefaults,
   loadConfig,
+  ensureConfigFile,
   deepMerge,
   stripJsoncComments,
   resolvePath,

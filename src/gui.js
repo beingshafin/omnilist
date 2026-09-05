@@ -12,6 +12,7 @@ const {
   DEFAULTS,
   loadDefaults,
   loadConfig,
+  ensureConfigFile,
   deepMerge,
   stripJsoncComments,
   parseModelSort,
@@ -58,15 +59,9 @@ function configFilePaths() {
   if (process.env.OMNILIST_CONFIG) {
     return { defaults: defPath, primary: process.env.OMNILIST_CONFIG, local: null };
   }
-  const p1 = path.join(PROJECT_ROOT, 'config', 'config.jsonc');
-  const p2 = path.join(PROJECT_ROOT, 'config.jsonc');
-  const p3 = path.join(PROJECT_ROOT, 'config', 'config.json');
-  const p4 = path.join(PROJECT_ROOT, 'config.json');
-  let primary = p1;
-  if (fs.existsSync(p1)) primary = p1;
-  else if (fs.existsSync(p2)) primary = p2;
-  else if (fs.existsSync(p3)) primary = p3;
-  else if (fs.existsSync(p4)) primary = p4;
+  const primary = typeof ensureConfigFile === 'function'
+    ? ensureConfigFile(PROJECT_ROOT)
+    : path.join(PROJECT_ROOT, 'config', 'config.jsonc');
 
   const l1 = path.join(PROJECT_ROOT, 'config', 'config.local.jsonc');
   const l2 = path.join(PROJECT_ROOT, 'config.local.jsonc');
