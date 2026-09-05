@@ -690,27 +690,32 @@ function isInteractive() {
 // one-shot `question()` can't be chained on piped input — the whole buffer is
 // consumed and the interface auto-closes before later questions are registered —
 // so we buffer 'line' events into a queue and hand them out on demand.
+//
+// Resize safety: the interface is created with `terminal: false` and NO
+// `output` stream, so readline installs no prompt-redraw handlers. Prompts are
+// printed manually via stdout. Resizing the Windows console mid-question is
+// therefore a harmless no-op instead of corrupting or aborting the prompt.
 function makeLineReader() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const rl = readline.createInterface({ input: process.stdin, terminal: false });
   const queue = [];    // lines received but not yet requested
-  const waiters = [];  // ask() calls waiting for the next line
+  const waiters = [];  // nextLine() calls waiting for the next line
   let closed = false;
   rl.on('line', (line) => {
-    if (waiters.length) waiters.shift().resolve(line);
+    if (waiters.length) waiters.shift()(line);
     else queue.push(line);
   });
   rl.on('close', () => {
     closed = true;
-    while (waiters.length) waiters.shift().resolve(null); // EOF -> null
+    while (waiters.length) waiters.shift()(null); // EOF -> null
   });
   return {
-    // Print `prompt`, then resolve with the next line (or null at EOF).
-    ask(prompt) {
-      process.stdout.write(prompt);
+    // Resolve with the next line (or null at EOF). Prompts are printed by the
+    // caller so a terminal resize can never tear down an active readline prompt.
+    nextLine() {
       return new Promise((resolve) => {
         if (queue.length) resolve(queue.shift());
         else if (closed) resolve(null);
-        else waiters.push({ resolve });
+        else waiters.push(resolve);
       });
     },
     close() { rl.close(); },
@@ -739,14 +744,62 @@ async function ensureRouterProvider() {
   }
 
   const reader = makeLineReader();
-  // Ask one question. Returns the trimmed answer, or `defaultValue` on an empty
-  // line / EOF.
+  const say = (s) => { try { process.stdout.write(s + '\n'); } catch (e) { /* ignore */ } };
+  // Ask one question. Returns the trimmed answer, `defaultValue` on an empty
+  // line, `defaultValue` on EOF when one is given, and throws on EOF otherwise
+  // (so piped input that runs dry aborts instead of looping forever).
   const q = async (question, defaultValue) => {
     const hint = (defaultValue !== undefined && defaultValue !== null && defaultValue !== '')
       ? ' [' + defaultValue + ']' : '';
-    const answer = await reader.ask(question + hint + ': ');
-    const trimmed = (answer || '').trim();
-    return trimmed === '' && defaultValue !== undefined ? defaultValue : trimmed;
+    try { process.stdout.write(question + hint + ': '); } catch (e) { /* ignore */ }
+    const raw = await reader.nextLine();
+    if (raw === null || raw === undefined) {
+      if (defaultValue !== undefined) return defaultValue;
+      throw new Error('Aborted: no input received.');
+    }
+    const trimmed = raw.trim();
+    if (trimmed === '' && defaultValue !== undefined) return defaultValue;
+    return trimmed;
+  };
+  // Validated question with an optional example line and default. Invalid
+  // answers re-ask with a hint instead of aborting the whole setup.
+  const ask = async (question, opts) => {
+    opts = opts || {};
+    for (;;) {
+      const answer = await q(question + (opts.example ? '\n  e.g. ' + opts.example : ''), opts.def);
+      const err = opts.validate ? opts.validate(answer) : null;
+      if (!err) return answer;
+      say('  ' + err + " Let's try again.");
+    }
+  };
+  const needUrl = (v) => (/^https?:\/\//i.test(v || '')
+    ? null : "That doesn't look like a URL — it should start with http:// or https://.");
+  const needKey = (v) => ((v || '').length ? null : "API key can't be empty.");
+  const needName = (v) => {
+    if (!(v || '')) return "Name can't be empty.";
+    if (/[,]/.test(v)) return "Names can't contain commas (providers.csv is comma-separated).";
+    return null;
+  };
+  // Numbered choice, Claude-style: one question, examples, Enter for default.
+  // Returns 'router', 'solo', or { url } when a URL is pasted directly
+  // (kept so piped/automated answers starting with a URL keep working).
+  const askProviderType = async () => {
+    say('');
+    say('  What are we connecting?');
+    say('');
+    say('    1) Router — one gateway for many models (recommended)');
+    say('       e.g. OmniRoute, NineRouter, AgentRouter');
+    say('    2) Solo — a single provider, direct');
+    say('       e.g. OpenRouter, DeepSeek, Groq');
+    say('');
+    for (;;) {
+      const answer = (await q('  Choice', '1')) || '1';
+      const v = answer.trim().toLowerCase();
+      if (v === '' || v === '1' || v === '1)' || v === 'router') return 'router';
+      if (v === '2' || v === '2)' || v === 'solo') return 'solo';
+      if (/^https?:\/\//i.test(v)) return { url: answer.trim() };
+      say('  Please enter 1 for Router or 2 for Solo.');
+    }
   };
 
   try {
@@ -754,47 +807,45 @@ async function ensureRouterProvider() {
 
     // If providers.csv has no rows at all, ask what kind of provider to add
     if (rows.length === 0) {
-      console.log('\nNo providers are configured yet. Let’s set one up.\n');
-      console.log('What kind of provider are we adding?');
-      console.log('  1) Router (aggregates models from multiple upstream providers into a single gateway)');
-      console.log('  2) Solo (direct provider with its own /models endpoint, e.g. OpenRouter, DeepSeek, Groq)');
-      const choice = (await q('Choice (1 = Router, 2 = Solo)', '1')) || '1';
+      say('');
+      say('  No providers yet — setup takes about 30 seconds.');
+      const picked = await askProviderType();
 
-      if (choice.startsWith('http://') || choice.startsWith('https://')) {
+      if (picked && picked.url) {
         // Direct URL entered (e.g. from automated test inputs)
-        baseUrl = choice;
-        apiKey = (await q('Router API key', '')) || '';
-        if (!apiKey) throw new Error('Aborted: no Router API key provided.');
-        providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+        baseUrl = picked.url;
+        apiKey = await ask('  Router API key', { validate: needKey });
+        providerName = await ask('  Provider name', { def: 'omniroute', validate: needName });
         type = 'router';
         desc = 'Router';
-      } else if (choice === '2' || choice.toLowerCase() === 'solo') {
-        providerName = (await q('Provider name (e.g. deepseek, groq, openrouter)', 'deepseek')) || 'deepseek';
-        baseUrl = (await q('Base URL (e.g. https://api.deepseek.com/v1)', '')) || '';
-        if (!baseUrl) throw new Error('Aborted: no base URL provided.');
-        apiKey = (await q('API key', '')) || '';
-        if (!apiKey) throw new Error('Aborted: no API key provided.');
+      } else if (picked === 'solo') {
+        providerName = await ask('  Provider name', { example: 'deepseek', def: 'deepseek', validate: needName });
+        baseUrl = await ask('  Base URL', { example: 'https://api.deepseek.com/v1', validate: needUrl });
+        apiKey = await ask('  API key', { validate: needKey });
         type = 'solo';
         desc = 'Solo';
       } else {
-        baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
-        if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
-        apiKey = (await q('Router API key', '')) || '';
-        if (!apiKey) throw new Error('Aborted: no Router API key provided.');
-        providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+        baseUrl = await ask('  Router base URL', { example: 'http://localhost:20128/v1 (OmniRoute)', validate: needUrl });
+        apiKey = await ask('  Router API key', { validate: needKey });
+        providerName = await ask('  Provider name', { example: 'omniroute, ninerouter, agentrouter', def: 'omniroute', validate: needName });
         type = 'router';
         desc = 'Router';
       }
     } else {
-      console.log('\nNo Router provider is configured yet. Let’s set one up.\n');
-      baseUrl = (await q('Router base URL (e.g. http://localhost:20128/v1)', '')) || '';
-      if (!baseUrl) throw new Error('Aborted: no Router base URL provided.');
-      apiKey = (await q('Router API key', '')) || '';
-      if (!apiKey) throw new Error('Aborted: no Router API key provided.');
-      providerName = (await q('Provider name', 'omniroute')) || 'omniroute';
+      say('');
+      say('  No Router yet — just the gateway details.');
+      baseUrl = await ask('  Router base URL', { example: 'http://localhost:20128/v1 (OmniRoute)', validate: needUrl });
+      apiKey = await ask('  Router API key', { validate: needKey });
+      providerName = await ask('  Provider name', { example: 'omniroute, ninerouter, agentrouter', def: 'omniroute', validate: needName });
       type = 'router';
       desc = 'Router';
     }
+
+    // Confirm before writing (Enter = yes; piped EOF also yields the default).
+    say('');
+    say('  Ready to save: ' + desc + ' "' + providerName + '"  →  ' + baseUrl);
+    const ok = ((await q('  Save', 'Y')) || '').trim().toLowerCase();
+    if (ok !== 'y' && ok !== 'yes') throw new Error('Setup cancelled — nothing was written.');
 
     let existing = '';
     if (fs.existsSync(PROVIDERS_CSV)) {
@@ -4876,24 +4927,14 @@ function parseArgs() {
 
 function printOnboardingBanner(port) {
   const p = port || 55555;
-  console.log(`
-========================================================================
-  OmniList is Ready!
-========================================================================
-
-  Web Dashboard:   http://127.0.0.1:${p}
-  Command Line:    ${CLI_COMMAND_NAME} (available from any terminal)
-
-  Quick Commands:
-    ${CLI_COMMAND_NAME}                Run full sync pipeline
-    ${CLI_COMMAND_NAME} fetch          Fetch model catalog from Router
-    ${CLI_COMMAND_NAME} gui            Open the web dashboard
-    ${CLI_COMMAND_NAME} stop           Stop the dashboard background process
-    ${CLI_COMMAND_NAME} restart        Restart the dashboard background process
-    ${CLI_COMMAND_NAME} --help         View all commands and sync targets
-
-========================================================================
-`);
+  console.log('');
+  console.log('  OmniList is ready');
+  console.log('');
+  console.log('  Dashboard   http://127.0.0.1:' + p);
+  console.log('  Sync        ' + CLI_COMMAND_NAME + '               (fetch + sync everything)');
+  console.log('  Fetch only  ' + CLI_COMMAND_NAME + ' fetch');
+  console.log('  Help        ' + CLI_COMMAND_NAME + ' --help');
+  console.log('');
 }
 
 // Re-exported for gui.js: the config schema, loader/merger, JSONC parser, and
@@ -4948,13 +4989,11 @@ if (require.main === module)
   let failed = false;
   try {
     if (args.action === 'setup') {
-      console.log('\n========================================================================');
-      console.log('  Welcome to OmniList — Initial Setup');
-      console.log('========================================================================\n');
+      console.log('\n  OmniList setup\n');
+      console.log('  One provider powers every tool. About 30 seconds.\n');
 
       const created = await ensureRouterProvider();
-      if (created) console.log('\nProvider configured successfully.\n');
-      else console.log('Provider configuration found: ' + PROVIDERS_CSV + '\n');
+      if (!created) console.log('  Already configured: ' + PROVIDERS_CSV + '\n');
 
       console.log('Installing ' + CLI_COMMAND_NAME + ' command to User PATH...');
       installAsCommand(false);

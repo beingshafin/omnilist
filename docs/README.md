@@ -25,3 +25,7 @@ Full guides for every dashboard tab. The root `README.md` is a quick install + u
 - [Commands & advanced](system-commands-advanced.md) — `custom_commands` (`sleep`, `bg:`), whole-config raw JSON escape hatch.
 
 Config reference for all of the above: [`config/config.jsonc`](../config/config.jsonc) (every key optional, falls back to defaults). Private machine overrides: [`config/config.local.jsonc`](../config/config.jsonc) shape, gitignored.
+
+## Reference
+
+- [Architecture](architecture.md) — full program flowchart (CLI, setup wizard, fetch/filter pipelines, per-harness sync, GUI server).
