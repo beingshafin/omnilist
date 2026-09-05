@@ -26,7 +26,7 @@ Or with Node directly:
 node src/omnilist.js setup
 ```
 
-First run prompts for your **Router** gateway (or a Solo provider), writes `data/providers.csv`, fetches the catalog, installs the global `omnilist` command, and boots the dashboard. Reinstall the command anytime with `node src/omnilist.js install`, then `omnilist help`.
+First run prompts for your **Router** gateway (or a Solo provider), writes `data/providers.csv`, installs the global `omnilist` command, boots the dashboard, and offers to run the first sync. Reinstall the command anytime with `node src/omnilist.js install`, then `omnilist help`.
 
 ## Usage
 

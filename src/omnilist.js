@@ -4016,6 +4016,7 @@ function installAsCommand(quiet) {
   } else if (!quiet) {
     console.log('"' + CLI_COMMAND_NAME + '" command is already installed (nothing to do).');
   }
+  return changed.length > 0;
 }
 
 function uninstallAsCommand() {
@@ -4344,7 +4345,7 @@ function printUsage() {
 ${CLI_COMMAND_NAME} — fetch model catalogs and sync into AI harness configs
 
 Usage:
-  ${CLI_COMMAND_NAME} setup                 Initial interactive setup, command install, and GUI launch
+  ${CLI_COMMAND_NAME} setup                 Initial interactive setup, then offers to run the first sync
   ${CLI_COMMAND_NAME} run [options]         Run the full sync pipeline
   ${CLI_COMMAND_NAME} [targets...] [options] Run specific sync targets
   ${CLI_COMMAND_NAME} start [port]          Start GUI in background and run sync pipeline
@@ -4925,10 +4926,13 @@ function parseArgs() {
   return args;
 }
 
-// Post-setup recap: everything setup did, where it lives, and what to run
-// next. Reads live state (providers.csv, config path) so it never lies.
-function printSetupSummary(port) {
-  const p = port || 55555;
+// Post-setup recap: reports ONLY what this setup run actually did — each line
+// reflects a real outcome (added vs already-configured, installed vs already
+// installed, started vs already-running, synced vs skipped) — then where to
+// customize and what to run next.
+function printSetupSummary(opts) {
+  const o = opts || {};
+  const p = o.port || 55555;
   const say = (s) => console.log(s === '' ? '' : '  ' + s);
   const rows = readProvidersCsv();
   const router = getRouterRow(rows);
@@ -4937,21 +4941,42 @@ function printSetupSummary(port) {
     || path.join(PROJECT_ROOT, 'config', 'config.jsonc');
 
   say('');
-  say('Setup complete — here is everything that is ready');
+  say('Setup complete — here is what was done');
   say('');
-  say('What was done');
-  if (router) {
-    say('  Provider    Router "' + router.provider + '"  →  ' + router.base_url);
+  const createdRow = o.providerCreated
+    ? rows.find((r) => r.provider === o.providerCreated)
+    : null;
+  if (createdRow) {
+    say('  Provider    added ' + (createdRow.description || 'provider') + ' "' +
+      createdRow.provider + '"  →  ' + createdRow.base_url);
+  } else if (router) {
+    say('  Provider    already configured: Router "' + router.provider + '"  →  ' +
+      router.base_url + ' (no changes)');
   } else if (solos.length) {
-    say('  Provider    Solo "' + solos.map((r) => r.provider).join('", "') + '" (no Router yet)');
+    say('  Provider    already configured: Solo "' +
+      solos.map((r) => r.provider).join('", "') + '" (no Router yet, no changes)');
   } else {
     say('  Provider    (none — add one with `' + CLI_COMMAND_NAME + ' setup`)');
   }
   say('              saved in ' + PROVIDERS_CSV);
-  say('  Command     `' + CLI_COMMAND_NAME + '` installed to User PATH');
-  say('              (reopen your terminal, then run it from anywhere)');
-  say('  Dashboard   running in the background:  http://127.0.0.1:' + p);
-  say('              `omnilist stop` stops it, `omnilist gui` reopens it');
+  if (o.commandChanged) {
+    say('  Command     `' + CLI_COMMAND_NAME + '` installed to User PATH');
+    say('              (reopen your terminal, then run it from anywhere)');
+  } else {
+    say('  Command     already installed (no changes)');
+    say('              (run `' + CLI_COMMAND_NAME + ' help` from anywhere)');
+  }
+  if (o.guiStarted) {
+    say('  Dashboard   started in the background:  http://127.0.0.1:' + p);
+  } else {
+    say('  Dashboard   already running:  http://127.0.0.1:' + p + ' (no changes)');
+  }
+  say('              `' + CLI_COMMAND_NAME + ' stop` stops it, `' + CLI_COMMAND_NAME + ' gui` reopens it');
+  if (o.synced) {
+    say('  Sync        ran the full pipeline (catalog fetched + tools updated)');
+  } else {
+    say('  Sync        skipped — run `' + CLI_COMMAND_NAME + '` anytime to fetch + sync');
+  }
   say('');
   say('Customize');
   say('  Config      ' + primaryConfig);
@@ -4968,33 +4993,21 @@ function printSetupSummary(port) {
   say('');
 }
 
-// Pause so a double-clicked setup.cmd window doesn't vanish before the user
-// reads the summary. Skipped automatically when stdin isn't a TTY (pipes,
-// CI, tests) so scripts never hang.
-function waitForAnyKey() {
-  return new Promise((resolve) => {
-    let tty = false;
-    try { tty = Boolean(process.stdin.isTTY) && typeof process.stdin.setRawMode === 'function'; }
-    catch (e) { tty = false; }
-    if (!tty) return resolve();
-    console.log('  Press any key to exit...');
-    const stdin = process.stdin;
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      try { stdin.setRawMode(false); } catch (e) { /* ignore */ }
-      try { stdin.pause(); } catch (e) { /* ignore */ }
-      console.log('');
-      resolve();
-    };
-    try {
-      stdin.setRawMode(true);
-      stdin.resume();
-      stdin.once('data', finish);
-      stdin.once('end', finish);
-    } catch (e) { finish(); }
-  });
+// One-off yes/no question for setup ("Do you want to run the script?").
+// Non-interactive stdin (pipes, CI, tests) and EOF answer `false`, so scripts
+// never hang and never trigger an unexpected sync.
+async function askYesNo(question) {
+  if (!isInteractive()) return false;
+  const reader = makeLineReader();
+  try { process.stdout.write(question + ' [Y/n]: '); } catch (e) { /* ignore */ }
+  try {
+    const raw = await reader.nextLine();
+    if (raw === null || raw === undefined) return false;
+    const v = raw.trim().toLowerCase();
+    return v === '' || v === 'y' || v === 'yes';
+  } finally {
+    reader.close();
+  }
 }
 
 // Re-exported for gui.js: the config schema, loader/merger, JSONC parser, and
@@ -5047,26 +5060,54 @@ if (require.main === module)
   const args = parseArgs();
   const has = (t) => args.targets.has(t);
   let failed = false;
+  let setupOutcome = null; // setup action defers its summary until after the optional sync
   try {
     if (args.action === 'setup') {
       console.log('\n  OmniList setup\n');
       console.log('  One provider powers every tool. About 30 seconds.\n');
 
-      const created = await ensureRouterProvider();
-      if (!created) console.log('  Already configured: ' + PROVIDERS_CSV + '\n');
+      const createdProvider = await ensureRouterProvider();
+      if (!createdProvider) console.log('  Already configured: ' + PROVIDERS_CSV + '\n');
 
       console.log('  Installing ' + CLI_COMMAND_NAME + ' command to User PATH...');
-      installAsCommand(false);
+      const commandChanged = installAsCommand(false);
 
       const port = args.port || 55555;
+      // startGuiInBackground() reports "already running" itself; mirror its
+      // check (requested port, then saved port) so the summary below is honest.
+      let guiWasRunning = !!(await checkGuiRunning(port));
+      if (!guiWasRunning) {
+        const savedPort = getSavedGuiPort();
+        if (savedPort && savedPort !== port) guiWasRunning = !!(await checkGuiRunning(savedPort));
+      }
       console.log('\n  Starting OmniList Web Dashboard on port ' + port + '...');
       const livePort = await startGuiInBackground({ port });
 
-      printSetupSummary(livePort || port);
-      // setup.cmd ends with a batch `pause`, so skip the in-process key wait
-      // when launched from there (OMNILIST_SETUP_CMD) to avoid asking twice.
-      if (!process.env.OMNILIST_SETUP_CMD) await waitForAnyKey();
-      return;
+      // Offer the first sync now. "No" (or non-interactive stdin) stops here
+      // with a summary of what was done. "Yes" falls through to the pipeline
+      // below and the summary prints afterwards. The final pause lives in
+      // setup.cmd (`pause`), never here.
+      console.log('');
+      if (await askYesNo('  Do you want to run the script now? (fetch the catalog + sync every enabled tool)')) {
+        console.log('');
+        buildOrder().forEach((t) => args.targets.add(t));
+        setupOutcome = {
+          port: livePort || port,
+          providerCreated: createdProvider,
+          commandChanged,
+          guiStarted: !guiWasRunning,
+          synced: true,
+        };
+      } else {
+        printSetupSummary({
+          port: livePort || port,
+          providerCreated: createdProvider,
+          commandChanged,
+          guiStarted: !guiWasRunning,
+          synced: false,
+        });
+        return;
+      }
     }
     if (args.action === 'stop') {
       await stopGui(args.port);
@@ -5310,6 +5351,7 @@ if (require.main === module)
         console.error(`[${target}] Error: ${e.message}`);
       }
     }
+    if (setupOutcome) printSetupSummary(setupOutcome);
   } catch (e) {
     console.error('Error:', e.message);
     process.exit(1);
